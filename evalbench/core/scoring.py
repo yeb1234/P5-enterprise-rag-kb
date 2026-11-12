@@ -109,8 +109,11 @@ def aggregate(records: list[dict]) -> dict:
             "overall": round(sum(per_cat.values()) / len(per_cat), 4) if per_cat else None,
             "avg_latency_ms": None,
         }
+    # 汇总全部记录的延迟：按类别分组后若逐个赋值，最后一个类别会覆盖前面的（已修）
+    by_model_latency: dict[str, list[int]] = defaultdict(list)
     for key, vals in latency.items():
-        m = key[0]
+        by_model_latency[key[0]].extend(vals)
+    for m, vals in by_model_latency.items():
         if m in by_model_out and vals:
             by_model_out[m]["avg_latency_ms"] = round(sum(vals) / len(vals), 1)
 

@@ -1,0 +1,223 @@
+{
+  "kind": "within_run",
+  "run": "RUN-3786315579b0",
+  "label": "v2-prompts",
+  "git": {
+    "branch": "eval/v2-prompts",
+    "commit": "2361ece",
+    "commit_full": "2361eceede2d398ec6092622c7304a88e56ce1ab",
+    "dirty": false,
+    "captured_at": "2026-11-12T11:35:50Z"
+  },
+  "compared_by": "prompt_version",
+  "variants": [
+    "v1_baseline",
+    "v2_grounded",
+    "v3_structured"
+  ],
+  "rows": [
+    {
+      "model": "minimax-m3",
+      "task_category": "grounded_extraction",
+      "dimension": "answer_accuracy",
+      "variants": {
+        "v1_baseline": 1.0,
+        "v2_grounded": 1.0,
+        "v3_structured": 1.0
+      }
+    },
+    {
+      "model": "minimax-m3",
+      "task_category": "grounded_extraction",
+      "dimension": "answer_economy",
+      "variants": {
+        "v1_baseline": 0.6667,
+        "v2_grounded": 1.0,
+        "v3_structured": 1.0
+      }
+    },
+    {
+      "model": "minimax-m3",
+      "task_category": "grounded_extraction",
+      "dimension": "faithfulness",
+      "variants": {
+        "v1_baseline": 1.0,
+        "v2_grounded": 1.0,
+        "v3_structured": 1.0
+      }
+    },
+    {
+      "model": "minimax-m3",
+      "task_category": "grounded_extraction",
+      "dimension": "format_compliance",
+      "variants": {
+        "v1_baseline": 1.0,
+        "v2_grounded": 1.0,
+        "v3_structured": 1.0
+      }
+    },
+    {
+      "model": "minimax-m3",
+      "task_category": "grounded_extraction",
+      "dimension": "rejection_correctness",
+      "variants": {
+        "v1_baseline": 1.0,
+        "v2_grounded": 1.0,
+        "v3_structured": 1.0
+      }
+    },
+    {
+      "model": "minimax-m3",
+      "task_category": "information_integration",
+      "dimension": "answer_accuracy",
+      "variants": {
+        "v1_baseline": 1.0,
+        "v2_grounded": 1.0,
+        "v3_structured": 1.0
+      }
+    },
+    {
+      "model": "minimax-m3",
+      "task_category": "information_integration",
+      "dimension": "answer_economy",
+      "variants": {
+        "v1_baseline": 0.0,
+        "v2_grounded": 1.0,
+        "v3_structured": 1.0
+      }
+    },
+    {
+      "model": "minimax-m3",
+      "task_category": "information_integration",
+      "dimension": "faithfulness",
+      "variants": {
+        "v1_baseline": 1.0,
+        "v2_grounded": 1.0,
+        "v3_structured": 1.0
+      }
+    },
+    {
+      "model": "minimax-m3",
+      "task_category": "information_integration",
+      "dimension": "format_compliance",
+      "variants": {
+        "v1_baseline": 1.0,
+        "v2_grounded": 1.0,
+        "v3_structured": 1.0
+      }
+    },
+    {
+      "model": "minimax-m3",
+      "task_category": "information_integration",
+      "dimension": "rejection_correctness",
+      "variants": {
+        "v1_baseline": 1.0,
+        "v2_grounded": 1.0,
+        "v3_structured": 1.0
+      }
+    },
+    {
+      "model": "minimax-m3",
+      "task_category": "negative_rejection",
+      "dimension": "answer_economy",
+      "variants": {
+        "v1_baseline": 0.0,
+        "v2_grounded": 1.0,
+        "v3_structured": 1.0
+      }
+    },
+    {
+      "model": "minimax-m3",
+      "task_category": "negative_rejection",
+      "dimension": "faithfulness",
+      "variants": {
+        "v1_baseline": 1.0,
+        "v2_grounded": 1.0,
+        "v3_structured": 1.0
+      }
+    },
+    {
+      "model": "minimax-m3",
+      "task_category": "negative_rejection",
+      "dimension": "format_compliance",
+      "variants": {
+        "v1_baseline": 1.0,
+        "v2_grounded": 1.0,
+        "v3_structured": 1.0
+      }
+    },
+    {
+      "model": "minimax-m3",
+      "task_category": "negative_rejection",
+      "dimension": "rejection_correctness",
+      "variants": {
+        "v1_baseline": 1.0,
+        "v2_grounded": 1.0,
+        "v3_structured": 1.0
+      }
+    },
+    {
+      "model": "minimax-m3",
+      "task_category": "noise_robustness",
+      "dimension": "answer_accuracy",
+      "variants": {
+        "v1_baseline": 1.0,
+        "v2_grounded": 1.0,
+        "v3_structured": 1.0
+      }
+    },
+    {
+      "model": "minimax-m3",
+      "task_category": "noise_robustness",
+      "dimension": "answer_economy",
+      "variants": {
+        "v1_baseline": 0.3333,
+        "v2_grounded": 1.0,
+        "v3_structured": 1.0
+      }
+    },
+    {
+      "model": "minimax-m3",
+      "task_category": "noise_robustness",
+      "dimension": "faithfulness",
+      "variants": {
+        "v1_baseline": 1.0,
+        "v2_grounded": 1.0,
+        "v3_structured": 1.0
+      }
+    },
+    {
+      "model": "minimax-m3",
+      "task_category": "noise_robustness",
+      "dimension": "format_compliance",
+      "variants": {
+        "v1_baseline": 1.0,
+        "v2_grounded": 1.0,
+        "v3_structured": 1.0
+      }
+    },
+    {
+      "model": "minimax-m3",
+      "task_category": "noise_robustness",
+      "dimension": "rejection_correctness",
+      "variants": {
+        "v1_baseline": 1.0,
+        "v2_grounded": 1.0,
+        "v3_structured": 1.0
+      }
+    }
+  ],
+  "comparable": true,
+  "by_model_overall": {
+    "minimax-m3": {
+      "per_category": {
+        "grounded_extraction": 1.0,
+        "information_integration": 1.0,
+        "negative_rejection": 1.0,
+        "noise_robustness": 1.0
+      },
+      "overall": 1.0,
+      "avg_latency_ms": 2853.3
+    }
+  }
+}

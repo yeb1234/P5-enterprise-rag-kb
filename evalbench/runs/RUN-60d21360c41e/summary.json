@@ -523,7 +523,7 @@
         "noise_robustness": 1.0
       },
       "overall": 1.0,
-      "avg_latency_ms": 9651.0
+      "avg_latency_ms": 11404.7
     },
     "kimi-k2.6": {
       "per_category": {
@@ -533,7 +533,7 @@
         "noise_robustness": 1.0
       },
       "overall": 1.0,
-      "avg_latency_ms": 5682.7
+      "avg_latency_ms": 4144.2
     },
     "minimax-m3": {
       "per_category": {
@@ -543,7 +543,7 @@
         "noise_robustness": 1.0
       },
       "overall": 1.0,
-      "avg_latency_ms": 3764.7
+      "avg_latency_ms": 2325.4
     }
   },
   "scored_records": 36,
