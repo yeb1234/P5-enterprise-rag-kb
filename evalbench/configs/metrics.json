@@ -1,5 +1,23 @@
 {
-  "version": "METRICS@1.0.0",
+  "version": "METRICS@1.2.0",
+  "revision_history": [
+    {
+      "version": "METRICS@1.0.0",
+      "note": "初版：仅用固定关键词表判定拒答"
+    },
+    {
+      "version": "METRICS@1.1.0",
+      "changed_at": "2026-11-12",
+      "reason": "v1 实测抽查发现假阴性：模型输出「资料与问题无关…无法基于上述资料回答」已正确拒答，但不含任何单一标记词，被判 0 分。改为「否定词 + 资料指代」组合判定。",
+      "impact": "negative_rejection 分数会上升；用 rescore.py 生成新 run 保留旧口径结果，不原地修改已产生 run"
+    },
+    {
+      "version": "METRICS@1.2.0",
+      "changed_at": "2026-11-12",
+      "reason": "v1 定稿时 4 类主指标全部 1.0，指标饱和、无法区分配置优劣；抽查发现 v1 朴素提示会复述资料、输出 Markdown 列表与多段内容。新增 answer_economy 产品维度（单行、不复述、不成段列表），使提示词/参数收敛有可判定依据。",
+      "impact": "新增维度不参与各类别主指标与 overall，只作为辅助对照；旧维度分数不变"
+    }
+  ],
   "dataset": "self_built_v1",
   "comparable_note": "live 模式结果 comparable=true；offline 模式为占位，comparable=false，禁止与 live 结果合并结论",
   "normalization": {
@@ -17,8 +35,9 @@
     "rejection_correctness": {
       "type": "binary",
       "range": [0, 1],
-      "definition": "expected_behavior=abstain 时答案含拒答标记得 1；expected_behavior=answer 时答案不含拒答标记得 1；否则 0",
-      "reject_markers": ["INSUFFICIENT", "信息不足", "无法回答", "没有找到", "资料不足", "不能回答", "抱歉"],
+      "definition": "expected_behavior=abstain 时判为拒答得 1；expected_behavior=answer 时未判为拒答得 1；否则 0。拒答判定 = 固定标记命中 或（否定词 × 资料指代共现）",
+      "reject_markers": ["INSUFFICIENT", "信息不足", "无法回答", "没有找到", "资料不足", "不能回答", "不足以回答"],
+      "reject_combo": {"negation": ["无法", "不能", "不足以", "没有", "未提及", "不涉及", "无关", "缺乏"], "source": ["资料", "文档", "上下文", "上述", "提供的内容", "信息"]},
       "applies_to": ["negative_rejection", "grounded_extraction", "noise_robustness", "information_integration"],
       "basis": "RGB reject_rate / SQuAD 2.0 不可回答问题须弃答"
     },
@@ -35,6 +54,15 @@
       "definition": "答案非空、不含思考标签（<mm:think>/</think>/<think>）、长度不超过 600 字得 1",
       "applies_to": ["all"],
       "basis": "结构化输出与流式过滤器兼容性检查"
+    },
+    "answer_economy": {
+      "type": "binary",
+      "range": [0, 1],
+      "definition": "答案非空且 <=200 字、不含 Markdown 列表/多段结构（\\n- 、\\n1. 、\\n\\n、###）得 1；用于识别「复述资料」与冗长输出",
+      "applies_to": ["all"],
+      "basis": "产品维度：知识库问答应直接给结论而非复述检索片段；v1 实测发现主指标饱和后新增",
+      "primary_for": null,
+      "note": "不参与类别主指标与 overall，仅用于提示词/参数收敛对照"
     },
     "latency_ms": {
       "type": "observation",
@@ -53,6 +81,7 @@
   "known_limits": [
     "12 条自建样本，无统计显著性，不构成质量基线",
     "字符串匹配对同义改写不鲁棒，可能低估语义正确但措辞不同的答案",
-    "未使用 LLM-as-judge，避免裁判模型漂移，代价是语义等价无法识别"
+    "未使用 LLM-as-judge，避免裁判模型漂移，代价是语义等价无法识别",
+    "组合式拒答判定可能在「先给正确结论、又提到资料中未涵盖某细节」时误判为拒答；已通过逐条抽查复核关键样本"
   ]
 }
