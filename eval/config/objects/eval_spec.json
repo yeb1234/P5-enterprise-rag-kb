@@ -1,0 +1,47 @@
+{
+  "object_id": "OBJ-EVAL-SPEC",
+  "object_type": "eval_spec",
+  "version": "0.1.0",
+  "status": "active",
+  "owner": "eval-owner__TBC",
+  "effective_scope": {
+    "profiles": ["offline_placeholder", "real_api_pending"],
+    "chains": ["chunk", "embed", "retrieve", "assemble_prompt", "generate", "score"],
+    "suites": ["*"],
+    "environments": ["local", "ci", "staging__TBC"],
+    "note": "本对象定义评测规则本身；其他对象变更通常触发 minor/major 复核"
+  },
+  "depends_on": [],
+  "content": {
+    "sut": "待测试的说明书分块问答系统（SUT），通过适配层接入，当前为离线占位实现",
+    "chain_order": ["chunk", "embed", "retrieve", "assemble_prompt", "generate", "score"],
+    "reproducibility": {
+      "seed_required": true,
+      "deterministic_offline": true,
+      "config_snapshot_hash_required": true,
+      "dataset_hash_required": true,
+      "no_network_in_offline_profile": true
+    },
+    "result_schema": "eval-record/v0.1",
+    "comparability_rule": "offline_placeholder 产出的质量类指标一律标记 comparable=false，禁止与真实 API 结果横向比较",
+    "missing_data_policy": "评分不可用/链路异常不得静默丢弃，须记录 degraded 或 incomplete 状态与原因",
+    "to_be_confirmed": [
+      "SUT 的实际调用契约（入口、鉴权、请求/响应结构）",
+      "真实 API 的超时与重试语义",
+      "真实 token/成本核算口径"
+    ]
+  },
+  "rollback_baseline": "0.0.0",
+  "changelog": [
+    {
+      "change_id": "CHG-EVAL-SPEC-0001",
+      "changed_at": "2026-11-11T00:49:00+08:00",
+      "changed_by": "setup",
+      "change_reason": "首次建立离线占位评测规格，确定六链路顺序与可复现约束",
+      "diff_before": null,
+      "diff_after": "新增 eval-record/v0.1、seed/config_hash/dataset_hash 强制项、comparable 标记规则",
+      "rollback_baseline": "0.0.0",
+      "review_status": "pending_review"
+    }
+  ]
+}

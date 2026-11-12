@@ -1,0 +1,62 @@
+{
+  "object_id": "OBJ-RUN-PROFILE",
+  "object_type": "run_profile",
+  "version": "0.1.0",
+  "status": "active",
+  "owner": "eval-owner__TBC",
+  "effective_scope": {
+    "profiles": ["offline_placeholder", "real_api_pending", "real_api"],
+    "chains": ["*"],
+    "suites": ["*"],
+    "environments": ["local", "ci", "staging__TBC"]
+  },
+  "depends_on": [{"object_id": "OBJ-ADAPTER-CONTRACTS", "version": "0.1.0"}],
+  "content": {
+    "active_profile": "offline_placeholder",
+    "profiles": {
+      "offline_placeholder": {
+        "network": "forbidden",
+        "adapters": {"embed": "stub_feature_hashing", "retrieve": "local_cosine_plus_lexical_rrf", "generate": "extractive_placeholder", "score": "rule_checks_only"},
+        "purpose": "验证链路连通、结果记录格式、故障处理与确定性复现",
+        "quality_metrics_comparable": false,
+        "enabled": true
+      },
+      "real_api_pending": {
+        "network": "forbidden",
+        "behavior": "fail_fast_and_list_unresolved_blocking_contract_fields",
+        "purpose": "接入前的契约就绪检查，不发起任何外部请求",
+        "enabled": true
+      },
+      "real_api": {
+        "network": "allowed_only_after_change_approval",
+        "enabled": false,
+        "prerequisites": [
+          "OBJ-ADAPTER-CONTRACTS 中所有 blocking=true 字段已由用户确认并填入",
+          "凭证通过环境变量/密钥管理注入，仓库内不得出现",
+          "OBJ-BASELINE 已完成首轮真实 API 基线标定",
+          "OBJ-THRESHOLDS 中质量阈值已由基线建议值评审冻结",
+          "成本与配额上限已确认（值 __TBC__）"
+        ]
+      }
+    },
+    "internal_run_budget": {
+      "max_cases_per_run": 500,
+      "per_case_walltime_ms": 5000,
+      "note": "评测框架内部运行预算，与任何供应商配额无关；供应商配额字段见 OBJ-ADAPTER-CONTRACTS（__TBC__）"
+    },
+    "to_be_confirmed": ["真实档位的用例并发度", "真实档位的重跑次数与置信区间口径", "真实档位的成本上限"]
+  },
+  "rollback_baseline": "0.0.0",
+  "changelog": [
+    {
+      "change_id": "CHG-PROFILE-0001",
+      "changed_at": "2026-11-11T00:49:00+08:00",
+      "changed_by": "setup",
+      "change_reason": "定义离线可启动档位与真实档位的准入前置条件",
+      "diff_before": null,
+      "diff_after": "offline_placeholder 默认启用；real_api 默认禁用且需 5 项前置条件",
+      "rollback_baseline": "0.0.0",
+      "review_status": "pending_review"
+    }
+  ]
+}

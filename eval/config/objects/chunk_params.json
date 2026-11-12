@@ -1,0 +1,48 @@
+{
+  "object_id": "OBJ-CHUNK-PARAMS",
+  "object_type": "chunk_params",
+  "version": "0.1.0",
+  "status": "active",
+  "owner": "eval-owner__TBC",
+  "effective_scope": {
+    "profiles": ["offline_placeholder", "real_api_pending"],
+    "chains": ["chunk"],
+    "suites": ["*"],
+    "environments": ["*"],
+    "note": "离线档位下由评测框架自行分块；接入真实 SUT 后需确认是复用 SUT 分块还是本对象作为对照基线"
+  },
+  "depends_on": [{"object_id": "OBJ-EVAL-SPEC", "version": "0.1.0"}],
+  "content": {
+    "strategy": "paragraph_window_with_heading_path",
+    "max_chars": 400,
+    "overlap_chars": 60,
+    "min_chars": 20,
+    "heading_detection": true,
+    "table_preserve": true,
+    "chunk_id_rule": "sha256(document_id|seq|normalized_content)[:16]",
+    "page_no_source": "fixture_page_markers",
+    "long_text_policy": "bounded_streaming_windows",
+    "max_chunks_per_document": 2000,
+    "empty_document_policy": "produce_zero_chunks_and_mark_boundary",
+    "deterministic": true,
+    "variant_axis_for_ab": ["max_chars", "overlap_chars", "heading_detection"],
+    "to_be_confirmed": [
+      "待测系统实际分块策略与参数",
+      "真实 token 计量方式（当前按字符粗估，标记 estimator=char_approx）",
+      "超长输入在真实 SUT 的截断行为"
+    ]
+  },
+  "rollback_baseline": "0.0.0",
+  "changelog": [
+    {
+      "change_id": "CHG-CHUNK-0001",
+      "changed_at": "2026-11-11T00:49:00+08:00",
+      "changed_by": "setup",
+      "change_reason": "建立可分块对照实验的首版参数",
+      "diff_before": null,
+      "diff_after": "400 字窗口 / 60 字重叠 / 标题路径 / 幂等 chunk_id 规则",
+      "rollback_baseline": "0.0.0",
+      "review_status": "pending_review"
+    }
+  ]
+}

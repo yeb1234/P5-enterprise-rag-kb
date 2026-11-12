@@ -1,0 +1,57 @@
+{
+  "object_id": "OBJ-LLM-MODEL-CFG",
+  "object_type": "llm_model_config",
+  "version": "0.1.0",
+  "status": "active",
+  "owner": "integration-owner__TBC",
+  "effective_scope": {
+    "profiles": ["offline_placeholder"],
+    "chains": ["generate", "score"],
+    "suites": ["*"],
+    "environments": ["local", "ci"],
+    "note": "不预设任何具体模型名称、版本或参数名"
+  },
+  "depends_on": [{"object_id": "OBJ-ADAPTER-CONTRACTS", "version": "0.1.0"}],
+  "content": {
+    "provider_label": "DeepSeek（占位）",
+    "service_endpoint": "__TBC__",
+    "auth_scheme": "__TBC__",
+    "credential_ref": "__TBC__",
+    "model_id": "__TBC__",
+    "model_version": "__TBC__",
+    "context_window": "__TBC__",
+    "request_schema": "__TBC__",
+    "response_schema": "__TBC__",
+    "stream_event_schema": "__TBC__",
+    "supported_parameters": "__TBC__",
+    "quota": {"qps": "__TBC__", "tpm": "__TBC__", "daily": "__TBC__"},
+    "error_code_mapping": "__TBC__",
+    "usage_and_cost_fields": "__TBC__",
+    "offline_placeholder": {
+      "algorithm": "extractive_answer_from_retrieved_snippets",
+      "semantic_capability": false,
+      "purpose": "仅验证提示词渲染、引用编号生成与生成节点记录",
+      "comparable": false
+    },
+    "to_be_confirmed": [
+      "具体模型标识与版本（不预设）",
+      "生成参数名、取值范围与默认行为",
+      "上下文窗口与截断语义",
+      "流式事件结构、超时与重试语义",
+      "配额、错误码、token 与成本字段"
+    ]
+  },
+  "rollback_baseline": "0.0.0",
+  "changelog": [
+    {
+      "change_id": "CHG-LLMMODEL-0001",
+      "changed_at": "2026-11-11T00:49:00+08:00",
+      "changed_by": "setup",
+      "change_reason": "建立生成模型占位标识，杜绝硬编码真实模型信息",
+      "diff_before": null,
+      "diff_after": "全部模型与服务字段置 __TBC__ + 抽取式占位生成器",
+      "rollback_baseline": "0.0.0",
+      "review_status": "pending_review"
+    }
+  ]
+}

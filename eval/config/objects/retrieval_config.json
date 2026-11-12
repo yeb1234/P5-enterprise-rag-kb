@@ -1,0 +1,51 @@
+{
+  "object_id": "OBJ-RETRIEVAL-CFG",
+  "object_type": "retrieval_config",
+  "version": "0.1.0",
+  "status": "active",
+  "owner": "eval-owner__TBC",
+  "effective_scope": {
+    "profiles": ["offline_placeholder", "real_api_pending"],
+    "chains": ["retrieve"],
+    "suites": ["*"],
+    "environments": ["*"],
+    "note": "离线档位为评测框架内置的本地检索实现；真实 SUT 的检索参数待确认后另建版本"
+  },
+  "depends_on": [
+    {"object_id": "OBJ-EMBEDDING-CFG", "version": "0.1.0"},
+    {"object_id": "OBJ-CHUNK-PARAMS", "version": "0.1.0"}
+  ],
+  "content": {
+    "mode": "hybrid_rrf_placeholder",
+    "top_k": 8,
+    "candidate_pool_per_branch": 20,
+    "rrf_k": 60,
+    "lexical_branch": "char_ngram_overlap",
+    "vector_branch": "cosine_over_stub_vectors",
+    "min_score": null,
+    "score_threshold_policy": "none_in_offline_profile",
+    "dedup_by": "chunk_id",
+    "filters": {"enabled": false, "reason": "权限/标签过滤语义待 SUT 契约确认"},
+    "empty_result_policy": "abstain_and_record",
+    "variant_axis_for_ab": ["top_k", "rrf_k", "mode"],
+    "to_be_confirmed": [
+      "真实 SUT 的召回与重排参数、相似度度量",
+      "过滤条件（部门/标签/密级）与空结果语义",
+      "分数阈值与归一化方式",
+      "引文结构与 chunk_id 稳定性"
+    ]
+  },
+  "rollback_baseline": "0.0.0",
+  "changelog": [
+    {
+      "change_id": "CHG-RETR-0001",
+      "changed_at": "2026-11-11T00:49:00+08:00",
+      "changed_by": "setup",
+      "change_reason": "建立可对比实验的首版检索参数",
+      "diff_before": null,
+      "diff_after": "hybrid RRF / top_k=8 / 空结果走 abstain 并记录",
+      "rollback_baseline": "0.0.0",
+      "review_status": "pending_review"
+    }
+  ]
+}

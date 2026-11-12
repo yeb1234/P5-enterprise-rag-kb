@@ -1,0 +1,45 @@
+{
+  "registry_id": "REG-KBQA-EVAL",
+  "version": "0.1.0",
+  "schema": "versioned-object-registry/v0.1",
+  "description": "评测全链路所有可版本化对象的索引。任何对象内容变更必须升版本并写变更记录，禁止原地覆盖。",
+  "version_policy": {
+    "scheme": "MAJOR.MINOR.PATCH",
+    "major_when": "字段语义/评分口径/阈值口径变化，历史结果不可直接比较",
+    "minor_when": "新增用例/新增参数/模板结构变化，历史结果需重新基线化",
+    "patch_when": "仅修正拼写、说明、非功能性描述",
+    "immutable_after_run": true,
+    "note": "任何已产生 run 记录的版本不得修改；修订一律新建版本。"
+  },
+  "changelog_required_fields": [
+    "change_id",
+    "changed_at",
+    "changed_by",
+    "change_reason",
+    "diff_before",
+    "diff_after",
+    "rollback_baseline",
+    "review_status"
+  ],
+  "object_type_enum": [
+    "eval_spec", "adapter_contract", "run_profile", "chunk_params",
+    "embedding_config", "llm_model_config", "retrieval_config", "generation_config",
+    "prompt_template", "scoring_rules", "dataset", "thresholds", "baseline"
+  ],
+  "objects": [
+    {"object_id": "OBJ-EVAL-SPEC", "object_type": "eval_spec", "version": "0.1.0", "file": "objects/eval_spec.json"},
+    {"object_id": "OBJ-ADAPTER-CONTRACTS", "object_type": "adapter_contract", "version": "0.1.0", "file": "objects/adapter_contracts.json"},
+    {"object_id": "OBJ-RUN-PROFILE", "object_type": "run_profile", "version": "0.1.0", "file": "objects/run_profile.json"},
+    {"object_id": "OBJ-CHUNK-PARAMS", "object_type": "chunk_params", "version": "0.1.0", "file": "objects/chunk_params.json"},
+    {"object_id": "OBJ-EMBEDDING-CFG", "object_type": "embedding_config", "version": "0.1.0", "file": "objects/embedding_config.json"},
+    {"object_id": "OBJ-LLM-MODEL-CFG", "object_type": "llm_model_config", "version": "0.1.0", "file": "objects/llm_model_config.json"},
+    {"object_id": "OBJ-RETRIEVAL-CFG", "object_type": "retrieval_config", "version": "0.1.0", "file": "objects/retrieval_config.json"},
+    {"object_id": "OBJ-GENERATION-CFG", "object_type": "generation_config", "version": "0.1.0", "file": "objects/generation_config.json"},
+    {"object_id": "OBJ-PROMPT-RAG-ANSWER", "object_type": "prompt_template", "version": "0.1.0", "file": "objects/prompt_rag_answer.json"},
+    {"object_id": "OBJ-PROMPT-SCORING", "object_type": "prompt_template", "version": "0.1.0", "file": "objects/prompt_scoring.json"},
+    {"object_id": "OBJ-SCORING-RULES", "object_type": "scoring_rules", "version": "0.1.0", "file": "objects/scoring_rules.json"},
+    {"object_id": "OBJ-DATASET", "object_type": "dataset", "version": "0.1.0", "file": "objects/dataset.json"},
+    {"object_id": "OBJ-THRESHOLDS", "object_type": "thresholds", "version": "0.1.0", "file": "objects/thresholds.json"},
+    {"object_id": "OBJ-BASELINE", "object_type": "baseline", "version": "0.1.0", "file": "objects/baseline.json"}
+  ]
+}

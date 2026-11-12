@@ -1,0 +1,54 @@
+{
+  "object_id": "OBJ-PROMPT-SCORING",
+  "object_type": "prompt_template",
+  "version": "0.1.0",
+  "status": "dormant",
+  "owner": "prompt-owner__TBC",
+  "effective_scope": {
+    "profiles": ["real_api_pending"],
+    "chains": ["score"],
+    "suites": ["*"],
+    "environments": ["*"],
+    "note": "模型裁判为可选能力；启用前需确认裁判模型契约与配额，当前不生效"
+  },
+  "depends_on": [{"object_id": "OBJ-SCORING-RULES", "version": "0.1.0"}],
+  "content": {
+    "template_id": "judge_placeholder_v1",
+    "enabled": false,
+    "judge_mode": "__TBC__",
+    "judge_model_id": "__TBC__",
+    "judge_request_schema": "__TBC__",
+    "judge_response_schema": "__TBC__",
+    "messages": [
+      {
+        "role": "system",
+        "template": "你是评测裁判。只依据给定【问题】【资料片段】【候选回答】打分，输出结构化结果。不要补充片段外的事实。"
+      },
+      {
+        "role": "user",
+        "template": "【问题】\n{query}\n\n【资料片段】\n{context}\n\n【候选回答】\n{answer}\n\n【评分维度】\n{dimensions}\n\n请按约定结构输出每一维度的分值、依据与置信度。"
+      }
+    ],
+    "variables": ["query", "context", "answer", "dimensions"],
+    "output_schema": "__TBC__",
+    "to_be_confirmed": [
+      "是否启用模型裁判（当前关闭）",
+      "裁判模型标识、请求/响应结构与输出结构",
+      "裁判配额与成本",
+      "裁判与人工标注的一致性校准方法"
+    ]
+  },
+  "rollback_baseline": "0.0.0",
+  "changelog": [
+    {
+      "change_id": "CHG-PROMPT-JUDGE-0001",
+      "changed_at": "2026-11-11T00:49:00+08:00",
+      "changed_by": "setup",
+      "change_reason": "预留模型裁判模板占位，避免后续临时拼接不可版本化提示词",
+      "diff_before": null,
+      "diff_after": "新增 dormant 状态模板，全部模型相关字段 __TBC__",
+      "rollback_baseline": "0.0.0",
+      "review_status": "pending_review"
+    }
+  ]
+}

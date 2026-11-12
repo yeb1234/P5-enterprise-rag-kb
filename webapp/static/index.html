@@ -1,0 +1,499 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>企业级知识库 · 可运行演示切片</title>
+  <link rel="stylesheet" href="/style.css?v=10" />
+</head>
+<body>
+
+<!-- ============ 登录 / 注册 ============ -->
+<div id="auth-view" class="auth-page">
+  <div class="auth-hero">
+    <div class="brand"><span class="brand-mark">KB</span> 企业级知识库系统</div>
+    <h1>从文档到问答，<br />再到评测闭环。</h1>
+    <p>一个可运行、可讲解的开发切片：注册登录 → 文档上传管理 → 流式问答 → badcase 采集 → 管理员完成度与导出。</p>
+    <div class="auth-features">
+      <div class="feat"><span class="dot">1</span><div><b>文档上传与分析排队</b><span>繁忙时显示队列位置，分析降级留痕，状态实时可见</span></div></div>
+      <div class="feat"><span class="dot">2</span><div><b>流式问答与断线恢复</b><span>SSE 逐 token 输出，断线自动续传，检索为空主动降级</span></div></div>
+      <div class="feat"><span class="dot">3</span><div><b>badcase 采集闭环</b><span>一键标记关联评估任务，管理员按条件检索与导出</span></div></div>
+      <div class="feat"><span class="dot">4</span><div><b>管理员完成度看板</b><span>任务总数 / 已完成 / 待处理 / 完成率 / 状态一目了然</span></div></div>
+    </div>
+  </div>
+  <div class="auth-panel">
+    <div class="card auth-card">
+      <h2 id="auth-title">欢迎回来</h2>
+      <p class="sub" id="auth-sub">登录以进入知识库工作台</p>
+      <div class="auth-tabs">
+        <button id="tab-login" class="active" onclick="switchAuth('login')">登录</button>
+        <button id="tab-register" onclick="switchAuth('register')">注册账号</button>
+      </div>
+      <div id="auth-error" class="auth-error hidden"></div>
+      <div class="stack">
+        <div class="field"><label>用户名</label><input id="auth-username" class="input" placeholder="请输入用户名" autocomplete="username" /></div>
+        <div class="field" id="auth-email-field"><label>邮箱（可选）</label><input id="auth-email" class="input" placeholder="name@example.com" /></div>
+        <div class="field"><label>密码</label><input id="auth-password" class="input" type="password" placeholder="至少 6 位" autocomplete="current-password" /></div>
+        <button class="btn btn-primary" id="auth-submit" onclick="submitAuth()" style="width:100%;padding:11px">登录</button>
+      </div>
+      <div class="auth-hint" id="auth-hint">
+        演示管理员账号：<b>admin</b> / <b>admin123</b>（管理后台仅对 admin 可见）。<br />
+        也可以直接注册一个普通账号体验问答与 badcase 采集。
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 主应用 ============ -->
+<div id="app-view" class="app hidden">
+  <aside class="sidebar">
+    <div class="brand"><span class="brand-mark">KB</span> 企业级知识库</div>
+    <nav class="nav">
+      <div class="nav-group">工作台</div>
+      <button data-view="home" class="active" onclick="switchView('home')">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 10l9-7 9 7v10H3z"/><path d="M9 20v-6h6v6"/></svg>
+        工作台概览
+      </button>
+      <button data-view="chat" onclick="switchView('chat')">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12a8 8 0 0 1-8 8H7l-4 3V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg>
+        智能问答
+      </button>
+      <button data-view="docs" onclick="switchView('docs')">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4h10l6 6v10H4z"/><path d="M14 4v6h6"/></svg>
+        文档管理
+      </button>
+      <button data-view="search" onclick="switchView('search')">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+        检索调试
+        <span class="nav-tag soft">DEV</span>
+      </button>
+      <div class="nav-group">质量与治理</div>
+      <button data-view="tasks" onclick="switchView('tasks')">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 12h16M4 18h10"/><circle cx="19" cy="18" r="2"/></svg>
+        任务中心
+      </button>
+      <button data-view="eval" onclick="switchView('eval')">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/></svg>
+        评测中心
+      </button>
+      <button data-view="admin" id="nav-admin" class="hidden" onclick="switchView('admin')">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/><path d="M9 12l2 2 4-4"/></svg>
+        管理后台 <span class="nav-tag">ADMIN</span>
+      </button>
+      <button data-view="audit" id="nav-audit" class="hidden" onclick="switchView('audit')">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 4h14v16H5z"/><path d="M9 9h6M9 13h6M9 17h4"/></svg>
+        审计日志 <span class="nav-tag">ADMIN</span>
+      </button>
+      <div class="nav-group">系统</div>
+      <button data-view="settings" id="nav-settings" class="hidden" onclick="switchView('settings')">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>
+        模型设置 <span class="nav-tag">ADMIN</span>
+      </button>
+      <button data-view="system" onclick="switchView('system')">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg>
+        系统设置与边界
+      </button>
+    </nav>
+    <div class="side-foot">
+      <div class="sys-line"><span class="sys-dot" id="sys-dot"></span><span id="sys-text">系统运行中</span></div>
+      <div class="env-note">离线演示切片 · SQLite 真值<br />占位 LLM / 进程内队列</div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div>
+        <h3 id="page-title">文档管理</h3>
+        <div class="crumb" id="page-crumb">工作台 / 文档管理</div>
+      </div>
+      <div class="spacer"></div>
+      <span id="busy-inline" class="badge badge-gray hidden">空闲</span>
+      <div class="user-chip">
+        <span class="avatar" id="user-avatar">U</span>
+        <span id="user-name">—</span>
+        <span class="role-pill hidden" id="user-role">ADMIN</span>
+      </div>
+      <button class="btn btn-sm" onclick="logout()">退出</button>
+    </header>
+
+    <div id="banners"></div>
+
+    <main class="content">
+
+      <!-- ---------- 文档管理 ---------- -->
+      <section id="view-docs">
+        <div class="page-head">
+          <div><h2>文档管理</h2><p>上传说明书等文本，系统自动分块建索引；繁忙时会排队并实时反馈。</p></div>
+          <div class="head-actions">
+            <button class="btn btn-sm" onclick="seedSample()">生成示例说明书</button>
+            <button class="btn btn-sm" onclick="refreshDocs()">刷新</button>
+          </div>
+        </div>
+        <div class="grid-2" style="margin-bottom:16px">
+          <div class="card padded">
+            <div class="section-title">上传文档</div>
+            <div class="upload-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+              <div class="up-ico">↑</div>
+              <b>点击选择文件，或拖拽到此处</b>
+              <span>支持 txt / md / csv / json / py 等纯文本；其他格式会给出降级提示</span>
+            </div>
+            <input type="file" id="file-input" class="hidden" multiple onchange="handleFiles(this.files)" />
+            <div class="upload-note" id="upload-note">分析并发上限为 2，超出后自动排队 —— 可连续上传多个文件观察繁忙提示。</div>
+          </div>
+          <div class="card padded">
+            <div class="section-title">运行状态</div>
+            <div id="busy-detail" class="muted small">正在读取…</div>
+            <div style="margin-top:14px" class="kv-line"><span>已上传文档</span><b id="stat-docs">0</b></div>
+            <div class="kv-line"><span>已就绪</span><b id="stat-ready">0</b></div>
+            <div class="kv-line"><span>分块总数</span><b id="stat-chunks">0</b></div>
+            <div class="kv-line"><span>处理失败 / 降级</span><b id="stat-error">0</b></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="section-title padded" style="padding-bottom:0">文档列表</div>
+          <div id="docs-table"></div>
+        </div>
+      </section>
+
+      <!-- ---------- 智能问答 ---------- -->
+      <section id="view-chat" class="hidden">
+        <div class="page-head" style="margin-bottom:12px">
+          <div><h2>智能问答</h2><p>流式输出 · 检索为空自动降级 · 断线自动续传 · 一键标记 badcase</p></div>
+          <div class="head-actions"><button class="btn btn-sm" onclick="newConversation()">新建对话</button></div>
+        </div>
+        <div class="chat-wrap">
+          <div class="card chat-main">
+            <div class="chat-log" id="chat-log"></div>
+            <div class="chat-input">
+              <div class="row">
+                <textarea id="chat-q" class="textarea" placeholder="输入问题，例如：如何给设备配网？" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat()}"></textarea>
+                <button class="btn btn-primary" id="chat-send" onclick="sendChat()" style="height:44px">发送</button>
+              </div>
+              <div class="chat-status" id="chat-status">就绪 · Enter 发送，Shift+Enter 换行</div>
+            </div>
+          </div>
+          <div class="card chat-side">
+            <h4>历史会话 <span class="small muted">（点击可追溯来源）</span></h4>
+            <div id="conv-list" class="conv-list"><div class="muted small">还没有历史会话</div></div>
+            <h4 style="margin-top:16px">本次会话</h4>
+            <div class="kv-line"><span>会话 ID</span><b id="conv-id" class="small">—</b></div>
+            <div class="kv-line"><span>消息数</span><b id="conv-msgs">0</b></div>
+            <div class="kv-line"><span>已标记 badcase</span><b id="conv-bc">0</b></div>
+            <div class="kv-line"><span>连接状态</span><b id="conv-conn" class="small">正常</b></div>
+            <div class="tip" style="margin-top:16px">
+              <h4>降级与恢复</h4>
+              <ul>
+                <li>知识库无命中 → 明确提示，不编造</li>
+                <li>流中断 → 携带 resume_from 自动续传（最多 3 次）</li>
+                <li>后端不可达 → 顶部断线横幅，恢复后自动刷新</li>
+                <li>令牌失效 → 自动退回登录页</li>
+              </ul>
+            </div>
+            <div class="tip">
+              <h4>试试这些问题</h4>
+              <ul>
+                <li>如何给设备配网？</li>
+                <li>badcase 谁能查看？</li>
+                <li>量子纠缠如何应用？（触发降级）</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ---------- 管理后台（仅 admin） ---------- -->
+      <section id="view-admin" class="hidden">
+        <div class="page-head">
+          <div><h2>管理后台</h2><p>评估任务完成度总览，以及 badcase 的筛选查看与按条件下载。</p></div>
+          <div class="head-actions"><button class="btn btn-sm" onclick="loadAdmin()">刷新</button></div>
+        </div>
+        <div class="stat-grid" id="admin-stats"></div>
+        <div class="section-title">各评估任务完成度</div>
+        <div class="grid-2" id="task-cards" style="margin-bottom:22px"></div>
+
+        <div class="card" style="margin-bottom:16px">
+          <div class="section-title padded" style="padding-bottom:0">badcase 筛选与下载</div>
+          <div class="filter-bar">
+            <div class="field narrow"><label>评估任务</label><select id="f-task" class="select"><option value="">全部任务</option></select></div>
+            <div class="field narrow"><label>状态</label>
+              <select id="f-status" class="select"><option value="">全部状态</option><option value="pending">待处理</option><option value="in_review">复核中</option><option value="resolved">已解决</option></select>
+            </div>
+            <div class="field narrow"><label>来源</label>
+              <select id="f-source" class="select"><option value="">全部来源</option><option value="chat">问答</option><option value="manual">手工</option><option value="eval">评测</option></select>
+            </div>
+            <div class="field narrow"><label>起始日期</label><input id="f-start" class="input" type="date" /></div>
+            <div class="field narrow"><label>结束日期</label><input id="f-end" class="input" type="date" /></div>
+            <div class="field"><label>关键字检索</label><input id="f-q" class="input" placeholder="问题 / 回答 / 问题说明" /></div>
+            <div class="btns">
+              <button class="btn btn-primary btn-sm" onclick="loadBadcases()">查询</button>
+              <button class="btn btn-sm" onclick="resetFilter()">重置</button>
+            </div>
+          </div>
+          <div class="filter-bar" style="padding-top:0;border-top:1px solid var(--border)">
+            <div class="muted small" id="bc-count">共 0 条记录</div>
+            <div class="spacer" style="flex:1"></div>
+            <div class="btns">
+              <button class="btn btn-sm" onclick="exportBadcases('csv')">下载 CSV（当前筛选）</button>
+              <button class="btn btn-sm" onclick="exportBadcases('json')">下载 JSON（当前筛选）</button>
+            </div>
+          </div>
+        </div>
+        <div class="card"><div class="table-wrap" id="bc-table"></div></div>
+        <p class="muted small" style="margin-top:10px">完成度口径：一条关联该任务的 badcase 记录视为已评测一个样本；已完成 = 关联记录数，待处理 = 目标数 − 已完成。</p>
+      </section>
+
+      <!-- ---------- 工作台概览 ---------- -->
+      <section id="view-home" class="hidden">
+        <div class="page-head">
+          <div><h2>工作台概览</h2><p>一屏看全知识库状态；普通用户只看自己的数据，admin 额外看到全局完成度与成员数。</p></div>
+          <div class="head-actions"><button class="btn btn-sm" onclick="loadOverview()">刷新</button></div>
+        </div>
+        <div class="stat-grid" id="home-stats"></div>
+        <div class="grid-2" style="margin-bottom:16px">
+          <div class="card padded">
+            <div class="section-title">快捷入口</div>
+            <div class="shortcut-grid" id="home-shortcuts"></div>
+          </div>
+          <div class="card padded">
+            <div class="section-title">当前状态与数据口径</div>
+            <div id="home-scope"></div>
+          </div>
+        </div>
+        <div class="card padded">
+          <div class="section-title">这一页在讲什么</div>
+          <p class="muted small" style="margin:0">对应生产骨架 README §4 的「看板 /stats/overview」。演示切片不预聚合日报，
+            每次刷新都从 SQLite 业务表实时算，所以上传、问答、标记 badcase 之后数字会立刻变。
+            <b>权限分离</b>：普通用户的统计强制带 owner_id / user_id / created_by 条件，不是把全局数字藏起来而是根本不查。</p>
+        </div>
+      </section>
+
+      <!-- ---------- 检索调试 ---------- -->
+      <section id="view-search" class="hidden">
+        <div class="page-head">
+          <div><h2>检索调试</h2><p>只召回、不生成，把「召回前过滤 → 命中打分 → 是否降级」摊开看。</p></div>
+        </div>
+        <div class="card padded" style="margin-bottom:16px">
+          <div class="section-title">召回预览</div>
+          <div class="row">
+            <input id="sq" class="input" placeholder="例如：如何给设备配网？" onkeydown="if(event.key==='Enter')runSearch()" />
+            <button class="btn btn-primary" onclick="runSearch()" style="height:38px">召回预览</button>
+          </div>
+          <div id="search-meta" class="muted small" style="margin-top:12px">输入关键词后回车；试试「量子纠缠」可看到降级判定。</div>
+        </div>
+        <div class="card" style="margin-bottom:16px">
+          <div class="section-title padded" style="padding-bottom:0">命中分块（按重叠词数排序）</div>
+          <div id="search-hits"></div>
+        </div>
+        <div class="card padded">
+          <div class="section-title">面试讲法</div>
+          <p class="muted small" style="margin:0">生产链路是 <b>先按权限过滤，再重排，再进模型</b>：
+            Milvus expr + <code>filter_candidates</code> 双重过滤，RRF 融合，P0 才加带降级开关的 Rerank。
+            本切片只有「ready 文档的分块」这一层前置条件，关键词重叠打分替身向量检索；
+            <b>未启用重排、未接模型</b>，页面字段刻意与生产口径对齐，方便对照着讲。</p>
+        </div>
+      </section>
+
+      <!-- ---------- 任务中心 ---------- -->
+      <section id="view-tasks" class="hidden">
+        <div class="page-head">
+          <div><h2>任务中心</h2><p>上传分析队列、状态机与失败恢复；对应 docs/async-upload.md 的三层进度通道设计。</p></div>
+          <div class="head-actions"><button class="btn btn-sm" onclick="loadTasks()">刷新</button></div>
+        </div>
+        <div class="stat-grid" id="task-stats"></div>
+        <div class="grid-2" style="margin-bottom:16px">
+          <div class="card padded"><div class="section-title">当前队列</div><div id="task-queue"></div></div>
+          <div class="card padded">
+            <div class="section-title">状态机（演示切片）</div>
+            <div class="kv-line"><span>queued</span><b>已入队，等待并发闸</b></div>
+            <div class="kv-line"><span>analyzing</span><b>提取 → 分块 → 落库</b></div>
+            <div class="kv-line"><span>ready</span><b>分块可被检索</b></div>
+            <div class="kv-line"><span>error</span><b>格式不支持 / 文件丢失，留具体原因</b></div>
+            <p class="muted small" style="margin:12px 0 0">生产还有 upload_sessions / batches / 页级 chord 四层进度与 SSE 权威快照；
+              这里用进程内信号量 + 轮询展示同一语义，<b>不是</b> Celery + RabbitMQ。</p>
+          </div>
+        </div>
+        <div class="card" style="margin-bottom:16px"><div class="section-title padded" style="padding-bottom:0">最近文档状态</div><div class="table-wrap" id="task-docs"></div></div>
+        <div class="card padded"><div class="section-title">降级与恢复矩阵</div>
+          <p class="muted small" style="margin:0">格式不支持 → error + 原因；繁忙 → 排队并显示位置；检索为空 → 拒答不编造；
+            流中断 → resume_from 续传；后端不可达 → 红色横幅自动重连；令牌失效 → 退回登录。<b>全部可见、全部留痕，不静默。</b></p>
+        </div>
+      </section>
+
+      <!-- ---------- 评测中心 ---------- -->
+      <section id="view-eval" class="hidden">
+        <div class="page-head">
+          <div><h2>评测中心</h2><p>评估任务进度 + 版本化对象清单；质量结论在占位档位下明确不可比。</p></div>
+          <div class="head-actions"><button class="btn btn-sm" onclick="loadEval()">刷新</button></div>
+        </div>
+        <div id="eval-banner"></div>
+        <div class="stat-grid" id="eval-stats"></div>
+        <div class="card" style="margin-bottom:16px">
+          <div class="section-title padded" style="padding-bottom:0">版本化对象（实时读自 eval/config/registry.json）</div>
+          <div class="table-wrap" id="eval-objects"></div>
+        </div>
+        <div class="card padded"><div class="section-title">口径边界（别把 A 档说成 C 档）</div>
+          <p class="muted small" style="margin:0">上表是 <b>评测体系已落地的设计对象</b>，不是本切片的质量基线。
+            占位结果一律 <code>comparable=false</code>，质量结论 <code>NOT_COMPARABLE</code>，禁止据此冻结阈值；
+            所有真实 API 的地址、鉴权、模型名与配额仍是 <code>__TBC__</code>。
+            「评测 CI 闸门」只落地了 badcase 数据侧，闸门接 CI 仍未做。</p>
+        </div>
+      </section>
+
+      <!-- ---------- 审计日志（仅 admin） ---------- -->
+      <section id="view-audit" class="hidden">
+        <div class="page-head">
+          <div><h2>审计日志</h2><p>只追加台账，可按动作与操作人回放「谁在什么时候做了什么」。</p></div>
+          <div class="head-actions"><button class="btn btn-sm" onclick="loadAudit()">刷新</button></div>
+        </div>
+        <div class="card padded" style="margin-bottom:16px">
+          <div class="filter-bar">
+            <div class="field narrow"><label>动作</label>
+              <select id="a-action" class="select"><option value="">全部动作</option>
+                <option value="login">登录</option><option value="register">注册</option>
+                <option value="upload">上传</option><option value="delete">删除</option>
+                <option value="chat">问答</option><option value="search">检索调试</option>
+                <option value="badcase">badcase</option><option value="export">导出</option>
+              </select></div>
+            <div class="field narrow"><label>操作人</label><input id="a-actor" class="input" placeholder="精确匹配" /></div>
+            <div class="btns"><button class="btn btn-primary btn-sm" onclick="loadAudit()">查询</button>
+              <button class="btn btn-sm" onclick="$('a-action').value='';$('a-actor').value='';loadAudit()">重置</button></div>
+          </div>
+        </div>
+        <div class="card"><div class="table-wrap" id="audit-table"></div></div>
+        <p class="muted small" style="margin-top:10px">对应 README §4 的 <code>/audit-logs</code> 与 C 档缺口「谁在什么时候查了什么」。
+          演示级只埋了登录/注册/上传/删除/问答/检索/badcase/导出八类动作，<b>未接 trace_id、留存策略与脱敏检索</b>。</p>
+      </section>
+
+      <!-- ---------- 系统设置与边界 ---------- -->
+      <section id="view-system" class="hidden">
+        <div class="page-head">
+          <div><h2>系统设置与边界</h2><p>当前账号权限、运行状态，以及「做了什么 / 只设计 / 明确不做」的诚实边界。</p></div>
+          <div class="head-actions"><button class="btn btn-sm" onclick="loadSystem()">刷新</button></div>
+        </div>
+        <div class="grid-2" style="margin-bottom:16px">
+          <div class="card padded"><div class="section-title">当前账号与权限</div><div id="sys-me"></div></div>
+          <div class="card padded"><div class="section-title">实时运行状态</div><div id="sys-live"></div></div>
+        </div>
+        <div class="card" style="margin-bottom:16px">
+          <div class="section-title padded" style="padding-bottom:0">成员与角色（仅 admin 可见数据）</div>
+          <div class="table-wrap" id="sys-users"></div>
+        </div>
+        <div class="card" style="margin-bottom:16px">
+          <div class="section-title padded" style="padding-bottom:0">组件替身映射：演示切片 vs 生产架构</div>
+          <div class="table-wrap">
+            <table class="table"><thead><tr><th>能力</th><th>本切片（真实可跑）</th><th>生产架构（设计）</th></tr></thead><tbody>
+              <tr><td>状态真值</td><td>SQLite</td><td>PostgreSQL：ingest_jobs / 审计台账</td></tr>
+              <tr><td>任务投递</td><td>进程内信号量队列</td><td>Celery + Redis broker → v0.2 RabbitMQ</td></tr>
+              <tr><td>检索</td><td>词法门禁 + 本地 Bge M3 向量排序（可切离线词法）</td><td>PG 全文 + Milvus 向量 + RRF + 权限双过滤</td></tr>
+              <tr><td>生成</td><td>外部 DeepSeek / 本地 LM Studio / 离线占位（可切）</td><td>外部 DeepSeek SSE</td></tr>
+              <tr><td>实时进度</td><td>2.5s 轮询 + SSE 心跳</td><td>Redis pub/sub + SSE 权威快照</td></tr>
+              <tr><td>前端</td><td>无构建静态页</td><td>React + Vite</td></tr>
+            </tbody></table>
+          </div>
+        </div>
+        <div class="card padded"><div class="section-title">交付档次与明确不做</div>
+          <p class="muted small" style="margin:0"><b>A 档（当前）</b>：离线可跑、闭环可演示、降级可见。<b>B 档（面试期）</b>：真实 embedding / 中文分词 /
+            Rerank / 压测 / 越权用例 / trace 全链路。<b>C 档（团队质量工作）</b>：容灾演练、容量基线、审计留存合规、监控告警、灰度回滚。
+            <b>明确不做</b>：真实 API、UI 框架、多租户行级权限、压测、质量基线、物理隔离。</p>
+        </div>
+      </section>
+
+      <!-- ---------- 模型设置（仅 admin） ---------- -->
+      <section id="view-settings" class="hidden">
+        <div class="page-head">
+          <div><h2>模型设置</h2><p>切换 LLM / 向量 / 重排提供者：本地 LM Studio、外部 DeepSeek 或离线占位。保存即时生效，无需重启。</p></div>
+          <div class="head-actions"><button class="btn btn-sm" onclick="loadSettings()">刷新</button></div>
+        </div>
+
+        <div class="grid-2" style="margin-bottom:16px">
+          <div class="card padded">
+            <div class="section-title">LLM 生成</div>
+            <div class="field"><label>提供者</label>
+              <select id="st-llm-provider" class="select" onchange="onLlmProviderChange()">
+                <option value="discovery">外部 DeepSeek（Intern-AI Discovery 网关）</option>
+                <option value="sensenova">外部 DeepSeek（Sensenova 代理）</option>
+                <option value="local">本地 LM Studio</option>
+                <option value="offline">离线占位</option>
+              </select>
+            </div>
+            <div id="st-discovery-box">
+              <div class="field"><label>网关模型</label>
+                <select id="st-discovery-model" class="select"></select>
+              </div>
+              <p class="muted small" style="margin:0">同一 key 下多模型可切（deepseek / glm / kimi / minimax / qwen / vision），密钥在 <code>.env</code> 的 <code>DISCOVERY_API_KEY</code>。</p>
+            </div>
+            <div id="st-local-llm-box">
+              <div class="field"><label>本地端点</label><input id="st-local-llm-base" class="input" placeholder="http://127.0.0.1:1234/v1" /></div>
+              <div class="field"><label>本地模型</label><select id="st-local-llm-model" class="select"></select></div>
+              <p class="muted small" style="margin:0">提示：Qwen3 系列是推理模型，正文可能为空；建议选非推理的 coder 模型。</p>
+            </div>
+            <div id="st-external-box" class="muted small">外部模型：<b id="st-sensenova-model">—</b>；密钥在 <code>.env</code>，不落库、不下发前端。</div>
+            <div class="btns" style="margin-top:8px"><button class="btn btn-sm" onclick="testProvider('llm')">测试连接</button></div>
+            <div id="st-llm-result" class="muted small"></div>
+          </div>
+
+          <div class="card padded">
+            <div class="section-title">向量检索（Embedding）</div>
+            <div class="field"><label>提供者</label>
+              <select id="st-emb-provider" class="select" onchange="onEmbProviderChange()">
+                <option value="external">硅基流动 BAAI/bge-m3（云端）</option>
+                <option value="local">本地 Bge M3（LM Studio）</option>
+                <option value="offline">离线词法</option>
+              </select>
+            </div>
+            <div id="st-local-emb-box">
+              <div class="field"><label>本地端点</label><input id="st-local-emb-base" class="input" /></div>
+              <div class="field"><label>嵌入模型</label><select id="st-local-emb-model" class="select"></select></div>
+            </div>
+            <div id="st-external-emb-box">
+              <div class="field"><label>Base URL</label><input id="st-external-emb-base" class="input" placeholder="https://api.siliconflow.cn/v1" /></div>
+              <div class="field"><label>嵌入模型</label><input id="st-external-emb-model" class="input" placeholder="BAAI/bge-m3" /></div>
+              <p class="muted small" style="margin:0">与重排共用 <code>.env</code> 里的硅基流动密钥（<code>RERANK_API_KEY</code> 或 <code>WEBAPP_EMBEDDING_API_KEY</code>），不落库、不下发前端。向量按「provider:模型」隔离缓存。</p>
+            </div>
+            <div class="btns" style="margin-top:8px"><button class="btn btn-sm" onclick="testProvider('embedding')">测试连接</button></div>
+            <div id="st-emb-result" class="muted small"></div>
+          </div>
+        </div>
+
+        <div class="card padded" style="margin-bottom:16px">
+          <div class="section-title">重排（Rerank）</div>
+          <div class="field"><label>提供者</label>
+            <select id="st-rerank-provider" class="select" onchange="onRerankProviderChange()">
+              <option value="off">关闭</option>
+              <option value="llm">用当前 LLM 打分重排（LLM-as-reranker）</option>
+              <option value="external">外部 rerank（硅基流动 / Jina / TEI）</option>
+            </select>
+          </div>
+          <div id="st-llm-rerank-box" class="muted small">
+            使用当前 LLM 对候选打分排序；会多一次模型调用（当前 LLM 为离线占位时自动跳过）。
+          </div>
+          <div id="st-external-rerank-box">
+            <div class="field"><label>Base URL</label><input id="st-external-rerank-base" class="input" placeholder="https://api.siliconflow.cn/v1" /></div>
+            <div class="field"><label>重排模型</label><input id="st-external-rerank-model" class="input" placeholder="BAAI/bge-reranker-v2-m3" /></div>
+            <p class="muted small" style="margin:0">密钥放 <code>.env</code> 的 <code>RERANK_API_KEY</code>，不落库、不下发前端。</p>
+          </div>
+          <div class="btns" style="margin-top:8px"><button class="btn btn-sm" onclick="testProvider('rerank')">测试连接</button></div>
+          <div id="st-rerank-result" class="muted small"></div>
+          <p class="muted small" style="margin:8px 0 0">说明：LM Studio 不暴露 <code>/v1/rerank</code>；可选「LLM 打分重排」或外部 rerank（硅基流动免费、Cohere 风格格式兼容）。</p>
+        </div>
+
+        <div class="card padded">
+          <div class="section-title">当前生效</div>
+          <div id="st-effective" class="muted small"></div>
+          <div class="btns" style="margin-top:10px">
+            <button class="btn btn-primary" onclick="saveSettings()">保存设置</button>
+            <span class="muted small" style="margin-left:10px">保存后即时生效，无需重启。</span>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<div id="modal-root"></div>
+<div id="toasts"></div>
+
+<script src="/app.js?v=10"></script>
+</body>
+</html>

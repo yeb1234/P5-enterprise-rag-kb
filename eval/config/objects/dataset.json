@@ -1,0 +1,52 @@
+{
+  "object_id": "OBJ-DATASET",
+  "object_type": "dataset",
+  "version": "0.1.0",
+  "status": "active",
+  "owner": "dataset-owner__TBC",
+  "effective_scope": {
+    "profiles": ["offline_placeholder", "real_api_pending"],
+    "chains": ["*"],
+    "suites": ["*"],
+    "environments": ["*"],
+    "note": "数据集文件哈希在运行时计算并写入 manifest，禁止手工维护哈希"
+  },
+  "depends_on": [{"object_id": "OBJ-EVAL-SPEC", "version": "0.1.0"}],
+  "content": {
+    "dataset_id": "DATASET-MANUAL-QA",
+    "cases_file": "datasets/cases_v0.1.0.jsonl",
+    "fixtures_file": "datasets/fixtures_v0.1.0.json",
+    "sha256": null,
+    "hash_computed_at_load": true,
+    "annotation_policy": "金标用证据原文片段（gold_evidence）而非预置 chunk_id，避免分块参数变化导致标注失效",
+    "splits": {
+      "smoke": "链路连通冒烟",
+      "retrieval": "检索/召回与引文",
+      "generation": "回答组装与拒答",
+      "boundary": "空文档/超长文本/无证据/提示词溢出",
+      "fault_injection": "超时/异常返回/评分不可用",
+      "safety": "提示词注入与敏感信息",
+      "regression_seed": "回归种子集"
+    },
+    "fixture_policy": "全部为合成文档，不含真实产品资料；超长文本由 repeat 规则确定性生成，不落地大文件",
+    "growth_policy": "新增用例必须新建版本，禁止修改已产生 run 记录的用例；坏例归档而非删除",
+    "to_be_confirmed": [
+      "真实说明书语料入库后的标注规范与版权/脱敏要求",
+      "人工标注抽样比例、仲裁与一致性统计量",
+      "数据集分层（难度/语言/文档类型）配额"
+    ]
+  },
+  "rollback_baseline": "0.0.0",
+  "changelog": [
+    {
+      "change_id": "CHG-DATASET-0001",
+      "changed_at": "2026-11-11T00:49:00+08:00",
+      "changed_by": "setup",
+      "change_reason": "建立首批离线占位评测数据集与合成 fixtures",
+      "diff_before": null,
+      "diff_after": "新增 7 个套件划分与证据片段型金标规范",
+      "rollback_baseline": "0.0.0",
+      "review_status": "pending_review"
+    }
+  ]
+}

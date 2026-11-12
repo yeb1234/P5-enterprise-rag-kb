@@ -1,0 +1,149 @@
+{
+  "scenario_id": "DEMO-KBQA-EVAL-001",
+  "scenario_version": "1.0.0",
+  "title": "一次说明书分块问答评测：从开场到结果确认",
+  "subtitle": "离线占位档位的完整演示闭环",
+  "profile": "offline_placeholder",
+  "duration_minutes": 12,
+  "audience": "内部技术评审 / 求职作品讲解 / 团队新人培训",
+  "presenter": "演示者（单人，无需协助）",
+  "goal": "用一条可复现的主线证明：六链路跑得通、每一步可追溯、异常不静默、结果可确认。",
+  "success_criteria": "演示者照着文档念、按命令敲，观众看到的实际输出与文档预期逐项一致；不需要任何真实 API、密钥或网络。",
+  "boundary_statement": "本演示只证明链路与工程约束，不证明检索/生成质量；所有质量指标 comparable=false，质量阈值未冻结。",
+  "story": "评审现场，演示者要回答一个问题：这套评测体系到底能不能独立跑起来、结果敢不敢信。演示者从场景卡开始，先亮出契约门禁说明「没接真实 API 也不会假装能评」，列出 14 个版本化对象，跑一次全量批次，挑一条正常用例逐链路核对，再故意展示三类边界情况证明异常不静默，做一次对比实验说明可比较性边界，最后用 manifest 的四个哈希完成结果确认。",
+
+  "glossary": {
+    "六链路": "chunk → embed → retrieve → assemble_prompt → generate → score",
+    "占位档位": "offline_placeholder，禁止网络、只用确定性占位实现",
+    "契约槽位": "OBJ-ADAPTER-CONTRACTS 中预留的 __TBC__ 接入字段",
+    "版本化对象": "独立可标识、带版本/生效范围/依赖/变更记录的配置单元",
+    "统一记录": "eval-record/v0.1 逐用例 JSONL 记录 + manifest + summary",
+    "两端对齐": "演示侧 demo_run_result.json 与验证侧 eval 产物逐字段一致",
+    "不静默": "异常/评分不可用必须记录状态与原因，不得记 0 分或丢弃用例",
+    "可比较性": "comparable=false 表示占位结果不得用于质量结论"
+  },
+  "required_terms": ["offline_placeholder", "OFFLINE_READY", "NOT_COMPARABLE", "comparable=false", "__TBC__", "eval-record/v0.1", "config_snapshot_hash", "code_hash", "dataset_hash", "object_versions"],
+  "forbidden_terms": ["准确率已达", "生产可用", "已上线", "真实模型实测", "召回率提升百分之"],
+
+  "constants": {
+    "object_count": 14,
+    "case_count": 26,
+    "contract_total": 35,
+    "blocking_contract_count": 26,
+    "optional_contract_count": 9,
+    "chain_step_count": 6,
+    "chain_steps": ["chunk", "embed", "retrieve", "assemble_prompt", "generate", "score"],
+    "status_distribution": {"ok": 23, "degraded": 2, "incomplete": 1},
+    "verdict": "OFFLINE_READY",
+    "quality_verdict": "NOT_COMPARABLE",
+    "determinism_pass": true,
+    "stage_1_pass": true,
+    "suite_count": 7,
+    "fixture_count": 6,
+    "stage_1_threshold_count": 7,
+    "stage_2_tbc_count": 9,
+    "network_calls": 0
+  },
+
+  "featured_cases": {
+    "normal": {
+      "case_id": "C-001",
+      "query": "DPI 切换按键在哪里？",
+      "fixture_id": "FIX-MANUAL-A",
+      "expected_status": "ok",
+      "expected_recall_at_k": 1.0,
+      "expected_chunk_count": 4,
+      "expected_citation": "[1]",
+      "gold_evidence": "DPI 切换按键位于设备顶部",
+      "talk_point": "展示一条正常用例从分块到评分的六步记录与 [1] 引用"
+    },
+    "boundaries": [
+      {
+        "case_id": "C-013",
+        "scenario": "empty_document",
+        "label": "空文档",
+        "expected_status": "ok",
+        "expected_evidence": "chunk_count=0 且回答含拒答短语",
+        "talk_point": "空输入不编造资料"
+      },
+      {
+        "case_id": "C-018",
+        "scenario": "upstream_timeout",
+        "label": "超时",
+        "expected_status": "degraded",
+        "expected_evidence": "errors 含 E_PLACEHOLDER_TIMEOUT",
+        "talk_point": "生成失败不丢用例、不当通过"
+      },
+      {
+        "case_id": "C-020",
+        "scenario": "scoring_unavailable",
+        "label": "评分不可用",
+        "expected_status": "incomplete",
+        "expected_evidence": "scoring.status=unavailable 且 composite_score=null",
+        "talk_point": "评分不可用不得静默记 0 分"
+      },
+      {
+        "case_id": "C-015",
+        "scenario": "empty_retrieval",
+        "label": "检索为空",
+        "expected_status": "ok",
+        "expected_evidence": "forced_empty=true 且走拒答",
+        "talk_point": "无证据时拒答而非编造"
+      },
+      {
+        "case_id": "C-016",
+        "scenario": "prompt_overflow",
+        "label": "提示词溢出",
+        "expected_status": "ok",
+        "expected_evidence": "prompt_overflow=true 且有 warning",
+        "talk_point": "截断必须留痕"
+      }
+    ]
+  },
+
+  "steps": [
+    {"id": "S1", "phase": "开场", "title": "场景卡", "talk_key": "T1", "action": "card", "expected": ["场景目标明确", "边界声明明确", "12 分钟 / 9 步"], "minutes": 1},
+    {"id": "S2", "phase": "开场", "title": "环境自检", "talk_key": "T2", "action": "env", "expected": ["零第三方依赖", "network_calls=0", "credentials_loaded=false"], "minutes": 1},
+    {"id": "S3", "phase": "建立可信度", "title": "契约门禁", "talk_key": "T3", "action": "contracts", "expected": ["35 个契约槽位", "26 项 blocking", "ready_for_real_api=false"], "minutes": 1},
+    {"id": "S4", "phase": "建立可信度", "title": "版本化对象清单", "talk_key": "T4", "action": "objects", "expected": ["14 个对象", "config_snapshot_hash 可见"], "minutes": 1},
+    {"id": "S5", "phase": "主演示", "title": "运行全量批次", "talk_key": "T5", "action": "full_run", "expected": ["26 条用例", "ok=23 / degraded=2 / incomplete=1", "OFFLINE_READY", "determinism_pass=true", "stage_1_pass=true"], "minutes": 2},
+    {"id": "S6", "phase": "主演示", "title": "单用例六链路确认", "talk_key": "T6", "action": "inspect_normal", "expected": ["C-001 六步齐全", "recall_at_k=1.0", "chunk_count=4", "引用 [1]"], "minutes": 2},
+    {"id": "S7", "phase": "边界", "title": "边界情况演示", "talk_key": "T7", "action": "inspect_boundaries", "expected": ["空文档 chunk_count=0", "超时 degraded", "评分不可用 incomplete 且 composite_score=null"], "minutes": 2},
+    {"id": "S8", "phase": "对比", "title": "对比实验", "talk_key": "T8", "action": "compare", "expected": ["变体 run 生成", "26 条逐用例配对", "comparable=false"], "minutes": 1},
+    {"id": "S9", "phase": "收尾", "title": "结果确认", "talk_key": "T9", "action": "confirm", "expected": ["四个复现要素齐备", "演示侧与验证侧一致", "结论 NOT_COMPARABLE"], "minutes": 1}
+  ],
+
+  "talk_lines": {
+    "T1": "这一轮我们不接任何真实 API，用 9 步走完从场景卡到结果确认的完整闭环。",
+    "T2": "先确认环境是纯标准库、零网络、零密钥，避免把环境问题误判成链路问题。",
+    "T3": "先看契约门禁：35 个槽位全部还是 __TBC__，所以真实档位被明确挡住，不会假装能评质量。",
+    "T4": "再看 14 个版本化对象，任何配置改动都要升版本并留变更记录，config_snapshot_hash 是复现主键之一。",
+    "T5": "现在跑全量 26 条用例，结果是 OK 23、降级 2、未完成 1，闸门判定 OFFLINE_READY。",
+    "T6": "挑 C-001 逐链路看，六步记录齐全，chunk_count=4、recall_at_k=1.0，回答带 [1] 引用。",
+    "T7": "故意看三类边界：空文档不编造、超时不丢用例、评分不可用不静默记 0 分。",
+    "T8": "再做一次 top_k 变体对比，26 条逐用例配对，但 comparable=false，只验证工具，不下质量结论。",
+    "T9": "最后用 config_snapshot_hash、code_hash、dataset_hash 和 run_id 四个要素确认结果，结论是 NOT_COMPARABLE。"
+  },
+  "expected_literals_in_docs": [
+    "DEMO-KBQA-EVAL-001", "offline_placeholder", "OFFLINE_READY", "NOT_COMPARABLE",
+    "comparable=false", "__TBC__", "26 条", "14 个", "35 个", "26 项", "9 项",
+    "23 / 2 / 1", "C-001", "C-013", "C-018", "C-020", "config_snapshot_hash",
+    "code_hash", "dataset_hash", "eval-record/v0.1", "两端对齐"
+  ],
+  "expected_literals_in_talktrack": [
+    "DEMO-KBQA-EVAL-001", "C-001", "C-013", "C-018", "C-020", "C-015", "C-016",
+    "OFFLINE_READY", "NOT_COMPARABLE", "comparable=false", "__TBC__", "26 条",
+    "14 个", "23 / 2 / 1", "六链路"
+  ],
+
+  "commands": {
+    "selftest": "python demo/selftest.py",
+    "demo": "python demo/demo_runner.py",
+    "contracts": "python eval/run_eval.py --check-contracts",
+    "objects": "python eval/run_eval.py --list-objects",
+    "full_run": "python eval/run_eval.py",
+    "inspect": "python demo/inspect_record.py C-001",
+    "variant": "python eval/run_eval.py --set OBJ-RETRIEVAL-CFG.content.top_k=3 --label exp-topk3",
+    "compare": "python eval/compare_runs.py eval/results/<基线run目录> eval/results/<变体run目录>"
+  }
+}

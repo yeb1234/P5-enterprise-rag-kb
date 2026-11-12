@@ -1,0 +1,93 @@
+{
+  "object_id": "OBJ-ADAPTER-CONTRACTS",
+  "object_type": "adapter_contract",
+  "version": "0.1.0",
+  "status": "active",
+  "owner": "integration-owner__TBC",
+  "effective_scope": {
+    "profiles": ["offline_placeholder", "real_api_pending"],
+    "chains": ["embed", "retrieve", "generate", "score"],
+    "suites": ["*"],
+    "environments": ["*"],
+    "note": "real_api 档位下，任一 blocking=true 字段仍为 __TBC__ 时必须快速失败并列出待确认项"
+  },
+  "depends_on": [{"object_id": "OBJ-EVAL-SPEC", "version": "0.1.0"}],
+  "content": {
+    "rule": "所有真实 API 的接口地址、鉴权、请求/响应结构、配额、错误码、模型版本与具体模型名称一律不预设；此处仅预留契约槽位。",
+    "placeholder_token": "__TBC__",
+    "components": {
+      "embedding_service": {
+        "provider_label": "阿里云百炼 embedding 服务（占位，具体服务名待用户确认）",
+        "fields": [
+          {"field_key": "service_endpoint", "value": "__TBC__", "blocking": true, "needed_for": ["embed"], "confirmation_source": "开通凭证/官方文档"},
+          {"field_key": "auth_scheme", "value": "__TBC__", "blocking": true, "needed_for": ["embed"], "confirmation_source": "开通凭证"},
+          {"field_key": "credential_ref", "value": "__TBC__", "blocking": true, "needed_for": ["embed"], "confirmation_source": "密钥管理流程，禁止写入仓库"},
+          {"field_key": "model_id", "value": "__TBC__", "blocking": true, "needed_for": ["embed", "baseline"], "confirmation_source": "用户确认；不得假定具体模型名称或版本"},
+          {"field_key": "output_dimension", "value": "__TBC__", "blocking": true, "needed_for": ["embed", "retrieve"], "confirmation_source": "用户确认"},
+          {"field_key": "request_schema", "value": "__TBC__", "blocking": true, "needed_for": ["embed"], "confirmation_source": "官方接口契约"},
+          {"field_key": "response_schema", "value": "__TBC__", "blocking": true, "needed_for": ["embed"], "confirmation_source": "官方接口契约"},
+          {"field_key": "batch_support_and_limits", "value": "__TBC__", "blocking": true, "needed_for": ["embed"], "confirmation_source": "官方接口契约"},
+          {"field_key": "max_input_length_semantics", "value": "__TBC__", "blocking": true, "needed_for": ["chunk", "embed"], "confirmation_source": "官方接口契约"},
+          {"field_key": "vector_normalization_and_metric", "value": "__TBC__", "blocking": true, "needed_for": ["retrieve"], "confirmation_source": "官方接口契约"},
+          {"field_key": "quota_qps_tpm_daily", "value": "__TBC__", "blocking": true, "needed_for": ["run_budget"], "confirmation_source": "开通配额"},
+          {"field_key": "error_code_mapping", "value": "__TBC__", "blocking": true, "needed_for": ["error_handling"], "confirmation_source": "官方错误码表；当前不得假定任何真实错误码"},
+          {"field_key": "retry_and_idempotency_semantics", "value": "__TBC__", "blocking": true, "needed_for": ["error_handling"], "confirmation_source": "官方接口契约"},
+          {"field_key": "request_id_field_for_observability", "value": "__TBC__", "blocking": false, "needed_for": ["trace"], "confirmation_source": "官方接口契约"},
+          {"field_key": "usage_and_cost_fields", "value": "__TBC__", "blocking": false, "needed_for": ["cost"], "confirmation_source": "官方接口契约"}
+        ]
+      },
+      "generation_service": {
+        "provider_label": "DeepSeek（占位，具体服务名与模型标识待用户确认）",
+        "fields": [
+          {"field_key": "service_endpoint", "value": "__TBC__", "blocking": true, "needed_for": ["generate"], "confirmation_source": "开通凭证/官方文档"},
+          {"field_key": "auth_scheme", "value": "__TBC__", "blocking": true, "needed_for": ["generate"], "confirmation_source": "开通凭证"},
+          {"field_key": "credential_ref", "value": "__TBC__", "blocking": true, "needed_for": ["generate"], "confirmation_source": "密钥管理流程，禁止写入仓库"},
+          {"field_key": "model_id", "value": "__TBC__", "blocking": true, "needed_for": ["generate", "baseline"], "confirmation_source": "用户确认；不得假定具体模型名称或版本"},
+          {"field_key": "request_schema", "value": "__TBC__", "blocking": true, "needed_for": ["generate"], "confirmation_source": "官方接口契约"},
+          {"field_key": "response_schema", "value": "__TBC__", "blocking": true, "needed_for": ["generate"], "confirmation_source": "官方接口契约"},
+          {"field_key": "stream_event_schema", "value": "__TBC__", "blocking": false, "needed_for": ["generate"], "confirmation_source": "官方接口契约"},
+          {"field_key": "supported_generation_parameters", "value": "__TBC__", "blocking": true, "needed_for": ["generate"], "confirmation_source": "官方接口契约；参数名与取值范围均不预设"},
+          {"field_key": "context_window_and_truncation_semantics", "value": "__TBC__", "blocking": true, "needed_for": ["assemble_prompt"], "confirmation_source": "官方接口契约"},
+          {"field_key": "quota_qps_tpm_daily", "value": "__TBC__", "blocking": true, "needed_for": ["run_budget"], "confirmation_source": "开通配额"},
+          {"field_key": "error_code_mapping", "value": "__TBC__", "blocking": true, "needed_for": ["error_handling"], "confirmation_source": "官方错误码表；当前不得假定任何真实错误码"},
+          {"field_key": "usage_and_cost_fields", "value": "__TBC__", "blocking": false, "needed_for": ["cost"], "confirmation_source": "官方接口契约"}
+        ]
+      },
+      "scoring_service": {
+        "provider_label": "评分器（规则/模型裁判，占位）",
+        "fields": [
+          {"field_key": "judge_mode", "value": "__TBC__", "blocking": false, "needed_for": ["score"], "confirmation_source": "评测方案评审"},
+          {"field_key": "judge_model_id_if_applicable", "value": "__TBC__", "blocking": false, "needed_for": ["score"], "confirmation_source": "用户确认；不得假定具体模型名称"},
+          {"field_key": "judge_request_response_schema", "value": "__TBC__", "blocking": false, "needed_for": ["score"], "confirmation_source": "若启用模型裁判再确认"},
+          {"field_key": "judge_quota_and_cost", "value": "__TBC__", "blocking": false, "needed_for": ["run_budget"], "confirmation_source": "开通配额"}
+        ]
+      },
+      "sut_retrieval": {
+        "provider_label": "待测试的说明书分块问答系统（SUT）",
+        "fields": [
+          {"field_key": "entrypoint_and_auth", "value": "__TBC__", "blocking": true, "needed_for": ["retrieve"], "confirmation_source": "待测系统交付方"},
+          {"field_key": "request_response_schema", "value": "__TBC__", "blocking": true, "needed_for": ["retrieve"], "confirmation_source": "待测系统交付方"},
+          {"field_key": "chunk_id_and_citation_format", "value": "__TBC__", "blocking": true, "needed_for": ["retrieve", "score"], "confirmation_source": "待测系统交付方"},
+          {"field_key": "filter_and_permission_semantics", "value": "__TBC__", "blocking": false, "needed_for": ["retrieve"], "confirmation_source": "待测系统交付方"}
+        ]
+      }
+    },
+    "internal_placeholder_error_taxonomy": {
+      "note": "以下为评测框架内部占位错误分类，不是任何供应商错误码；真实错误码映射待确认后另建版本。",
+      "codes": ["E_PLACEHOLDER_TIMEOUT", "E_PLACEHOLDER_MALFORMED_RESPONSE", "E_PLACEHOLDER_EMPTY_RESULT", "E_PLACEHOLDER_SCORING_UNAVAILABLE", "E_CONTRACT_NOT_READY"]
+    }
+  },
+  "rollback_baseline": "0.0.0",
+  "changelog": [
+    {
+      "change_id": "CHG-CONTRACTS-0001",
+      "changed_at": "2026-11-11T00:49:00+08:00",
+      "changed_by": "setup",
+      "change_reason": "建立统一占位契约槽位，禁止在接入前假定任何真实 API 细节",
+      "diff_before": null,
+      "diff_after": "新增 4 类组件共 35 个契约槽位，blocking 字段全部 __TBC__；定义内部占位错误分类",
+      "rollback_baseline": "0.0.0",
+      "review_status": "pending_review"
+    }
+  ]
+}

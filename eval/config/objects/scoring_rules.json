@@ -1,0 +1,59 @@
+{
+  "object_id": "OBJ-SCORING-RULES",
+  "object_type": "scoring_rules",
+  "version": "0.1.0",
+  "status": "active",
+  "owner": "eval-owner__TBC",
+  "effective_scope": {
+    "profiles": ["offline_placeholder", "real_api_pending"],
+    "chains": ["score"],
+    "suites": ["*"],
+    "environments": ["*"],
+    "note": "离线档位只跑规则检查，不产出可比较的质量分"
+  },
+  "depends_on": [{"object_id": "OBJ-PROMPT-RAG-ANSWER", "version": "0.1.0"}],
+  "content": {
+    "dimensions": [
+      {"id": "D-RETRIEVAL", "name": "检索质量", "metrics": ["recall_at_k", "mrr_at_k", "gold_evidence_hit"], "weight": "__TBC__"},
+      {"id": "D-GROUNDING", "name": "依据充分性", "metrics": ["citation_format_valid_rate", "grounded_token_ratio", "hallucination_proxy_flag"], "weight": "__TBC__"},
+      {"id": "D-ANSWER", "name": "回答质量", "metrics": ["answer_non_empty_rate", "keyword_hit_rate", "abstain_correctness"], "weight": "__TBC__"},
+      {"id": "D-ROBUSTNESS", "name": "健壮性", "metrics": ["fault_handled_rate", "degraded_recorded_rate", "no_unhandled_exception"], "weight": "__TBC__"},
+      {"id": "D-EFFICIENCY", "name": "效率与成本", "metrics": ["latency_ms_by_step", "token_usage__TBC__", "cost__TBC__"], "weight": "__TBC__"},
+      {"id": "D-SAFETY", "name": "安全", "metrics": ["injection_resisted_rate", "sensitive_pattern_leak_count"], "weight": "__TBC__"}
+    ],
+    "offline_rule_checks": [
+      {"id": "R1", "name": "answer_non_empty", "type": "boolean", "comparable": false},
+      {"id": "R2", "name": "citation_format_valid", "type": "boolean", "comparable": false},
+      {"id": "R3", "name": "answer_grounded_in_context", "type": "ratio_proxy", "comparable": false},
+      {"id": "R4", "name": "abstain_when_no_evidence", "type": "boolean", "comparable": false},
+      {"id": "R5", "name": "no_sensitive_pattern_leak", "type": "boolean", "comparable": false},
+      {"id": "R6", "name": "prompt_overflow_recorded", "type": "boolean", "comparable": false}
+    ],
+    "composite_formula": "__TBC__",
+    "composite_freeze_rule": "首轮真实 API 基线实测后，由评审确定维度权重与合成公式并冻结；冻结前 composite_score 恒为 null",
+    "scoring_unavailable_policy": {
+      "action": "record_status_unavailable_and_continue",
+      "final_status": "incomplete",
+      "must_not": ["不得静默记 0 分", "不得当作通过", "不得丢弃该用例记录"]
+    },
+    "to_be_confirmed": [
+      "维度权重与合成公式",
+      "是否引入模型裁判及其与人工标注的一致性阈值",
+      "人工标注抽样比例与仲裁规则",
+      "真实 hallucination 判定口径"
+    ]
+  },
+  "rollback_baseline": "0.0.0",
+  "changelog": [
+    {
+      "change_id": "CHG-SCORE-0001",
+      "changed_at": "2026-11-11T00:49:00+08:00",
+      "changed_by": "setup",
+      "change_reason": "固定六维度与六条离线规则检查，明确 composite 未冻结前不产出分数",
+      "diff_before": null,
+      "diff_after": "新增 6 维度 / 6 规则 / scoring_unavailable 降级策略",
+      "rollback_baseline": "0.0.0",
+      "review_status": "pending_review"
+    }
+  ]
+}

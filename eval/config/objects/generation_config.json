@@ -1,0 +1,62 @@
+{
+  "object_id": "OBJ-GENERATION-CFG",
+  "object_type": "generation_config",
+  "version": "0.1.0",
+  "status": "active",
+  "owner": "eval-owner__TBC",
+  "effective_scope": {
+    "profiles": ["offline_placeholder", "real_api_pending"],
+    "chains": ["generate"],
+    "suites": ["*"],
+    "environments": ["*"]
+  },
+  "depends_on": [
+    {"object_id": "OBJ-LLM-MODEL-CFG", "version": "0.1.0"},
+    {"object_id": "OBJ-PROMPT-RAG-ANSWER", "version": "0.1.0"}
+  ],
+  "content": {
+    "note": "真实生成参数名与取值范围一律 __TBC__；下方 offline_placeholder_values 仅为评测框架内部确定性控制量，不代表任何真实服务支持。",
+    "parameters": {
+      "temperature": {"value": "__TBC__", "supported": "__TBC__"},
+      "max_output_tokens": {"value": "__TBC__", "supported": "__TBC__"},
+      "top_p": {"value": "__TBC__", "supported": "__TBC__"},
+      "stream": {"value": "__TBC__", "supported": "__TBC__"},
+      "stop_sequences": {"value": "__TBC__", "supported": "__TBC__"},
+      "timeout_ms": {"value": "__TBC__", "supported": "__TBC__"},
+      "retry_max_attempts": {"value": "__TBC__", "supported": "__TBC__"},
+      "response_format": {"value": "__TBC__", "supported": "__TBC__"}
+    },
+    "offline_placeholder_values": {
+      "temperature_equivalent": 0.0,
+      "max_answer_chars": 600,
+      "stream": false,
+      "deterministic": true
+    },
+    "output_contract": {
+      "answer_field": "answer_text",
+      "citation_marker_pattern": "[n]",
+      "abstain_phrase": "现有资料无法回答",
+      "to_be_confirmed": ["真实服务是否支持结构化输出", "真实服务的流式事件结构"]
+    },
+    "variant_axis_for_ab": ["parameters_temperature", "parameters_max_output_tokens", "prompt_template_ref"],
+    "to_be_confirmed": [
+      "真实参数名、取值范围与默认值",
+      "超时与重试语义",
+      "token 计量与成本字段",
+      "思考/推理开关是否存在及其参数名"
+    ]
+  },
+  "rollback_baseline": "0.0.0",
+  "changelog": [
+    {
+      "change_id": "CHG-GEN-0001",
+      "changed_at": "2026-11-11T00:49:00+08:00",
+      "changed_by": "setup",
+      "change_reason": "建立生成参数占位对象，避免把内部占位值误当作真实 API 参数",
+      "diff_before": null,
+      "diff_after": "8 个参数槽位全部 __TBC__；离线确定性值单独隔离在 offline_placeholder_values",
+      "rollback_baseline": "0.0.0",
+      "review_status": "pending_review"
+    }
+  ]
+}

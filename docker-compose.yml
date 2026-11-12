@@ -1,0 +1,148 @@
+# 企业级知识库 · 一体化开发编排
+# 用法：cp .env.example .env && docker compose up -d --build
+# 生产化提示：PG 流复制、Redis Sentinel、MinIO 分布式、Milvus 集群、nginx 双 upstream 见 docs/operations.md
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-kb}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kb_dev_pwd}
+      POSTGRES_DB: ${POSTGRES_DB:-kb}
+      TZ: Asia/Shanghai
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports: ["5432:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-kb} -d ${POSTGRES_DB:-kb}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - redisdata:/data
+    ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  minio:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-kb_minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-kb_minio_pwd}
+    volumes:
+      - miniodata:/data
+    ports: ["9000:9000", "9001:9001"]
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.16
+    environment:
+      ETCD_AUTO_COMPACTION_MODE: revision
+      ETCD_AUTO_COMPACTION_RETENTION: "1000"
+      ETCD_QUOTA_BACKEND_BYTES: "4294967296"
+      ETCD_SNAPSHOT_COUNT: "50000"
+    command:
+      - etcd
+      - --advertise-client-urls=http://etcd:2379
+      - --listen-client-urls=http://0.0.0.0:2379
+      - --data-dir=/etcd
+    volumes: ["etcddata:/etcd"]
+
+  milvus:
+    image: milvusdb/milvus:v2.5.10
+    command: ["milvus", "run", "standalone"]
+    security_opt: ["seccomp:unconfined"]
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio:9000
+    volumes: ["milvusdata:/var/lib/milvus"]
+    depends_on: [etcd, minio]
+    ports: ["19530:19530", "9091:9091"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    env_file: .env
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2
+    volumes: ["./backend:/app"]
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      minio: {condition: service_healthy}
+      milvus: {condition: service_healthy}
+    ports: ["8000:8000"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # 轻量任务：小文件解析、向量化、通知
+  worker-light:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    env_file: .env
+    command: celery -A app.tasks.celery_app:celery_app worker -Q ingest,default -c 4 -l info --prefetch-multiplier=1
+    volumes: ["./backend:/app"]
+    depends_on: [api]
+
+  # 重任务：大文件按页并行、全量重建索引。可独立扩容、单独设超时
+  worker-heavy:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    env_file: .env
+    command: celery -A app.tasks.celery_app:celery_app worker -Q ingest_heavy -c 2 -l info --prefetch-multiplier=1
+    volumes: ["./backend:/app"]
+    depends_on: [api]
+
+  beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    env_file: .env
+    command: celery -A app.tasks.celery_app:celery_app beat -l info
+    volumes: ["./backend:/app"]
+    depends_on: [api]
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: /api/v1
+    depends_on: [api]
+    expose: ["80"]
+
+  nginx:
+    image: nginx:alpine
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    ports: ["8080:80"]
+    depends_on: [api, frontend]
+
+volumes:
+  pgdata:
+  redisdata:
+  miniodata:
+  etcddata:
+  milvusdata:

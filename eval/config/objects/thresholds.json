@@ -1,0 +1,62 @@
+{
+  "object_id": "OBJ-THRESHOLDS",
+  "object_type": "thresholds",
+  "version": "0.1.0",
+  "status": "active",
+  "owner": "eval-owner__TBC",
+  "effective_scope": {
+    "profiles": ["offline_placeholder", "real_api_pending"],
+    "chains": ["*"],
+    "suites": ["*"],
+    "environments": ["*"]
+  },
+  "depends_on": [
+    {"object_id": "OBJ-SCORING-RULES", "version": "0.1.0"},
+    {"object_id": "OBJ-BASELINE", "version": "0.1.0"}
+  ],
+  "content": {
+    "gate_model": "two_stage",
+    "stage_1_offline_link_health": {
+      "status": "enforceable_now",
+      "thresholds": [
+        {"metric": "chain_step_completeness_rate", "op": ">=", "value": 1.0, "note": "每个用例六步均有记录"},
+        {"metric": "record_schema_valid_rate", "op": ">=", "value": 1.0},
+        {"metric": "determinism_pass", "op": "==", "value": true, "note": "同 seed 双跑 config_hash 与逐用例输出哈希一致"},
+        {"metric": "fault_scenario_handled_rate", "op": ">=", "value": 1.0, "note": "按预期状态收敛，不得静默吞异常"},
+        {"metric": "no_network_calls", "op": "==", "value": true},
+        {"metric": "no_secret_or_raw_prompt_in_logs", "op": "==", "value": true},
+        {"metric": "unhandled_exception_count", "op": "<=", "value": 0}
+      ]
+    },
+    "stage_2_real_quality": {
+      "status": "TBC__cannot_be_frozen_before_baseline",
+      "freeze_rule": "首轮真实 API 基线实测 → 生成建议阈值 → 评审冻结为 0.2.0；冻结前一律 null，禁止用占位结果推导数值",
+      "thresholds": [
+        {"metric": "recall_at_k", "value": null, "tbc_reason": "需真实 embedding 与真实语料基线"},
+        {"metric": "mrr_at_k", "value": null, "tbc_reason": "同上"},
+        {"metric": "citation_format_valid_rate", "value": null, "tbc_reason": "需真实生成结果"},
+        {"metric": "groundedness_rate", "value": null, "tbc_reason": "需确认真实判定口径"},
+        {"metric": "abstain_correctness", "value": null, "tbc_reason": "需无答案用例标注"},
+        {"metric": "injection_resisted_rate", "value": null, "tbc_reason": "需安全用例集与判定口径"},
+        {"metric": "p95_latency_ms", "value": null, "tbc_reason": "需真实服务与配额条件"},
+        {"metric": "cost_per_100_cases", "value": null, "tbc_reason": "成本字段 __TBC__"},
+        {"metric": "no_regression_vs_baseline", "value": null, "tbc_reason": "需基线冻结后定义允许回退幅度"}
+      ]
+    },
+    "verdict_rule": "任一 enforceable 阈值不满足 → BLOCK；任一 TBC 阈值未冻结 → 结果标记 NOT_COMPARABLE，不得判 PASS",
+    "to_be_confirmed": ["全部 stage_2 数值", "置信区间与样本量要求", "允许回退幅度", "成本上限"]
+  },
+  "rollback_baseline": "0.0.0",
+  "changelog": [
+    {
+      "change_id": "CHG-THRESH-0001",
+      "changed_at": "2026-11-11T00:49:00+08:00",
+      "changed_by": "setup",
+      "change_reason": "把「现在可判定的链路健康阈值」与「接入后才可冻结的质量阈值」分离",
+      "diff_before": null,
+      "diff_after": "stage_1 七项可立即执行；stage_2 九项全部 null 并附冻结规则",
+      "rollback_baseline": "0.0.0",
+      "review_status": "pending_review"
+    }
+  ]
+}

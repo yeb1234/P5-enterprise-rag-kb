@@ -1,0 +1,52 @@
+{
+  "object_id": "OBJ-BASELINE",
+  "object_type": "baseline",
+  "version": "0.1.0",
+  "status": "active",
+  "owner": "eval-owner__TBC",
+  "effective_scope": {
+    "profiles": ["offline_placeholder"],
+    "chains": ["*"],
+    "suites": ["*"],
+    "environments": ["*"],
+    "note": "当前仅为链路健康基线，不是质量基线；质量基线待真实 API 首轮实测后另建 0.2.0"
+  },
+  "depends_on": [
+    {"object_id": "OBJ-DATASET", "version": "0.1.0"},
+    {"object_id": "OBJ-SCORING-RULES", "version": "0.1.0"}
+  ],
+  "content": {
+    "baseline_id": "BASELINE-OFFLINE-LINK-0.1.0",
+    "baseline_type": "link_health_only",
+    "derived_from_run_id": null,
+    "derived_at": null,
+    "metrics_snapshot": {},
+    "quality_baseline_status": "TBC__requires_first_real_api_run",
+    "quality_baseline_prerequisites": [
+      "所有 blocking 契约字段确认",
+      "真实档位小额试跑通过",
+      "至少一次全量数据集运行且结果记录完整",
+      "人工抽检完成（比例 __TBC__）"
+    ],
+    "rollback": {
+      "rollback_target_version": "0.0.0",
+      "rollback_trigger": "新版本导致回归闸门 BLOCK 或结果可复现性失败",
+      "rollback_action": "切回上一基线版本并重跑回归种子集，记录变更与原因"
+    },
+    "baseline_update_rule": "任何对象 MAJOR/MINOR 变更都需评估是否重新基线化；基线变更必须新建版本并附前后差异",
+    "to_be_confirmed": ["真实质量基线数值", "基线重算周期", "允许回退幅度"]
+  },
+  "rollback_baseline": "0.0.0",
+  "changelog": [
+    {
+      "change_id": "CHG-BASE-0001",
+      "changed_at": "2026-11-11T00:49:00+08:00",
+      "changed_by": "setup",
+      "change_reason": "建立空质量基线与链路健康基线的占位定义，防止把占位结果误写成质量基线",
+      "diff_before": null,
+      "diff_after": "quality_baseline_status=TBC；metrics_snapshot 为空",
+      "rollback_baseline": "0.0.0",
+      "review_status": "pending_review"
+    }
+  ]
+}

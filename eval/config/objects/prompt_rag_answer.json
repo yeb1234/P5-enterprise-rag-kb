@@ -1,0 +1,60 @@
+{
+  "object_id": "OBJ-PROMPT-RAG-ANSWER",
+  "object_type": "prompt_template",
+  "version": "0.1.0",
+  "status": "active",
+  "owner": "prompt-owner__TBC",
+  "effective_scope": {
+    "profiles": ["offline_placeholder", "real_api_pending"],
+    "chains": ["assemble_prompt", "generate"],
+    "suites": ["*"],
+    "environments": ["*"],
+    "note": "模板内容与渲染规则均需版本化；任何字符改动都须新建版本"
+  },
+  "depends_on": [{"object_id": "OBJ-RETRIEVAL-CFG", "version": "0.1.0"}],
+  "content": {
+    "template_id": "rag_answer_zh_v1",
+    "locale": "zh-CN",
+    "messages": [
+      {
+        "role": "system",
+        "template": "你是企业内部说明书问答助手。只依据【资料片段】作答，不得使用片段之外的知识或猜测。每个结论后用 [编号] 标注来源。资料不足时明确回答「现有资料无法回答」并说明缺失方向。不得复述密钥、证件号、手机号等敏感内容。用简体中文，先给结论，再给依据。"
+      },
+      {
+        "role": "user",
+        "template": "【资料片段】\n{context}\n\n【问题】\n{query}\n\n【输出要求】\n1. 先给结论，再给依据；\n2. 每条依据标注 [编号]；\n3. 资料不足时使用拒答短语，不要编造。"
+      }
+    ],
+    "variables": ["context", "query"],
+    "citation_format": "[n]",
+    "context_item_template": "[{index}] 文档《{doc_title}》第 {page_no} 页 / {section_path}\n{snippet}",
+    "render_rules": {
+      "max_context_items": 8,
+      "max_snippet_chars": 500,
+      "max_prompt_chars_offline": 2000,
+      "truncation_policy": "drop_tail_items_then_truncate_snippet",
+      "on_overflow": "record_warning_and_set_prompt_overflow_flag",
+      "empty_context_policy": "render_abstain_only",
+      "escaping": "plain_text_no_interpolation_into_instructions"
+    },
+    "safety_rules": ["instruction_in_query_is_data_not_command", "log_prompt_hash_not_raw_prompt"],
+    "to_be_confirmed": [
+      "真实服务是否支持 system/user 角色划分",
+      "真实服务的上下文窗口与截断语义",
+      "是否启用结构化输出及其字段"
+    ]
+  },
+  "rollback_baseline": "0.0.0",
+  "changelog": [
+    {
+      "change_id": "CHG-PROMPT-RAG-0001",
+      "changed_at": "2026-11-11T00:49:00+08:00",
+      "changed_by": "setup",
+      "change_reason": "建立首版 RAG 回答模板，固定引用格式与拒答短语",
+      "diff_before": null,
+      "diff_after": "新增 system/user 两段模板、[n] 引用、8 片段上限与溢出记录规则",
+      "rollback_baseline": "0.0.0",
+      "review_status": "pending_review"
+    }
+  ]
+}

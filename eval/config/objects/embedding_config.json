@@ -1,0 +1,65 @@
+{
+  "object_id": "OBJ-EMBEDDING-CFG",
+  "object_type": "embedding_config",
+  "version": "0.1.0",
+  "status": "active",
+  "owner": "integration-owner__TBC",
+  "effective_scope": {
+    "profiles": ["offline_placeholder"],
+    "chains": ["embed", "retrieve"],
+    "suites": ["*"],
+    "environments": ["local", "ci"],
+    "note": "真实档位启用前必须新建版本并填齐契约字段"
+  },
+  "depends_on": [
+    {"object_id": "OBJ-ADAPTER-CONTRACTS", "version": "0.1.0"},
+    {"object_id": "OBJ-CHUNK-PARAMS", "version": "0.1.0"}
+  ],
+  "content": {
+    "provider_label": "阿里云百炼 embedding 服务（占位）",
+    "service_endpoint": "__TBC__",
+    "auth_scheme": "__TBC__",
+    "credential_ref": "__TBC__",
+    "model_id": "__TBC__",
+    "model_version": "__TBC__",
+    "output_dimension": "__TBC__",
+    "request_schema": "__TBC__",
+    "response_schema": "__TBC__",
+    "batch_support": "__TBC__",
+    "max_batch_size": "__TBC__",
+    "max_input_length": "__TBC__",
+    "normalization": "__TBC__",
+    "similarity_metric": "__TBC__",
+    "quota": {"qps": "__TBC__", "tpm": "__TBC__", "daily": "__TBC__"},
+    "error_code_mapping": "__TBC__",
+    "retry_policy": "__TBC__",
+    "offline_placeholder": {
+      "algorithm": "deterministic_feature_hashing_with_char_bigrams",
+      "dimension": 64,
+      "normalized": true,
+      "semantic_capability": false,
+      "purpose": "仅验证向量维度契约、检索链路与结果记录，禁止用于质量结论",
+      "comparable": false
+    },
+    "to_be_confirmed": [
+      "具体服务名/模型标识/版本（不预设）",
+      "输出维度与相似度度量",
+      "批量上限、单条长度上限、归一化行为",
+      "配额、错误码、重试与幂等语义",
+      "向量维度变更时的全量重建与基线重算流程"
+    ]
+  },
+  "rollback_baseline": "0.0.0",
+  "changelog": [
+    {
+      "change_id": "CHG-EMB-0001",
+      "changed_at": "2026-11-11T00:49:00+08:00",
+      "changed_by": "setup",
+      "change_reason": "建立 embedding 占位配置并显式声明所有真实字段待确认",
+      "diff_before": null,
+      "diff_after": "全部真实服务字段置 __TBC__ + 64 维确定性特征哈希 stub",
+      "rollback_baseline": "0.0.0",
+      "review_status": "pending_review"
+    }
+  ]
+}
