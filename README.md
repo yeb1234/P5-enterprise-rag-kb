@@ -14,7 +14,8 @@ React + FastAPI + PostgreSQL + Milvus + Redis/Celery + 外部 DeepSeek 的**可�
 > 它**不修改** `eval/` 冻结对象，`eval/` 的 `__TBC__` / `NOT_COMPARABLE` 口径保持不变。
 >
 > **企业级就绪改造（限流 / 权限 / 成本 / 验收标准）**：`docs/enterprise-readiness.md`；
-> **中型公司知识库能力清单（含来源核实与 Top10 建议）**：`docs/kb-capability-checklist.md`。
+> **中型公司知识库能力清单（含来源核实与 Top10 建议）**：`docs/kb-capability-checklist.md`；
+> **整体改进日志（版本坐标、改动清单、缺陷修正、验证快照）**：`docs/CHANGELOG.md`。
 > 演示切片前端已支持中英文切换、6 套主题色 × 明/暗模式，并新增「评估测试」可观测子页。
 
 > **想直接看界面？** 另有一个「拿来即可演示」的可运行切片 `webapp/`：
