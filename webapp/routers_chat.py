@@ -119,6 +119,19 @@ async def chat_stream(
             db.log_action(user["username"], user["role"], "chat", conv_id[:8],
                           f"retrieved={len(retrieved)}, sources={len(sources)}, "
                           f"degraded={final_degraded}, reason={final_reason}")
+            # 旁路记录 token 用量：估算口径明确标注，任何异常都不影响本次问答
+            try:
+                from webapp import observability as obs
+                cfg = obs.get_config()["config"]
+                prompt_text = body.question + "\n" + "\n".join(
+                    str(s.get("text") or "") for s in sources)
+                obs.record_usage(
+                    project=cfg.get("project", "default"), tenant=cfg.get("tenant", "default"),
+                    user_id=user["id"], call_type="chat", model=rag.get_model_label(),
+                    prompt_text=prompt_text, completion_text="".join(full),
+                    estimated=1, detail=f"conv={conv_id[:8]} degraded={final_degraded}")
+            except Exception:
+                pass
 
     return StreamingResponse(
         gen(),

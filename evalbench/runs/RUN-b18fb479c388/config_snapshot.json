@@ -1,0 +1,20 @@
+{
+  "run_id": "RUN-b18fb479c388",
+  "label": "offline-eval",
+  "mode": "offline",
+  "comparable": false,
+  "created_at": "2026-11-12T12:58:32Z",
+  "git": {
+    "branch": "demo/v1",
+    "commit": "a089a7f"
+  },
+  "profile": {
+    "profile": "offline_placeholder",
+    "prompt_version": "v2_grounded",
+    "params_id": "B",
+    "samples": "all",
+    "project": "default",
+    "tenant": "default"
+  },
+  "note": "零外部 API 调用；comparable=false；不写入质量基线"
+}

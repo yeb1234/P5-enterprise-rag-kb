@@ -1,0 +1,163 @@
+{
+  "run_id": "RUN-b18fb479c388",
+  "label": "offline-eval",
+  "mode": "offline",
+  "comparable": false,
+  "n_records": 12,
+  "status_counts": {
+    "ok": 12
+  },
+  "groups": [
+    {
+      "model": "offline_placeholder",
+      "task_category": "grounded_extraction",
+      "dimension": "answer_accuracy",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "offline_placeholder",
+      "task_category": "grounded_extraction",
+      "dimension": "answer_economy",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "offline_placeholder",
+      "task_category": "grounded_extraction",
+      "dimension": "faithfulness",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "offline_placeholder",
+      "task_category": "grounded_extraction",
+      "dimension": "format_compliance",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "offline_placeholder",
+      "task_category": "grounded_extraction",
+      "dimension": "rejection_correctness",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "offline_placeholder",
+      "task_category": "information_integration",
+      "dimension": "answer_accuracy",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "offline_placeholder",
+      "task_category": "information_integration",
+      "dimension": "answer_economy",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "offline_placeholder",
+      "task_category": "information_integration",
+      "dimension": "faithfulness",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "offline_placeholder",
+      "task_category": "information_integration",
+      "dimension": "format_compliance",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "offline_placeholder",
+      "task_category": "information_integration",
+      "dimension": "rejection_correctness",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "offline_placeholder",
+      "task_category": "negative_rejection",
+      "dimension": "answer_accuracy",
+      "mean": 0.0,
+      "n": 3
+    },
+    {
+      "model": "offline_placeholder",
+      "task_category": "negative_rejection",
+      "dimension": "answer_economy",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "offline_placeholder",
+      "task_category": "negative_rejection",
+      "dimension": "faithfulness",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "offline_placeholder",
+      "task_category": "negative_rejection",
+      "dimension": "format_compliance",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "offline_placeholder",
+      "task_category": "negative_rejection",
+      "dimension": "rejection_correctness",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "offline_placeholder",
+      "task_category": "noise_robustness",
+      "dimension": "answer_accuracy",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "offline_placeholder",
+      "task_category": "noise_robustness",
+      "dimension": "answer_economy",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "offline_placeholder",
+      "task_category": "noise_robustness",
+      "dimension": "faithfulness",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "offline_placeholder",
+      "task_category": "noise_robustness",
+      "dimension": "format_compliance",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "offline_placeholder",
+      "task_category": "noise_robustness",
+      "dimension": "rejection_correctness",
+      "mean": 1.0,
+      "n": 3
+    }
+  ],
+  "by_model": {
+    "offline_placeholder": {
+      "per_category": {},
+      "overall": null,
+      "avg_latency_ms": 0
+    }
+  },
+  "git": {
+    "branch": "demo/v1",
+    "commit": "a089a7f"
+  }
+}

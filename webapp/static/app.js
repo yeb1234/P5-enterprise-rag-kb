@@ -15,6 +15,7 @@ const S = {
   busy: false,
   needDocPoll: false,
   streaming: false,
+  evalTab: 'config',
   _modalData: {},   // 弹窗参数注册表：避免把用户输入拼进 onclick 属性
 };
 
@@ -149,6 +150,7 @@ const VIEW_META = {
   search: ['检索调试', '工作台 / 检索调试'],
   tasks:  ['任务中心', '质量与治理 / 任务中心'],
   eval:   ['评测中心', '质量与治理 / 评测中心'],
+  evaltest: ['评估测试', '质量与治理 / 评估测试（可观测）'],
   admin:  ['管理后台', '质量与治理 / 管理后台（仅 admin）'],
   audit:  ['审计日志', '质量与治理 / 审计日志（仅 admin）'],
   settings: ['模型设置', '系统 / 模型设置（仅 admin）'],
@@ -160,21 +162,72 @@ const VIEWS = Object.keys(VIEW_META);
 const LOADERS = {
   home: loadOverview, docs: refreshDocs, tasks: loadTasks, eval: loadEval,
   admin: loadAdmin, audit: loadAudit, settings: loadSettings, system: loadSystem,
+  evaltest: loadEvalTest,
 };
 function switchView(view) {
   if (ADMIN_VIEWS.includes(view) && (!S.user || S.user.role !== 'admin')) {
-    toast('仅管理员可访问该页面（接口同样返回 403）', 'err'); return;
+    toast(t('仅管理员可访问该页面（接口同样返回 403）'), 'err'); return;
   }
   S.view = view;
   document.querySelectorAll('.nav button[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === view));
   VIEWS.forEach(v => $('view-' + v).classList.toggle('hidden', v !== view));
-  $('page-title').textContent = VIEW_META[view][0];
-  $('page-crumb').textContent = VIEW_META[view][1];
+  $('page-title').textContent = t(VIEW_META[view][0]);
+  $('page-crumb').textContent = t(VIEW_META[view][1]);
   const loader = LOADERS[view];
   if (loader) loader();
   if (view === 'chat') loadConversations();  // 进入问答页即加载历史会话列表
+  if (window.applyI18n) applyI18n($('view-' + view));
 }
 function refreshCurrentView() { const l = LOADERS[S.view]; if (l) l(); }
+
+/* ---------------- 外观（语言 / 主题色 / 明暗） ---------------- */
+const THEME_COLORS = {
+  indigo: '#6366f1', teal: '#14b8a6', violet: '#8b5cf6',
+  amber: '#f59e0b', rose: '#f43f5e', graphite: '#64748b'
+};
+function initAppearance() {
+  const box = $('kb-swatches');
+  if (box) {
+    box.innerHTML = Object.keys(THEME_COLORS).map(k => {
+      const label = (window.KBTheme.labels[k] || {})[getLang()] || k;
+      return `<button class="swatch" type="button" data-theme-key="${k}" style="--sw:${THEME_COLORS[k]}" title="${esc(label)}" aria-label="${esc(label)}" onclick="setTheme('${k}')"></button>`;
+    }).join('');
+  }
+  renderAppearance();
+  document.addEventListener('kb:themechange', renderAppearance);
+  document.addEventListener('kb:langchange', () => {
+    renderAppearance();
+    // 静态 DOM 已由 i18n 引擎重扫；这里只重渲染由 JS 生成的动态内容
+    if (S.user) {
+      $('page-title').textContent = t(VIEW_META[S.view][0]);
+      $('page-crumb').textContent = t(VIEW_META[S.view][1]);
+      renderBanners(S._lastBusy || null);
+      refreshCurrentView();
+      updateConvStats();
+      loadConversations();
+    }
+  });
+}
+function renderAppearance() {
+  const lang = getLang();
+  if ($('kb-lang')) $('kb-lang').value = lang;
+  document.querySelectorAll('.swatch[data-theme-key]').forEach(b => {
+    b.setAttribute('aria-pressed', b.dataset.themeKey === KBTheme.getTheme() ? 'true' : 'false');
+    const l = (KBTheme.labels[b.dataset.themeKey] || {})[lang] || b.dataset.themeKey;
+    b.setAttribute('title', l); b.setAttribute('aria-label', l);
+  });
+  const dark = KBTheme.getMode() === 'dark';
+  const btn = $('kb-mode');
+  if (btn) {
+    btn.innerHTML = dark
+      ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12.8A8.5 8.5 0 1 1 11.2 3a6.6 6.6 0 0 0 9.8 9.8z"/></svg>' + esc(t('深色'))
+      : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/></svg>' + esc(t('浅色'));
+    btn.setAttribute('aria-label', t(dark ? '切换到浅色' : '切换到深色'));
+    btn.title = t(dark ? '切换到浅色' : '切换到深色');
+  }
+}
+function setTheme(k) { if (window.KBTheme) KBTheme.setTheme(k); }
+function toggleMode() { if (window.KBTheme) KBTheme.toggleMode(); }
 
 /* ---------------- 繁忙 / 断线状态 ---------------- */
 async function pollBusy() {
@@ -182,8 +235,9 @@ async function pollBusy() {
     const r = await api('/api/system/busy');
     const wasOffline = S.offline;
     S.offline = false; S.busy = r.busy;
+    S._lastBusy = r;
     renderBanners(r);
-    if (wasOffline) { toast('服务连接已恢复，数据已刷新', 'ok'); refreshCurrentView(); }
+    if (wasOffline) { toast(t('服务连接已恢复，数据已刷新'), 'ok'); refreshCurrentView(); }
   } catch (_) {
     S.offline = true;
     renderBanners(null);
@@ -194,27 +248,27 @@ function renderBanners(r) {
   const box = $('banners');
   let html = '';
   if (S.offline) {
-    html += `<div class="banner banner-offline"><span class="spin"></span>服务连接中断，正在自动重连…（每 2.5 秒尝试一次，恢复后自动刷新数据）</div>`;
+    html += `<div class="banner banner-offline"><span class="spin"></span>${esc(t('服务连接中断，正在自动重连…（每 2.5 秒尝试一次，恢复后自动刷新数据）'))}</div>`;
   } else if (r && r.busy) {
-    html += `<div class="banner banner-busy"><span class="spin"></span>${esc(r.message)}<span class="queue-pill">处理中 ${r.active_count} · 排队 ${r.queue_count}</span></div>`;
+    html += `<div class="banner banner-busy"><span class="spin"></span>${esc(t('上传分析繁忙，超出并发闸的请求已排队。'))}<span class="queue-pill">${esc(t('处理中 {a} · 排队 {q}', { a: r.active_count, q: r.queue_count }))}</span></div>`;
   }
   box.innerHTML = html;
   // 侧边栏与顶栏状态
   const dot = $('sys-dot');
   dot.className = 'sys-dot' + (S.offline ? ' off' : (S.busy ? ' busy' : ''));
-  $('sys-text').textContent = S.offline ? '连接中断' : (S.busy ? '上传分析繁忙' : '系统运行中');
+  $('sys-text').textContent = t(S.offline ? '连接中断' : (S.busy ? '上传分析繁忙' : '系统运行中'));
   const inline = $('busy-inline');
   inline.classList.toggle('hidden', !S.busy || S.offline);
   if (S.busy && !S.offline && r) {
     inline.className = 'badge badge-amber';
-    inline.textContent = `繁忙 · 排队 ${r.queue_count}`;
+    inline.textContent = t('繁忙 · 排队 {n}', { n: r.queue_count });
   }
   // 文档页运行详情
   if (r) {
-    $('busy-detail').innerHTML = S.offline ? '<span style="color:var(--danger)">后端不可达</span>' :
+    $('busy-detail').innerHTML = S.offline ? `<span style="color:var(--danger)">${esc(t('后端不可达'))}</span>` :
       (r.busy
-        ? `当前 <b>${r.active_count}</b> 个任务正在分析，<b>${r.queue_count}</b> 个排队。<br/>处理中：${esc((r.active || []).map(x => x.filename).join('、') || '—')}<br/>排队中：${esc((r.queued || []).map(x => x.filename).join('、') || '—')}`
-        : '系统空闲，上传文档将即时开始分析。');
+        ? `${esc(t('当前 {a} 个任务正在分析，{q} 个排队。', { a: r.active_count, q: r.queue_count }))}<br/>${esc(t('处理中：{n}', { n: (r.active || []).map(x => x.filename).join('、') || '—' }))}<br/>${esc(t('排队中：{n}', { n: (r.queued || []).map(x => x.filename).join('、') || '—' }))}`
+        : esc(t('系统空闲，上传文档将即时开始分析。')));
   }
 }
 
@@ -237,7 +291,7 @@ const DOC_BADGE = {
 };
 function renderDocs(docs) {
   if (!docs.length) {
-    $('docs-table').innerHTML = `<div class="empty-state"><div class="big">▤</div>还没有文档，先上传一份或点击「生成示例说明书」。</div>`;
+    $('docs-table').innerHTML = `<div class="empty-state"><div class="big">▤</div>${esc(t('还没有文档，先上传一份或点击「生成示例说明书」。'))}</div>`;
     return;
   }
   const rows = docs.map(d => {
@@ -251,12 +305,12 @@ function renderDocs(docs) {
         <div class="file-name" title="${esc(d.filename)}">${esc(d.filename)}</div></div></td>
       <td class="small muted">${fmtSize(d.size_bytes)}</td>
       <td><span class="badge ${cls}">${label}</span>${note}</td>
-      <td class="small">${d.chunk_count} 块</td>
+      <td class="small">${esc(t('{n} 块', { n: d.chunk_count }))}</td>
       <td class="small muted">${esc(fmtTime(d.created_at))}</td>
-      <td><button class="btn btn-sm btn-danger" onclick="removeDoc('${esc(d.id)}')">删除</button></td>
+      <td><button class="btn btn-sm btn-danger" data-i18n="删除" onclick="removeDoc('${esc(d.id)}')">${esc(t('删除'))}</button></td>
     </tr>`;
   }).join('');
-  $('docs-table').innerHTML = `<table><thead><tr><th>文件名</th><th>大小</th><th>状态</th><th>分块</th><th>上传时间</th><th>操作</th></tr></thead><tbody>${rows}</tbody></table>`;
+  $('docs-table').innerHTML = `<table><thead><tr><th>${esc(t('文件名'))}</th><th>${esc(t('大小'))}</th><th>${esc(t('状态'))}</th><th>${esc(t('分块'))}</th><th>${esc(t('上传时间'))}</th><th>${esc(t('操作'))}</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 async function handleFiles(files) {
@@ -265,8 +319,8 @@ async function handleFiles(files) {
     const fd = new FormData(); fd.append('file', f);
     try {
       await api('/api/docs/upload', { method: 'POST', body: fd });
-      toast(`已接收「${f.name}」，进入分析队列`, 'ok');
-    } catch (e) { toast(`上传「${f.name}」失败：${e.message}`, 'err'); }
+      toast(t('已接收「{n}」，进入分析队列', { n: f.name }), 'ok');
+    } catch (e) { toast(t('上传「{n}」失败：', { n: f.name }) + e.message, 'err'); }
   }
   $('file-input').value = '';
   S.busy = true; pollBusy(); refreshDocs();
@@ -274,12 +328,12 @@ async function handleFiles(files) {
 async function seedSample() {
   try {
     await api('/api/docs/seed-sample', { method: 'POST' });
-    toast('示例说明书已生成并进入分析队列', 'ok');
+    toast(t('示例说明书已生成并进入分析队列'), 'ok');
     pollBusy(); refreshDocs();
   } catch (e) { toast(e.message, 'err'); }
 }
 async function removeDoc(id) {
-  try { await api('/api/docs/' + id, { method: 'DELETE' }); toast('文档已删除', 'ok'); refreshDocs(); }
+  try { await api('/api/docs/' + id, { method: 'DELETE' }); toast(t('文档已删除'), 'ok'); refreshDocs(); }
   catch (e) { toast(e.message, 'err'); }
 }
 
@@ -324,8 +378,8 @@ function newConversation() {
   S.conversationId = '';
   S.msgCount = 0; S.badcaseCount = 0;
   $('chat-log').innerHTML = `<div class="msg bot"><div class="m-avatar">KB</div><div class="msg-body">
-    <div class="msg-name">知识库助手</div><div class="bubble">你好，我是知识库问答助手。请先到「文档管理」上传说明书，然后向我提问；回答会以流式逐字输出。<br/><br/>若知识库没有命中，我会明确告知，不会编造内容。</div></div></div>`;
-  $('conv-id').textContent = '尚未开始';
+    <div class="msg-name">${esc(t('知识库助手'))}</div><div class="bubble">${t('你好，我是知识库问答助手。请先到「文档管理」上传说明书，然后向我提问；回答会以流式逐字输出。<br/><br/>若知识库没有命中，我会明确告知，不会编造内容。')}</div></div></div>`;
+  $('conv-id').textContent = t('尚未开始');
   updateConvStats();
 }
 function updateConvStats() {
@@ -337,8 +391,8 @@ function updateConvStats() {
 function appendMsg(role, text) {
   const wrap = document.createElement('div');
   wrap.className = 'msg ' + (role === 'user' ? 'user' : 'bot');
-  wrap.innerHTML = `<div class="m-avatar">${role === 'user' ? '我' : 'KB'}</div>
-    <div class="msg-body"><div class="msg-name">${role === 'user' ? esc(S.user.username) : '知识库助手'}</div>
+  wrap.innerHTML = `<div class="m-avatar">${role === 'user' ? esc(t('我')) : 'KB'}</div>
+    <div class="msg-body"><div class="msg-name">${role === 'user' ? esc(S.user.username) : esc(t('知识库助手'))}</div>
     <div class="bubble"></div></div>`;
   const bubble = wrap.querySelector('.bubble');
   bubble.textContent = text || '';
@@ -366,7 +420,8 @@ async function sendChat() {
 
   while (retries <= 3 && !finished) {
     try {
-      setStatus(retries === 0 ? '正在检索知识库并流式生成…' : `连接中断，正在续传（第 ${retries} 次重试，已续 ${resumeFrom} 个 token）…`);
+      setStatus(retries === 0 ? esc(t('正在检索知识库并流式生成…'))
+        : esc(t('连接中断，正在续传（第 {r} 次重试，已续 {n} 个 token）…', { r: retries, n: resumeFrom })));
       const res = await fetch('/api/chat/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + S.token },
@@ -418,7 +473,7 @@ async function sendChat() {
       if (!finished) { retries++; degrade = false; reason = ''; }
     } catch (e) {
       retries++;
-      if (retries > 3) { bot.bubble.insertAdjacentText('beforeend', '\n\n[连接中断，重试次数已用尽，请重新发送]'); }
+      if (retries > 3) { bot.bubble.insertAdjacentText('beforeend', '\n\n' + t('[连接中断，重试次数已用尽，请重新发送]')); }
       else await new Promise(r => setTimeout(r, 600));
     }
   }
@@ -430,31 +485,28 @@ async function sendChat() {
   if (degrade) {
     const d = document.createElement('div');
     d.className = 'degrade-note';
-    if (reason === 'model_error') {
-      d.textContent = '降级提示：模型服务暂时不可用或触发限流，已自动降级为本地拼接回答（仍基于检索片段）。稍后可重试以获取完整生成。';
-    } else if (reason === 'quota_exceeded') {
-      d.textContent = '降级提示：当前模型额度（墨点）已用尽，未自动重试，本次为本地拼接回答。可在「模型设置」换模型或换供应商后重试。';
-    } else if (reason === 'stream_interrupted') {
-      d.textContent = '降级提示：流式生成中途中断，以上为已收到的部分内容。可重新提问以获取完整回答。';
-    } else if (reason === 'empty_model_output') {
-      d.textContent = '降级提示：当前模型未返回正文（可能只输出了推理过程），已自动降级为本地拼接回答。可在「模型设置」换成非推理模型（如 qwen2.5-coder-7b-instruct）后重试。';
-    } else if (reason === 'retrieval_empty') {
-      d.textContent = '降级提示：知识库未命中相关内容，本次为占位拒答话术（不编造）。可上传文档后重试。';
-    } else {
-      d.textContent = '降级提示：本次回答已降级处理。';
-    }
+    const DEGRADE_KEYS = {
+      model_error: '降级提示：模型服务暂时不可用或触发限流，已自动降级为本地拼接回答（仍基于检索片段）。稍后可重试以获取完整生成。',
+      quota_exceeded: '降级提示：当前模型额度（墨点）已用尽，未自动重试，本次为本地拼接回答。可在「模型设置」换模型或换供应商后重试。',
+      stream_interrupted: '降级提示：流式生成中途中断，以上为已收到的部分内容。可重新提问以获取完整回答。',
+      empty_model_output: '降级提示：当前模型未返回正文（可能只输出了推理过程），已自动降级为本地拼接回答。可在「模型设置」换成非推理模型（如 qwen2.5-coder-7b-instruct）后重试。',
+      retrieval_empty: '降级提示：知识库未命中相关内容，本次为占位拒答话术（不编造）。可上传文档后重试。',
+    };
+    const dk = DEGRADE_KEYS[reason] || '降级提示：本次回答已降级处理。';
+    d.setAttribute('data-i18n', dk);
+    d.textContent = t(dk);
     bot.body.appendChild(d);
   }
   const tools = document.createElement('div');
   tools.className = 'msg-tools';
   const bcKey = storeModalData({ q, answer });
-  tools.innerHTML = `<button class="btn btn-sm" onclick="openBadcaseFromKey('${bcKey}')">标记为 badcase</button>
-    <span class="muted small">${esc(fmtTime(new Date().toISOString().replace(/\.\d+Z$/, 'Z')))} · 流式完成</span>`;
+  tools.innerHTML = `<button class="btn btn-sm" data-i18n="标记为 badcase" onclick="openBadcaseFromKey('${bcKey}')">${esc(t('标记为 badcase'))}</button>
+    <span class="muted small">${esc(fmtTime(new Date().toISOString().replace(/\.\d+Z$/, 'Z')))} ${esc(t(' · 流式完成'))}</span>`;
   bot.body.appendChild(tools);
   S.msgCount++;
   S.streaming = false;
   $('chat-send').disabled = false;
-  setStatus(finished ? '完成 · Enter 发送，Shift+Enter 换行' : '连接异常结束');
+  setStatus(finished ? esc(t('完成 · Enter 发送，Shift+Enter 换行')) : esc(t('连接异常结束')));
   updateConvStats();
   loadConversations();  // 刷新左侧历史会话列表（含来源标记）
 }
@@ -471,23 +523,23 @@ function ensureSources(bot) {
 /* 渲染来源卡片（每条助手回答下方的「引用来源」面板） */
 function renderSources(container, sources) {
   if (!sources || !sources.length) {
-    container.innerHTML = '<div class="sources-empty">无引用来源 · 本次回答未命中知识库（占位拒答或降级，不编造）</div>';
+    container.innerHTML = `<div class="sources-empty" data-i18n="无引用来源 · 本次回答未命中知识库（占位拒答或降级，不编造）">${esc(t('无引用来源 · 本次回答未命中知识库（占位拒答或降级，不编造）'))}</div>`;
     return;
   }
   const cards = sources.map((s, i) => {
     const key = storeModalData(s);
-    const score = (s.score == null ? '' : '得分 ' + (typeof s.score === 'number' ? s.score.toFixed(3) : s.score));
+    const score = (s.score == null ? '' : t('得分 {n}', { n: (typeof s.score === 'number' ? s.score.toFixed(3) : s.score) }));
     return `<div class="source-card" onclick="openSourceFromKey('${key}')">
-      <div class="sc-head"><span class="sc-idx">${i + 1}</span><b class="sc-title">${esc(s.doc_title || '未知文档')}</b></div>
+      <div class="sc-head"><span class="sc-idx">${i + 1}</span><b class="sc-title">${esc(s.doc_title || t('未知文档'))}</b></div>
       <div class="sc-meta">
-        <span class="badge badge-blue">分块 #${esc(s.idx)}</span>
+        <span class="badge badge-blue"><i style="font-style:normal" data-i18n="分块">${esc(t('分块'))}</i> #${esc(s.idx)}</span>
         ${score ? `<span class="badge badge-gray">${esc(score)}</span>` : ''}
         ${s.retrieval_mode ? `<span class="badge badge-purple">${esc(s.retrieval_mode)}</span>` : ''}
       </div>
       <div class="sc-snippet">${esc((s.snippet || '').replace(/\s+/g, ' ').trim())}…</div>
     </div>`;
   }).join('');
-  container.innerHTML = `<div class="sources"><div class="sources-title">引用来源（${sources.length} 条）· 点击查看原文</div><div class="source-list">${cards}</div></div>`;
+  container.innerHTML = `<div class="sources"><div class="sources-title">${esc(t('引用来源（{n} 条）· 点击查看原文', { n: sources.length }))}</div><div class="source-list">${cards}</div></div>`;
 }
 
 function openSourceFromKey(k) {
@@ -519,7 +571,7 @@ async function loadConversations() {
       const key = storeModalData(c);
       return `<div class="conv-item" onclick="openConversation('${key}')">
         <div class="conv-q">${esc((c.first_question || '').slice(0, 38))}${(c.first_question || '').length > 38 ? '…' : ''}</div>
-        <div class="conv-sub small muted">${esc(fmtTime(c.last_at))} · ${c.msg_count} 条${c.has_sources ? ' · 含来源' : ''}</div>
+        <div class="conv-sub small muted">${esc(fmtTime(c.last_at))} · ${esc(t(c.has_sources ? '{n} 条 · 含来源' : '{n} 条', { n: c.msg_count }))}</div>
       </div>`;
     }).join('');
   } catch (_) { /* 静默：历史列表不影响当前问答 */ }
@@ -669,7 +721,7 @@ function resetFilter() {
 const BC_BADGE = { pending: ['badge-amber', '待处理'], in_review: ['badge-blue', '复核中'], resolved: ['badge-green', '已解决'] };
 const SRC_LABEL = { chat: '问答', manual: '手工', eval: '评测' };
 function renderBadcases(rows) {
-  $('bc-count').textContent = `共 ${rows.length} 条记录（当前筛选条件）`;
+  $('bc-count').textContent = t('共 {n} 条记录（当前筛选条件）', { n: rows.length });
   if (!rows.length) {
     $('bc-table').innerHTML = `<div class="empty-state"><div class="big">◫</div>当前筛选下没有 badcase 记录。<br/><span class="small">去「智能问答」里对一条回答点「标记为 badcase」即可产生数据。</span></div>`;
     return;
@@ -728,7 +780,7 @@ async function exportBadcases(format) {
     const a = document.createElement('a');
     a.href = url; a.download = 'badcases.' + format; a.click();
     URL.revokeObjectURL(url);
-    toast(`已按当前筛选下载 badcases.${format}`, 'ok');
+    toast(t('已按当前筛选下载 badcases.{n}', { n: format }), 'ok');
   } catch (e) { toast('下载失败：' + e.message, 'err'); }
 }
 
@@ -877,7 +929,7 @@ async function loadSystem() {
   $('sys-me').innerHTML = `
     <div class="kv-line"><span>账号</span><b>${esc(S.user.username)}</b></div>
     <div class="kv-line"><span>角色</span><b>${esc(S.user.role)}</b></div>
-    <div class="kv-line"><span>可见入口</span><b>${isAdmin ? '全部 10 项' : '7 项（无管理后台 / 审计日志 / 模型设置）'}</b></div>
+    <div class="kv-line"><span>${esc(t('可见入口'))}</span><b>${esc(t(isAdmin ? '全部 {n} 项' : '{n} 项（无管理后台 / 审计日志 / 模型设置）', { n: isAdmin ? VIEWS.length : 8 }))}</b></div>
     <div class="note-box">生产骨架把权限判定收敛到 decide() 一个纯函数；切片里是 admin 门禁 + owner 过滤。
       逐行 / 逐段落 ACL 与多租户行级权限<b>只预留架构，未实现</b>。</div>`;
   try {
@@ -929,8 +981,8 @@ async function loadSettings() {
       `LLM：<b>${esc(r.effective.llm)}</b>（${esc(r.effective.llm_provider)}） · ` +
       `向量：<b>${esc(r.effective.embedding)}</b> · 重排：<b>${esc(r.effective.rerank)}</b><br/>` +
       `硅基流动密钥：<b style="color:${extColor}">${extEmb.configured ? '已配置（嵌入 + 重排共用）' : '未配置'}</b>` +
-      ` · 本地 LM Studio：<b style="color:${okColor}">${r.local.reachable ? '可达' : '不可达'}</b>` +
-      `（${r.local.models.length} 个模型）`;
+      ` · ${esc(t('本地 LM Studio'))}：<b style="color:${okColor}">${esc(t(r.local.reachable ? '可达' : '不可达'))}</b>` +
+      esc(t('（{n} 个模型）', { n: r.local.models.length }));
     $('st-llm-result').textContent = ''; $('st-emb-result').textContent = ''; $('st-rerank-result').textContent = '';
   } catch (e) { safeToast(e); }
 }
@@ -983,7 +1035,263 @@ async function saveSettings() {
   };
   try {
     await api('/api/settings', { method: 'PUT', body: JSON.stringify({ patch }) });
-    toast('设置已保存，已即时生效', 'ok');
+    toast(t('设置已保存，已即时生效'), 'ok');
     await loadSettings();
   } catch (e) { safeToast(e); }
+}
+
+/* ================= 评估测试子页（可观测） ================= */
+const ET_TABS = ['config', 'runs', 'metrics', 'logs', 'cost', 'gov'];
+function switchEvalTab(tab) {
+  if (!ET_TABS.includes(tab)) return;
+  S.evalTab = tab;
+  document.querySelectorAll('#et-tabs .tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  ET_TABS.forEach(x => $('et-' + x).classList.toggle('active', x === tab));
+  loadEvalTest();
+  if (window.applyI18n) applyI18n($('et-' + tab));
+}
+function loadEvalTest() {
+  const map = {
+    config: loadEtConfig, runs: loadEtRuns, metrics: loadEtMetrics,
+    logs: loadEtLogs, cost: loadEtCost, gov: loadEtGov,
+  };
+  const fn = map[S.evalTab];
+  if (fn) fn();
+  const isAdmin = S.user && S.user.role === 'admin';
+  ['et-save', 'et-run', 'et-budget-save'].forEach(id => {
+    if ($(id)) $(id).classList.toggle('hidden', !isAdmin);
+  });
+  $('et-banner').innerHTML = `<div class="banner banner-note">${esc(t(isAdmin
+    ? '管理员：可修改评估配置、预算与限流规则，并发起离线评估运行。'
+    : '只读视图：用量与日志按本人范围过滤；配置与预算仅管理员可改。'))}</div>`;
+}
+function etTh(key) { return `<th data-i18n="${esc(key)}">${esc(t(key))}</th>`; }
+function etEmpty(key) { return `<div class="empty-state"><div class="big">◫</div><span data-i18n="${esc(key)}">${esc(t(key))}</span></div>`; }
+
+async function loadEtConfig() {
+  try {
+    const r = await api('/api/evaltest/config');
+    const c = r.config || {}, o = r.options || {};
+    const fill = (id, list, cur) => {
+      const el = $(id); if (!el) return;
+      el.innerHTML = list.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
+      if (cur && list.includes(cur)) el.value = cur;
+    };
+    fill('et-prompt', o.prompts || [], c.prompt_version);
+    fill('et-params', o.params || [], c.params_id);
+    fill('et-samples', o.samples || ['all'], c.samples);
+    if ($('et-profile')) $('et-profile').value = c.profile || 'offline_placeholder';
+    const rows = [
+      [t('评估档位'), esc(c.profile || '—')], [t('提示词版本'), esc(c.prompt_version || '—')],
+      [t('参数组'), esc(c.params_id || '—')], [t('样本范围'), esc(c.samples || '—')],
+      [t('项目'), esc(c.project || 'default')], [t('租户'), esc(c.tenant || 'default')],
+      [t('统计范围'), esc(t(r.is_admin ? '全局（admin）' : '仅本人数据'))],
+    ];
+    $('et-config-view').innerHTML = rows.map(([k, v]) => `<div class="kv-line"><span>${k}</span><b>${v}</b></div>`).join('');
+    $('et-config-msg').textContent = t('只读事实源：evalbench/ 资产 + eval_configs 表');
+  } catch (e) { safeToast(e); }
+}
+async function saveEvalConfig() {
+  const patch = {
+    profile: $('et-profile').value, prompt_version: $('et-prompt').value,
+    params_id: $('et-params').value, samples: $('et-samples').value,
+  };
+  try {
+    await api('/api/evaltest/config', { method: 'PUT', body: JSON.stringify({ patch }) });
+    $('et-config-msg').textContent = t('配置项已保存');
+    toast(t('配置项已保存'), 'ok');
+    await loadEtConfig();
+  } catch (e) { $('et-config-msg').textContent = t('配置保存失败：') + e.message; }
+}
+async function runEvalOnce() {
+  try {
+    const r = await api('/api/evaltest/run', { method: 'POST' });
+    if (!r.ok) { toast(t('预算超限：新的付费调用已被拒绝'), 'err'); return; }
+    toast(t('评估已完成（离线，comparable=false）') + ' · ' + r.run_id, 'ok');
+    $('et-config-msg').textContent = `${r.run_id} · ${esc(r.branch)}/${esc(r.commit)} · ${r.n_records} records`;
+    await Promise.all([loadEtRuns(), loadEtCost(), loadEtLogs()]);
+  } catch (e) { toast(t('评估运行失败：') + e.message, 'err'); }
+}
+
+async function loadEtRuns() {
+  try {
+    const r = await api('/api/evaltest/runs?limit=60');
+    const runs = r.runs || [];
+    $('et-runs-table').innerHTML = runs.length
+      ? '<table class="table"><thead><tr>' +
+        [etTh('运行 ID'), etTh('时间'), etTh('模型'), etTh('样本'), etTh('状态'), etTh('操作')].join('') +
+        '</tr></thead><tbody>' + runs.map(x => {
+          const k = storeModalData(x);
+          const sc = x.status_counts || {};
+          const ok = sc.ok != null ? sc.ok : x.n_records;
+          return `<tr><td class="small mono">${esc(x.run_id)}</td>
+            <td class="small">${esc(fmtTime(x.created_at))}</td>
+            <td><span class="badge ${x.comparable ? 'badge-green' : 'badge-gray'}">${esc(x.mode)}</span></td>
+            <td class="small">${esc(x.n_records)} · ${x.comparable ? 'comparable' : 'NOT_COMPARABLE'}</td>
+            <td class="small">${esc(ok)} ok · ${esc(x.git_branch || '—')}/${esc(x.git_commit || '—')}</td>
+            <td><button class="btn btn-sm" data-i18n="查看明细" onclick="openRunDetail('${k}')">${esc(t('查看明细'))}</button></td></tr>`;
+        }).join('') + '</tbody></table>'
+      : etEmpty('暂无运行记录');
+    // 同步指标 / 日志的 run 下拉
+    ['et-metric-run', 'et-log-run'].forEach(id => {
+      const el = $(id); if (!el) return;
+      const cur = el.value;
+      el.innerHTML = '<option value="">' + esc(t('全部')) + '</option>' + runs.map(x =>
+        `<option value="${esc(x.run_id)}">${esc(x.run_id)}</option>`).join('');
+      if (cur) el.value = cur;
+    });
+  } catch (e) { safeToast(e); }
+}
+async function openRunDetail(key) {
+  const x = takeModalData(key);
+  if (!x) return;
+  try {
+    const d = await api('/api/evaltest/runs/' + encodeURIComponent(x.run_id));
+    const s = d.summary || {};
+    openModal(`<h3>${esc(t('运行记录'))}</h3><div class="sub mono">${esc(d.run_id)}</div>
+      <div class="stack">
+        <div class="kv-line"><span>${esc(t('时间'))}</span><b>${esc(fmtTime(x.created_at))}</b></div>
+        <div class="kv-line"><span>${esc(t('状态'))}</span><b>${esc(x.mode)} · ${x.comparable ? 'comparable' : 'NOT_COMPARABLE'}</b></div>
+        <div class="kv-line"><span>${esc(t('样本'))}</span><b>${esc(d.n_records)}</b></div>
+        <div class="kv-line"><span>Git</span><b class="small mono">${esc(x.git_branch || '—')} / ${esc(x.git_commit || '—')}</b></div>
+        <div class="kv-line"><span>${esc(t('主指标'))}</span><b class="small">${esc(JSON.stringify(s.status_counts || {}))}</b></div>
+        <div class="quoted">${esc(JSON.stringify(d.config_snapshot || {}, null, 2).slice(0, 900))}</div>
+      </div>
+      <div class="actions"><button class="btn btn-primary" data-i18n="关闭" onclick="closeModal()">${esc(t('关闭'))}</button></div>`);
+  } catch (e) { toast(e.message, 'err'); }
+}
+
+async function loadEtMetrics() {
+  try {
+    const rid = $('et-metric-run') ? $('et-metric-run').value : '';
+    const model = $('et-metric-model') ? $('et-metric-model').value : '';
+    const r = await api('/api/evaltest/metrics?run_id=' + encodeURIComponent(rid) +
+      '&model=' + encodeURIComponent(model));
+    const groups = r.groups || [];
+    const models = Array.from(new Set(groups.map(g => g.model)));
+    const sel = $('et-metric-model');
+    if (sel) {
+      const cur = sel.value;
+      sel.innerHTML = '<option value="">' + esc(t('全部')) + '</option>' +
+        models.map(m => `<option value="${esc(m)}">${esc(m)}</option>`).join('');
+      if (cur && models.includes(cur)) sel.value = cur;
+    }
+    $('et-metrics-table').innerHTML = groups.length
+      ? '<table class="table"><thead><tr>' +
+        [etTh('模型'), etTh('任务类别'), etTh('维度'), etTh('均值'), etTh('记录数')].join('') +
+        '</tr></thead><tbody>' + groups.map(g =>
+          `<tr><td class="small">${esc(g.model)}</td><td>${esc(g.task_category)}</td>
+           <td>${esc(g.dimension)}</td><td><b>${Number(g.mean).toFixed(4)}</b>
+           <div class="progress-mini"><i style="width:${Math.min(100, g.mean * 100)}%"></i></div></td>
+           <td class="small">${esc(g.n)}</td></tr>`).join('') + '</tbody></table>'
+      : etEmpty('暂无指标数据');
+  } catch (e) { safeToast(e); }
+}
+
+async function loadEtLogs() {
+  try {
+    const rid = $('et-log-run') ? $('et-log-run').value : '';
+    const lv = $('et-log-level') ? $('et-log-level').value : '';
+    const r = await api('/api/evaltest/logs?run_id=' + encodeURIComponent(rid) +
+      '&level=' + encodeURIComponent(lv) + '&limit=200');
+    const logs = r.logs || [];
+    $('et-logs-table').innerHTML = logs.length
+      ? '<table class="table"><thead><tr>' +
+        [etTh('时间'), etTh('级别'), etTh('事件'), etTh('详情')].join('') +
+        '</tr></thead><tbody>' + logs.map(x =>
+          `<tr><td class="log-time">${esc(fmtTime(x.ts))}</td>
+           <td><span class="badge ${x.level === 'ERROR' ? 'badge-red' : (x.level === 'WARN' ? 'badge-amber' : 'badge-blue')}">${esc(x.level)}</span></td>
+           <td class="small mono">${esc(x.event)}</td>
+           <td class="small">${esc(x.detail || '—')}</td></tr>`).join('') + '</tbody></table>'
+      : etEmpty('暂无日志');
+  } catch (e) { safeToast(e); }
+}
+
+async function loadEtCost() {
+  try {
+    const dim = $('et-cost-dim') ? $('et-cost-dim').value : 'project';
+    const [u, b] = await Promise.all([
+      api('/api/evaltest/usage?dim=' + encodeURIComponent(dim)),
+      api('/api/evaltest/budget'),
+    ]);
+    const rows = u.rows || [], t0 = u.totals || {};
+    $('et-cost-summary').innerHTML =
+      `<div class="kv-line"><span>${esc(t('调用次数'))}</span><b>${esc(t0.calls || 0)}</b></div>
+       <div class="kv-line"><span>${esc(t('输入 token'))} / ${esc(t('输出 token'))}</span><b>${esc(t0.prompt_tokens || 0)} / ${esc(t0.completion_tokens || 0)}</b></div>
+       <div class="kv-line"><span>${esc(t('总 token'))}</span><b>${esc(t0.total_tokens || 0)}</b></div>
+       <div class="kv-line"><span>${esc(t('统计范围'))}</span><b>${esc(t(u.scope || '仅本人调用'))}</b></div>`;
+    const max = Math.max(1, ...rows.map(x => x.cost_cny || 0));
+    $('et-cost-rows').innerHTML = rows.length
+      ? '<div class="cost-bar-row cost-head"><span>' + esc(t('按维度聚合')) + '</span><span>' +
+        esc(t('成本（估算）')) + '</span><span>' + esc(t('调用次数')) + '</span><span>' +
+        esc(t('总 token')) + '</span><span>' + esc(t('输入 token')) + '</span></div>' +
+        rows.map(x => `<div class="cost-bar-row">
+          <span class="truncate" title="${esc(x.key)}">${esc(x.key)}</span>
+          <span><div class="cost-bar"><i style="width:${Math.round((x.cost_cny / max) * 100)}%"></i></div></span>
+          <span class="mono">¥${Number(x.cost_cny).toFixed(4)}</span>
+          <span>${esc(x.calls)}</span><span>${esc(x.total_tokens)}</span></div>`).join('')
+      : etEmpty('暂无用量数据');
+    $('et-budget-spend').textContent = '¥' + Number(b.spend_cny || 0).toFixed(4);
+    $('et-budget-limit').textContent = Number(b.limit_cny || 0).toFixed(2);
+    $('et-budget-rate').textContent = (Number(b.usage_rate || 0) * 100).toFixed(1) + '%';
+    $('et-budget-left').textContent = '¥' + Number(b.remaining_cny || 0).toFixed(4);
+    const track = $('et-budget-track');
+    track.className = 'budget-track' + (b.exceeded ? ' over' : (b.usage_rate > 0.8 ? ' warn' : ''));
+    track.querySelector('i').style.width = Math.min(100, Number(b.usage_rate || 0) * 100) + '%';
+    if ($('et-budget-input') && document.activeElement !== $('et-budget-input')) {
+      $('et-budget-input').value = b.limit_cny;
+    }
+    if ($('et-budget-policy')) $('et-budget-policy').value = b.policy || 'warn';
+    $('et-budget-msg').textContent = b.exceeded
+      ? t('预算超限：新的付费调用已被拒绝') + ' · policy=' + b.policy
+      : t('超限处理') + ': ' + t('告警并拒绝新的付费调用（留痕）') + ' · policy=' + b.policy;
+  } catch (e) { safeToast(e); }
+}
+async function saveBudget() {
+  const limit = Number($('et-budget-input').value);
+  if (!isFinite(limit) || limit < 0) { toast(t('预算保存失败：') + 'invalid limit', 'err'); return; }
+  const policy = $('et-budget-policy') ? $('et-budget-policy').value : 'warn';
+  try {
+    await api('/api/evaltest/budget', {
+      method: 'PUT', body: JSON.stringify({ limit_cny: limit, policy }),
+    });
+    toast(t('预算已更新'), 'ok');
+    await loadEtCost();
+  } catch (e) { toast(t('预算保存失败：') + e.message, 'err'); }
+}
+
+async function loadEtGov() {
+  try {
+    const [r, p] = await Promise.all([
+      api('/api/evaltest/ratelimit'), api('/api/evaltest/plugins'),
+    ]);
+    const rules = r.rules || [], hits = r.hits || [];
+    const dimKey = { user: '用户', tenant: '租户', endpoint: '接口', model: '模型调用' };
+    const hitCount = {};
+    hits.forEach(h => { hitCount[h.dimension] = (hitCount[h.dimension] || 0) + 1; });
+    $('et-rate-table').innerHTML = '<table class="table"><thead><tr>' +
+      [etTh('配额维度'), etTh('限额'), etTh('窗口'), etTh('命中次数')].join('') +
+      '</tr></thead><tbody>' + rules.map(x =>
+        `<tr><td>${esc(t(dimKey[x.dimension] || x.dimension))}</td>
+         <td class="mono">${esc(x.limit_count)}</td><td>${esc(x.window_s)} s</td>
+         <td><span class="badge ${hitCount[x.dimension] ? 'badge-amber' : 'badge-green'}">${esc(hitCount[x.dimension] || 0)}</span></td></tr>`).join('') +
+      '</tbody></table>';
+    const stBadge = { '已落地': 'badge-green', '已落地（演示级）': 'badge-green',
+      '演示级': 'badge-blue', '架构预留': 'badge-amber', '未做': 'badge-gray' };
+    $('et-plugins').innerHTML = (p.plugins || []).map(x =>
+      `<div class="plugin-card"><h5>${esc(x.name)}<span class="badge ${stBadge[x.status] || 'badge-gray'}">${esc(t(x.status))}</span></h5>
+       <p><b>${esc(t('接入模块'))}：</b><span class="mono">${esc(x.module)}</span></p>
+       <p style="margin-top:6px"><b>${esc(t('边界'))}：</b>${esc(x.boundary)}</p>
+       <p style="margin-top:6px"><b>${esc(t('面试考点'))}：</b>${esc(x.why)}</p></div>`).join('');
+  } catch (e) { safeToast(e); }
+}
+
+/* 语言切换后，评估页的动态内容需要重渲染（本页全部用 t() 生成） */
+document.addEventListener('kb:langchange', () => { if (S.user && S.view === 'evaltest') loadEvalTest(); });
+
+/* 启动外观控件（DOMContentLoaded 里已在下方调用） */
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initAppearance);
+} else {
+  initAppearance();
 }

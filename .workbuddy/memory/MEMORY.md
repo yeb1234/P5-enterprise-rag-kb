@@ -114,6 +114,24 @@ A/B/C 三档口径与「面试场上不要把 A 档说成 C 档」的诚实边�
 - 所有可版本化部分（提示词/分块/embedding/模型标识/检索/生成/数据集/评分规则/阈值/基线）
   为独立对象，已产生 run 的版本禁止原地修改；变体只在内存生效，采纳后须新建版本。
 
+## webapp 前端与治理约定（本轮新增，改动时别破）
+- 前端三件套在 `webapp/static/`（零构建）：`i18n.js`（中文原文即 key 字典 + DOM 扫描 +
+  MutationObserver + `data-i18n` 可逆切换）、`theme.js`（6 主题色 × 明暗正交）、
+  `index.html`/`app.js`/`style.css`。资源版本 v=11，改 JS/CSS 要升版本。
+- **三份独立 localStorage**：`kb_lang` / `kb_theme` / `kb_mode`，互不覆盖；
+  `theme.js` 必须在 `<head>` 同步执行（CSS 之前）防闪烁；`kb-boot` 首帧禁用过渡。
+- i18n 关键约束：用户数据容器在 `SKIP_SELECTORS`；无 value 的 `<option>` 必须固化中文原文到
+  value（否则翻译会改 badcase 判定提交值）；动态生成的界面文案加 `data-i18n="中文原文"` 才能
+  在语言切换时可逆重设。`selftest` C01 要求 HTML 保留「企业级知识库」，C33 要求 10 个 view
+  与 6 个 `function loadXxx` 名不变（新增 view 不能删/改这些）。
+- 新增治理层：`observability.py`（成本/预算/限流/用量/插件注册表）、`routers_evaltest.py`
+  （12 个 `/api/evaltest/*`）、`main.py` 限流中间件。默认限流阈值必须宽松，否则会打断
+  33 项 selftest；预算默认 `policy=warn`（`block` 才硬拦）。单价是**演示估算**，非供应商报价。
+- 评估测试子页 `view-evaltest` 只读真实数据（`evalbench/runs/` + 台账），写接口仅 admin；
+  离线运行 `comparable=false`，不写质量基线。测试用 autouse fixture 把 `obs.EVALBENCH_RUNS`
+  monkeypatch 到 tmp_path，**否则会污染 evalbench/runs/**。
+- 规则与验收总纲：`docs/enterprise-readiness.md`；中型公司能力清单：`docs/kb-capability-checklist.md`。
+
 ## evalbench 约定（改动时别破）
 - 样本是**自建 12 条**（`self_built_v1`），依据 RGB（CC BY-NC-SA 4.0 **仅非商业**）与
   SQuAD 2.0 的任务/指标口径，**不是官方数据抽样**，不得称「在 RGB/SQuAD 上的分数」。

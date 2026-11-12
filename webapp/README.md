@@ -36,7 +36,11 @@ python -m uvicorn webapp.main:app --host 127.0.0.1 --port 8765
 | 自行注册 | 自定 | 文档管理、流式问答、badcase **采集**（看不到管理后台） |
 
 自测：`python webapp/selftest.py`（33 项端到端检查，报告写 `webapp/out/selftest_report.json`）。
-API 文档：`http://127.0.0.1:8765/api-docs`（共 24 条 API）。
+API 文档：`http://127.0.0.1:8765/api-docs`（共 36 条 API，含 12 条 `/api/evaltest/*`）。
+
+> **外观**：顶栏可切换中文 / English、6 套主题色、浅色 / 深色模式，三者独立持久化、刷新保留。
+> **评估测试子页**：评估配置、运行记录、指标、日志追踪、按项目/租户/调用维度统计 token 与成本、
+> 预算上限与超限处理、限流配额与插件边界；规则与验收标准见 `docs/enterprise-readiness.md`。
 
 ---
 
@@ -62,7 +66,7 @@ API 文档：`http://127.0.0.1:8765/api-docs`（共 24 条 API）。
 
 ---
 
-## 2.1 侧栏导航：10 项 / 3 组（对照生产骨架 README §4）
+## 2.1 侧栏导航：11 项 / 3 组（对照生产骨架 README §4）
 
 原先只有 3 个入口；补齐的依据不是「看起来像企业级」，而是**项目文档里已经写好的模块**
 （`README.md` §4 的看板 / 任务 / 审计 / 组织 / 检索 / 版本，`docs/` 的上传状态机、
@@ -76,13 +80,19 @@ API 文档：`http://127.0.0.1:8765/api-docs`（共 24 条 API）。
 | 工作台 | 检索调试 | `GET /api/search/preview` | 已实现（演示级） | **先滤权限再召回、再重排、再进模型**；切片只有 `status='ready'` 一层前置条件，Rerank 标「未启用」 |
 | 质量与治理 | 任务中心 | `/api/system/busy` + `/api/docs` | 已实现 | `queued→analyzing→ready/error` 状态机；生产还有批次/页级 chord 与 SSE 权威快照 |
 | 质量与治理 | 评测中心 | `GET /api/eval/objects`（直读 `eval/config/registry.json`）+ 完成度 | 数据真实 / 质量结论不可比 | 14 个版本化对象、禁原地改、变体只在内存生效；`comparable=false`、`NOT_COMPARABLE`、真实 API 仍 `__TBC__` |
+| 质量与治理 | **评估测试** | `GET /api/evaltest/*` + `evalbench/runs/` 留存 | 已实现（演示级） | 评估配置 / 运行记录 / 指标 / 日志追踪 / token 与成本按项目·租户·调用维度聚合 / 预算上限与超限 / 四维限流 / 插件边界；只读真实数据，写接口仅 admin |
 | 质量与治理 | 管理后台 | badcase + 完成度 | 已实现（仅 admin） | 采集与查看权限分离，导出与列表共用筛选 |
 | 质量与治理 | 审计日志 | `GET /api/admin/audit` | 已实现（演示级） | 只追加台账，可按动作/人回放「谁在什么时候做了什么」；**未接** `trace_id`、留存策略与脱敏 |
 | 系统 | 模型设置（仅 admin） | `GET/PUT /api/settings` + `/api/settings/test` | 已实现 | LLM 本地/外部/离线可切、Bge M3 向量、Rerank 可配（不可用优雅跳过）；配置落 SQLite、**即时生效** |
 | 系统 | 系统设置与边界 | `/api/system/busy` + `/api/admin/users` + 静态映射 | 混合 | 组件替身映射表、A/B/C 档、**明确不做**清单——面试时别把 A 档说成 C 档 |
 
 **权限**：`管理后台`、`审计日志`、`模型设置` 仅 admin 可见，接口同样 403；`系统设置与边界` 普通用户可见，
-但成员列表只显示「仅管理员可见」。普通用户 7 项、admin 10 项。
+但成员列表只显示「仅管理员可见」。**普通用户 8 项、admin 11 项**（较上版新增「评估测试」，只读对所有登录用户开放，写接口仍仅 admin）。
+
+**国际化与主题**：`static/i18n.js`（中文原文即 key 的 632 条字典 + DOM 自动扫描 + MutationObserver，
+切换无刷新、可逆、表单提交值不变）× `static/theme.js`（6 套主题色与明/暗模式正交、三份独立
+localStorage、head 同步防闪烁）× `static/style.css`（CSS 变量分层、暗色高对比状态色、响应式与
+`focus-visible` / `prefers-reduced-motion`）。详见 `docs/enterprise-readiness.md` §7。
 
 **故意没加的入口**（列出来本身就是谈资，避免把导航做成空壳）：
 
@@ -253,13 +263,17 @@ SQLite（`app_settings`），即时生效、无需重启**，不动检索 / 权�
 完成度前后一致、概览角色分级、统计权限分离、14 个评测对象与事实源一致、成员/审计/模型设置 admin 门禁、
 十个视图与加载器双向齐全）。
 
-`python -m pytest webapp/tests -p no:cacheprovider` → **41 / 41 通过**（隔离库 + 强制离线，
+`python -m pytest webapp/tests -p no:cacheprovider` → **51 / 51 通过**（隔离库 + 强制离线，
 覆盖适配层、429 退避重试、LLM 选择、设置持久化/校验、检索为空/嵌入不可用/模型报错三种降级、
 LLM 打分重排与外部 rerank 跳过、续传连续性、chat 路由、鉴权、badcase 闭环、来源追溯
-SSE 携带来源 + 落库 + `/sources`/`/conversations`/`/history` 三个回放接口，
-以及 **external 嵌入与缓存命名空间隔离**）。
+SSE 携带来源 + 落库 + `/sources`/`/conversations`/`/history` 三个回放接口、
+external 嵌入与缓存命名空间隔离，**以及本轮新增 10 项**：表结构/只读接口/写接口 403/
+成本规则/用量范围隔离/预算 block 拒绝/离线运行留痕/429 响应头与台账/静态资源/完成率钳制）。
 
-**真实外部配置下的回归快照**（2026-11-11，详见 `docs/evaluation-report.md`）：
-webapp pytest 41 / 41 · webapp e2e 33 / 33 `DEMO_READY` · demo 16 / 16
-（`run_id=RUN-095a2a4a40c6` 未变） · eval unittest 14 OK · backend pytest 16 / 16。
+**回归快照**（2026-11-12，规则与验收标准详见 `docs/enterprise-readiness.md`）：
+webapp pytest 51 / 51 · webapp e2e 33 / 33 `DEMO_READY` · demo 16 / 16
+（`run_id=RUN-095a2a4a40c6` 未变） · eval unittest 14 OK · evalbench unittest 16 OK ·
+backend pytest 16 / 16 · `node --check` 三个 JS 文件全通过。
+
+> 历史快照（2026-11-11，真实外部配置下）见 `docs/evaluation-report.md`。
 真实端点冒烟见 `webapp/live_smoke.py`（429 容忍）。

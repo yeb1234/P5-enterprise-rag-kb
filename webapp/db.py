@@ -150,6 +150,96 @@ CREATE TABLE IF NOT EXISTS chunk_embeddings (
     updated_at TEXT NOT NULL,
     PRIMARY KEY (chunk_id, model)
 );
+
+-- ============ 可观测与治理（评估测试子页的台账真值） ============
+-- token 用量逐调用台账：项目 / 租户 / 用户 / 调用类型 / 模型 五个可聚合维度。
+-- 生产对应数仓事实表 + 供应商账单对账；这里落 SQLite，估算口径在 API 里明确标注。
+CREATE TABLE IF NOT EXISTS usage_events (
+    id                TEXT PRIMARY KEY,
+    ts                TEXT NOT NULL,
+    project           TEXT NOT NULL DEFAULT 'default',
+    tenant            TEXT NOT NULL DEFAULT 'default',
+    user_id           TEXT NOT NULL DEFAULT '',
+    call_type         TEXT NOT NULL,             -- chat|embedding|rerank|eval|search
+    model             TEXT NOT NULL DEFAULT '',
+    prompt_tokens     INTEGER NOT NULL DEFAULT 0,
+    completion_tokens INTEGER NOT NULL DEFAULT 0,
+    total_tokens      INTEGER NOT NULL DEFAULT 0,
+    cost_cny          REAL NOT NULL DEFAULT 0,
+    estimated         INTEGER NOT NULL DEFAULT 1,  -- 1=按字符估算，0=供应商 usage
+    run_id            TEXT,
+    detail            TEXT,
+    created_at        TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_usage_ts ON usage_events(ts);
+CREATE INDEX IF NOT EXISTS ix_usage_project ON usage_events(project);
+CREATE INDEX IF NOT EXISTS ix_usage_tenant ON usage_events(tenant);
+
+-- 预算：(scope,key) 一个上限；policy=warn 只告警，block 才拒绝新的付费调用。
+CREATE TABLE IF NOT EXISTS budgets (
+    scope      TEXT NOT NULL,                    -- global|tenant|project
+    key        TEXT NOT NULL,
+    limit_cny  REAL NOT NULL,
+    policy     TEXT NOT NULL DEFAULT 'warn',     -- warn|block
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (scope, key)
+);
+
+-- 限流规则：四个维度各自独立计数窗口。
+CREATE TABLE IF NOT EXISTS rate_rules (
+    dimension   TEXT PRIMARY KEY,               -- user|tenant|endpoint|model
+    limit_count INTEGER NOT NULL,
+    window_s    INTEGER NOT NULL,
+    enabled     INTEGER NOT NULL DEFAULT 1,
+    updated_at  TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS rate_hits (
+    id          TEXT PRIMARY KEY,
+    ts          TEXT NOT NULL,
+    dimension   TEXT NOT NULL,
+    key         TEXT NOT NULL,
+    path        TEXT NOT NULL,
+    limit_count INTEGER NOT NULL,
+    window_s    INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_rate_hits_ts ON rate_hits(ts);
+
+-- 评估配置：key/value 落库，admin 可改，即时生效。
+CREATE TABLE IF NOT EXISTS eval_configs (
+    key        TEXT PRIMARY KEY,
+    value      TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+-- 评估运行记录与追踪日志（与 evalbench/runs 的 config_snapshot 对齐）。
+CREATE TABLE IF NOT EXISTS eval_runs (
+    run_id         TEXT PRIMARY KEY,
+    label          TEXT NOT NULL,
+    mode           TEXT NOT NULL,               -- live|offline
+    comparable     INTEGER NOT NULL,
+    profile        TEXT,
+    prompt_version TEXT,
+    params_id      TEXT,
+    samples        TEXT,
+    n_records      INTEGER NOT NULL DEFAULT 0,
+    status_counts  TEXT,
+    created_at     TEXT NOT NULL,
+    actor          TEXT,
+    git_branch     TEXT,
+    git_commit     TEXT,
+    source         TEXT NOT NULL DEFAULT 'webapp'
+);
+CREATE TABLE IF NOT EXISTS eval_logs (
+    id      TEXT PRIMARY KEY,
+    ts      TEXT NOT NULL,
+    run_id  TEXT,
+    level   TEXT NOT NULL,                      -- INFO|WARN|ERROR
+    event   TEXT NOT NULL,
+    detail  TEXT,
+    actor   TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_eval_logs_ts ON eval_logs(ts);
+CREATE INDEX IF NOT EXISTS ix_eval_logs_run ON eval_logs(run_id);
 """
 
 
@@ -219,3 +309,20 @@ def _seed(conn: sqlite3.Connection) -> None:
                 (tid, name, desc, status, target, "admin",
                  time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())),
             )
+    # 可观测与治理的默认配置（幂等：只在缺失时插入，不覆盖 admin 后续修改）
+    now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    if not cur.execute("SELECT 1 FROM budgets WHERE scope='global' AND key='default'").fetchone():
+        cur.execute("INSERT INTO budgets(scope,key,limit_cny,policy,updated_at) VALUES (?,?,?,?,?)",
+                    ("global", "default", 50.0, "warn", now))
+    defaults = {"user": (1200, 60), "tenant": (3000, 60),
+                "endpoint": (900, 60), "model": (600, 60)}
+    for dim, (lim, win) in defaults.items():
+        if not cur.execute("SELECT 1 FROM rate_rules WHERE dimension=?", (dim,)).fetchone():
+            cur.execute(
+                "INSERT INTO rate_rules(dimension,limit_count,window_s,enabled,updated_at)"
+                " VALUES (?,?,?,?,?)", (dim, lim, win, 1, now))
+    cfg = {"profile": "offline_placeholder", "prompt_version": "v2_grounded",
+           "params_id": "B", "samples": "all", "project": "default", "tenant": "default"}
+    for k, v in cfg.items():
+        if not cur.execute("SELECT 1 FROM eval_configs WHERE key=?", (k,)).fetchone():
+            cur.execute("INSERT INTO eval_configs(key,value,updated_at) VALUES (?,?,?)", (k, v, now))

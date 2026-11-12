@@ -33,7 +33,8 @@ def completion(_: dict = Depends(require_admin)):
             ).fetchone()["c"]
             done = recorded
             pending = max(0, target - done)
-            rate = round(done / target, 4) if target else 0.0
+            # 完成率钳制在 [0,1]：采集记录可能超过目标样本数，不应显示 >100%
+            rate = round(min(1.0, done / target), 4) if target else 0.0
             tot_target += target
             tot_done += done
             rows.append(
@@ -50,7 +51,7 @@ def completion(_: dict = Depends(require_admin)):
             )
     finally:
         conn.close()
-    overall_rate = round(tot_done / tot_target, 4) if tot_target else 0.0
+    overall_rate = round(min(1.0, tot_done / tot_target), 4) if tot_target else 0.0
     return {
         "tasks": rows,
         "overall": {

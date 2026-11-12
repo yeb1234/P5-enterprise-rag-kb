@@ -251,7 +251,9 @@ def main() -> dict:
     t0row = next((t for t in comp0.get("tasks", []) if t["eval_task_id"] == tid), {})
     record("C16", "完成度与该任务关联 badcase 数一致",
            st == 200 and t0row.get("completed", -1) >= 1
-           and t0row.get("pending") == t0row.get("target_count") - t0row.get("completed"),
+           # pending 与完成率在服务端口径上都被钳制（累积记录可超过目标数）
+           and t0row.get("pending") == max(0, t0row.get("target_count") - t0row.get("completed"))
+           and 0 <= t0row.get("completion_rate", -1) <= 1,
            f"target={t0row.get('target_count')}, completed={t0row.get('completed')}, "
            f"pending={t0row.get('pending')}, rate={t0row.get('completion_rate')}")
 

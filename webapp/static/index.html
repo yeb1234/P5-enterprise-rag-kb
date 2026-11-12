@@ -4,7 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>企业级知识库 · 可运行演示切片</title>
-  <link rel="stylesheet" href="/style.css?v=10" />
+  <!-- 同步执行：在 CSS 应用前写好 data-theme / data-mode，首屏无主题闪烁 -->
+  <script src="/theme.js?v=11"></script>
+  <script src="/i18n.js?v=11"></script>
+  <link rel="stylesheet" href="/style.css?v=11" />
 </head>
 <body>
 
@@ -76,6 +79,11 @@
         <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/></svg>
         评测中心
       </button>
+      <button data-view="evaltest" onclick="switchView('evaltest')">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/><circle cx="19" cy="6" r="1.5"/></svg>
+        评估测试
+        <span class="nav-tag soft">OBS</span>
+      </button>
       <button data-view="admin" id="nav-admin" class="hidden" onclick="switchView('admin')">
         <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/><path d="M9 12l2 2 4-4"/></svg>
         管理后台 <span class="nav-tag">ADMIN</span>
@@ -107,6 +115,17 @@
         <div class="crumb" id="page-crumb">工作台 / 文档管理</div>
       </div>
       <div class="spacer"></div>
+      <div class="appearance" id="appearance">
+        <label class="appearance-label" for="kb-lang">语言</label>
+        <select id="kb-lang" class="select lang-select" aria-label="语言 / Language" onchange="setLang(this.value)">
+          <option value="zh">中文</option><option value="en">EN</option>
+        </select>
+        <span class="sep"></span>
+        <span class="appearance-label">主题色</span>
+        <div class="swatches" id="kb-swatches" role="group" aria-label="主题色 / Accent color"></div>
+        <span class="sep"></span>
+        <button class="mode-btn" id="kb-mode" onclick="toggleMode()" aria-label="外观模式 / Appearance"></button>
+      </div>
       <span id="busy-inline" class="badge badge-gray hidden">空闲</span>
       <div class="user-chip">
         <span class="avatar" id="user-avatar">U</span>
@@ -395,6 +414,129 @@
           <p class="muted small" style="margin:0"><b>A 档（当前）</b>：离线可跑、闭环可演示、降级可见。<b>B 档（面试期）</b>：真实 embedding / 中文分词 /
             Rerank / 压测 / 越权用例 / trace 全链路。<b>C 档（团队质量工作）</b>：容灾演练、容量基线、审计留存合规、监控告警、灰度回滚。
             <b>明确不做</b>：真实 API、UI 框架、多租户行级权限、压测、质量基线、物理隔离。</p>
+        </div>
+      </section>
+
+      <!-- ---------- 评估测试：可观测子页 ---------- -->
+      <section id="view-evaltest" class="hidden">
+        <div class="page-head">
+          <div><h2>评估测试</h2><p>评估配置、运行记录、指标展示、日志追踪，以及按项目 / 租户 / 调用维度统计 token 消耗与成本；支持预算上限与超限处理。</p></div>
+          <div class="head-actions"><button class="btn btn-sm" onclick="loadEvalTest()">刷新</button></div>
+        </div>
+        <div id="et-banner"></div>
+        <div class="tabs" id="et-tabs">
+          <button class="tab active" data-tab="config" onclick="switchEvalTab('config')">评估配置</button>
+          <button class="tab" data-tab="runs" onclick="switchEvalTab('runs')">运行记录</button>
+          <button class="tab" data-tab="metrics" onclick="switchEvalTab('metrics')">指标展示</button>
+          <button class="tab" data-tab="logs" onclick="switchEvalTab('logs')">日志追踪</button>
+          <button class="tab" data-tab="cost" onclick="switchEvalTab('cost')">成本与预算</button>
+          <button class="tab" data-tab="gov" onclick="switchEvalTab('gov')">限流与插件</button>
+        </div>
+
+        <div class="tab-panel active" id="et-config">
+          <div class="grid-2" style="margin-bottom:16px">
+            <div class="card padded">
+              <div class="section-title">评估配置</div>
+              <div class="field" style="margin-bottom:12px"><label>评估档位</label>
+                <select id="et-profile" class="select">
+                  <option value="offline_placeholder">offline_placeholder（离线可控，comparable=false）</option>
+                  <option value="real_api">real_api（真实 API，需契约解禁）</option>
+                </select>
+              </div>
+              <div class="field" style="margin-bottom:12px"><label>提示词版本</label><select id="et-prompt" class="select"></select></div>
+              <div class="field" style="margin-bottom:12px"><label>参数组</label><select id="et-params" class="select"></select></div>
+              <div class="field" style="margin-bottom:12px"><label>样本范围</label><select id="et-samples" class="select"></select></div>
+              <div class="btns" style="display:flex;gap:8px;flex-wrap:wrap">
+                <button class="btn btn-primary btn-sm" id="et-save" onclick="saveEvalConfig()">保存配置</button>
+                <button class="btn btn-sm" id="et-run" onclick="runEvalOnce()">运行一次评估</button>
+              </div>
+              <div id="et-config-msg" class="muted small" style="margin-top:10px"></div>
+            </div>
+            <div class="card padded">
+              <div class="section-title">当前配置与口径</div>
+              <div id="et-config-view"></div>
+              <div class="note-box" style="margin-top:12px">离线档位结果 <code>comparable=false</code>，禁止写入质量基线；
+                <code>real_api</code> 档位在 <code>OBJ-ADAPTER-CONTRACTS</code> 的 blocking 字段解禁前保持阻断。
+                本页配置只影响演示切片的评估运行，不改动 <code>eval/</code> 冻结对象。</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tab-panel" id="et-runs">
+          <div class="card"><div class="section-title padded" style="padding-bottom:0">最近运行</div>
+            <div class="table-wrap" id="et-runs-table"></div></div>
+          <p class="muted small" style="margin-top:10px">运行记录来自 <code>evalbench/runs/</code> 与本页面发起的离线运行；
+            <code>real_api</code> 与离线档位分别标注，不混算。</p>
+        </div>
+
+        <div class="tab-panel" id="et-metrics">
+          <div class="card padded" style="margin-bottom:16px">
+            <div class="section-title">指标展示 · 按任务类别 / 维度</div>
+            <div class="inline-form">
+              <div class="field"><label>运行</label><select id="et-metric-run" class="select" onchange="loadEtMetrics()"></select></div>
+              <div class="field"><label>模型</label><select id="et-metric-model" class="select" onchange="loadEtMetrics()"><option value="">全部</option></select></div>
+            </div>
+          </div>
+          <div class="card"><div class="table-wrap" id="et-metrics-table"></div></div>
+        </div>
+
+        <div class="tab-panel" id="et-logs">
+          <div class="card padded" style="margin-bottom:16px">
+            <div class="inline-form">
+              <div class="field"><label>运行 ID</label><select id="et-log-run" class="select" onchange="loadEtLogs()"><option value="">全部</option></select></div>
+              <div class="field"><label>级别</label><select id="et-log-level" class="select" onchange="loadEtLogs()">
+                <option value="">全部</option><option value="INFO">INFO</option><option value="WARN">WARN</option><option value="ERROR">ERROR</option>
+              </select></div>
+              <button class="btn btn-sm" onclick="loadEtLogs()">刷新</button>
+            </div>
+          </div>
+          <div class="card"><div class="table-wrap" id="et-logs-table"></div></div>
+        </div>
+
+        <div class="tab-panel" id="et-cost">
+          <div class="grid-2" style="margin-bottom:16px">
+            <div class="card padded">
+              <div class="section-title">预算上限与超限处理</div>
+              <div class="budget-hero"><span class="num" id="et-budget-spend">—</span><span class="unit">/ <span id="et-budget-limit">—</span> 元</span></div>
+              <div class="budget-track" id="et-budget-track"><i style="width:0%"></i></div>
+              <div class="kv-line"><span>使用率</span><b id="et-budget-rate">—</b></div>
+              <div class="kv-line"><span>剩余额度</span><b id="et-budget-left">—</b></div>
+              <div class="kv-line"><span>超限处理</span><b class="small">告警并拒绝新的付费调用（留痕）</b></div>
+              <div class="inline-form" style="margin-top:12px">
+                <div class="field"><label>预算上限（元 / 周期）</label><input id="et-budget-input" class="input" type="number" min="0" step="0.01" /></div>
+                <div class="field"><label>超限策略</label><select id="et-budget-policy" class="select">
+                  <option value="warn">warn（告警留痕，不拒绝）</option>
+                  <option value="block">block（拒绝新的付费调用）</option>
+                </select></div>
+                <button class="btn btn-primary btn-sm" id="et-budget-save" onclick="saveBudget()">保存预算</button>
+              </div>
+              <div id="et-budget-msg" class="muted small" style="margin-top:8px"></div>
+            </div>
+            <div class="card padded">
+              <div class="section-title">Token 消耗与成本（按维度聚合）</div>
+              <div class="field" style="margin-bottom:12px"><label>按维度聚合</label>
+                <select id="et-cost-dim" class="select" onchange="loadEtCost()">
+                  <option value="project">项目</option><option value="tenant">租户</option>
+                  <option value="call_type">调用类型</option><option value="model">模型</option>
+                </select>
+              </div>
+              <div id="et-cost-summary" class="muted small"></div>
+              <div id="et-cost-rows" style="margin-top:10px"></div>
+              <p class="muted small" style="margin:12px 0 0">单价表为演示估算值，非供应商报价；上线前须用账单校准。
+                成本口径：输入 / 输出 token 分别计价，按调用逐条落台账后聚合。</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="tab-panel" id="et-gov">
+          <div class="card" style="margin-bottom:16px">
+            <div class="section-title padded" style="padding-bottom:0">限流配额（用户 / 租户 / 接口 / 模型调用）</div>
+            <div class="table-wrap" id="et-rate-table"></div>
+            <div class="padded muted small">超限反馈：HTTP 429 + Retry-After + 统一错误体 + 审计留痕；
+              <code>rate_limit_exceeded</code> 退避重试，<code>quota_exceeded</code> 不重试。</div>
+          </div>
+          <div class="section-title">插件能力 · 接入模块与边界</div>
+          <div class="plugin-grid" id="et-plugins"></div>
         </div>
       </section>
 

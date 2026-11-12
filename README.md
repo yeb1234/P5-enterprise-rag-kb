@@ -12,6 +12,10 @@ React + FastAPI + PostgreSQL + Milvus + Redis/Celery + 外部 DeepSeek 的**可�
 > **真实 API 评估工作台**：`evalbench/`（独立体系，多提示词/多参数/多模型对比、逐轮 Git 分支收敛）；
 > 运行与结论见 `evalbench/README.md`，结果展示页 `evalbench/out/index.html`。
 > 它**不修改** `eval/` 冻结对象，`eval/` 的 `__TBC__` / `NOT_COMPARABLE` 口径保持不变。
+>
+> **企业级就绪改造（限流 / 权限 / 成本 / 验收标准）**：`docs/enterprise-readiness.md`；
+> **中型公司知识库能力清单（含来源核实与 Top10 建议）**：`docs/kb-capability-checklist.md`。
+> 演示切片前端已支持中英文切换、6 套主题色 × 明/暗模式，并新增「评估测试」可观测子页。
 
 > **想直接看界面？** 另有一个「拿来即可演示」的可运行切片 `webapp/`：
 > `python -m uvicorn webapp.main:app --port 8765`，浏览器打开 `http://127.0.0.1:8765`，
