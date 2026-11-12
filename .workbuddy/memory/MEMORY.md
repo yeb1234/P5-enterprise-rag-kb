@@ -29,6 +29,13 @@ A/B/C 三档口径与「面试场上不要把 A 档说成 C 档」的诚实边�
 - 消息层/插件方案：`docs/next-version-messaging-and-plugins.md`（含第 7 节落地映射）
 - 评估报告（面试讲解版）：`docs/evaluation-report.md`，事实源 `webapp/out/eval_report.json`
   （`python webapp/eval_report.py` 可复跑，隔离临时库、密钥脱敏）。
+- **真实 API 评估工作台**：`evalbench/`（平行体系，不修改 `eval/` 冻结对象）。
+  入口 `evalbench/README.md`，展示页 `evalbench/out/index.html`，迭代结论
+  `evalbench/iterations/iteration_log.md`，事实源 `evalbench/runs/<run_id>/`。
+  Git 分支 `main` → `eval/v1-baseline` → `eval/v2-prompts` → `eval/v3-params`
+  → `eval/v4-models` → `demo/v1`（交付分支，每个 run 的 config_snapshot 回写 branch/commit）。
+  最终配置 `v2_grounded` + 参数 B(`temp=0 / passage_num=5 / noise_rate=0.6`) + `minimax-m3`，
+  最终 run `RUN-a48c08c0b721`；`kimi-k2.6` 会复述 prompt，不纳入默认选型。
 - 可运行演示切片：`webapp/README.md`；启动 `python -m uvicorn webapp.main:app --port 8765`，
   admin/admin123；端到端自测 `python webapp/selftest.py`（33/33，真实外部模型下运行，限流走降级仍全绿），
   单元测试 `python -m pytest webapp/tests -p no:cacheprovider`（41/41，隔离库+强制离线）。
@@ -106,6 +113,20 @@ A/B/C 三档口径与「面试场上不要把 A 档说成 C 档」的诚实边�
   `OBJ-ADAPTER-CONTRACTS` 的 blocking 字段未消解前保持阻断。
 - 所有可版本化部分（提示词/分块/embedding/模型标识/检索/生成/数据集/评分规则/阈值/基线）
   为独立对象，已产生 run 的版本禁止原地修改；变体只在内存生效，采纳后须新建版本。
+
+## evalbench 约定（改动时别破）
+- 样本是**自建 12 条**（`self_built_v1`），依据 RGB（CC BY-NC-SA 4.0 **仅非商业**）与
+  SQuAD 2.0 的任务/指标口径，**不是官方数据抽样**，不得称「在 RGB/SQuAD 上的分数」。
+- `eval/` 冻结对象、`__TBC__`、`NOT_COMPARABLE`、`real_api` 阻断口径**未被 evalbench 改动**；
+  改动后应验证 `git diff main..HEAD -- eval/` 为空、`demo` 的 run_id 不变。
+- 结果按 (model, prompt_hash, params_hash, sample, context_hash, repeat) 缓存在
+  `evalbench/cache/`（已 gitignore），续跑只补失败项；429 失败留痕不评分；
+  `comparable=false` 的离线 run 不进任何质量结论。
+- **已产生 run 不原地修改**：评分口径变更用 `rescore.py` 生成新 run（旧 run 保留为前后对照）；
+  聚合 bug 用 `rebuild_summaries.py` 只重建派生 summary，records / config_snapshot 不动。
+  当前口径 `METRICS@1.2.0`，含 `answer_economy`（主指标饱和后新增，仅用于收敛对照）。
+- 展示页由 `python evalbench/report.py --final-run <run_id>` 从 runs/comparisons/probe 汇总生成，
+  不要手写 HTML 里的数字。
 
 ## 验证命令
 ```bash

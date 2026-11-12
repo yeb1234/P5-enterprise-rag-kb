@@ -1,10 +1,94 @@
 {
-  "generated_at": "2026-11-12T11:25:29Z",
-  "final_run": null,
-  "n_runs": 1,
-  "live_runs": [],
-  "models": [],
-  "branches": [],
-  "comparisons": [],
-  "by_model_final": null
+  "generated_at": "2026-11-12T11:55:10Z",
+  "final_run": "RUN-a48c08c0b721",
+  "n_runs": 13,
+  "live_runs": [
+    "RUN-301337307a9b",
+    "RUN-58a0deda72c2",
+    "RUN-60d21360c41e",
+    "RUN-c2b5dcf2bd41",
+    "RUN-3786315579b0",
+    "RUN-87feb29fc4bd",
+    "RUN-3fea07c6fa70",
+    "RUN-b1a734b77e26",
+    "RUN-b0454d8e17db",
+    "RUN-a48c08c0b721",
+    "RUN-bc1ff8330a87",
+    "RUN-27b130a44e43"
+  ],
+  "models": [
+    "deepseek-v4.1-flash-1017",
+    "kimi-k2.6",
+    "minimax-m3"
+  ],
+  "branches": [
+    "eval/v1-baseline",
+    "eval/v2-prompts",
+    "eval/v3-params",
+    "eval/v4-models"
+  ],
+  "comparisons": [
+    {
+      "name": "params_A_B_C",
+      "kind": "within_run",
+      "mean_primary_delta": null
+    },
+    {
+      "name": "prompt_v1_v2_v3",
+      "kind": "within_run",
+      "mean_primary_delta": null
+    },
+    {
+      "name": "scoring_1.0_vs_1.2",
+      "kind": "across_runs",
+      "mean_primary_delta": 0.1111
+    },
+    {
+      "name": "v1_vs_final",
+      "kind": "across_runs",
+      "mean_primary_delta": -0.0582
+    },
+    {
+      "name": "v1_vs_v2_adopted",
+      "kind": "across_runs",
+      "mean_primary_delta": 0.0
+    },
+    {
+      "name": "v2_vs_v3_adopted",
+      "kind": "across_runs",
+      "mean_primary_delta": 0.0
+    }
+  ],
+  "by_model_final": {
+    "deepseek-v4.1-flash-1017": {
+      "per_category": {
+        "grounded_extraction": 1.0,
+        "information_integration": 1.0,
+        "negative_rejection": 1.0,
+        "noise_robustness": 1.0
+      },
+      "overall": 1.0,
+      "avg_latency_ms": 9808.8
+    },
+    "kimi-k2.6": {
+      "per_category": {
+        "grounded_extraction": 1.0,
+        "information_integration": 0.7778,
+        "negative_rejection": 1.0,
+        "noise_robustness": 0.6667
+      },
+      "overall": 0.8611,
+      "avg_latency_ms": 6845.0
+    },
+    "minimax-m3": {
+      "per_category": {
+        "grounded_extraction": 1.0,
+        "information_integration": 1.0,
+        "negative_rejection": 1.0,
+        "noise_robustness": 1.0
+      },
+      "overall": 1.0,
+      "avg_latency_ms": 1163.2
+    }
+  }
 }

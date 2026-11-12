@@ -10,6 +10,33 @@
 
 ---
 
+## 0. 最终交付（先看这里）
+
+**展示页**：`evalbench/out/index.html`（静态、零依赖，直接打开；数据事实源 `out/dashboard.json`）。
+
+**收敛后的最终配置**：提示词 `v2_grounded` + 参数组 `B`（`temp=0 / passage_num=5 / noise_rate=0.6 / max_tokens=512`）
++ 默认模型 `minimax-m3`。最终 run `RUN-a48c08c0b721`（36/36 有效）。
+
+```bash
+# 复跑最终配置（缓存命中时不重复调用 API；缺失/失败项自动补齐）
+python evalbench/run_eval.py --label demo-final \
+  --models minimax-m3 --prompts v2_grounded --params B
+python evalbench/report.py --final-run RUN-a48c08c0b721
+```
+
+**四轮收敛结论**：
+
+| 轮次 | 分支 | 结论 |
+|---|---|---|
+| 1 基线 | `eval/v1-baseline` | 质量主指标在自建样本上饱和；3 模型质量无差异、延迟差 2.6 倍；修正评分口径 1.0→1.2 |
+| 2 提示词 | `eval/v2-prompts` | `v1→v2` 使 `answer_economy` 0.25→1.00、延迟 −42%，质量不退化；v3 无增益且慢 19%，否决 |
+| 3 参数 | `eval/v3-params` | A/B/C 质量打平；采纳 B（`temp=0`）主要依据**评估可复现性**；C 减少文档数无收益，否决 |
+| 4 模型 | `eval/v4-models` | `minimax` / `deepseek` 全维度 1.000；`kimi` 会复述 prompt，换温度/加 few-shot 均未解决 → 不纳入默认选型 |
+
+完整逐轮数据、前后对照与解读见 `iterations/iteration_log.md` 与 `iterations/comparisons/`。
+
+---
+
 ## 1. 快速开始
 
 ```bash
@@ -58,6 +85,8 @@ evalbench/
     models.json           3 个入选模型 + 适配项 + 落选理由
     metrics.json          4 个评估维度 + 归一化口径 + 已知局限
   core/{runner,scoring,gitmeta}.py   执行 / 评分 / Git 快照
+  rescore.py              评分口径变更后用当前口径生成新 run（不原地改旧结果、不发 API）
+  rebuild_summaries.py    只重建派生 summary.json（records / config_snapshot 不动）
   runs/<run_id>/          config_snapshot.json + records.jsonl + summary.json
   iterations/comparisons/ 前后对照 JSON；iteration_log.md 逐轮收敛结论
   out/                    models_probe.json + dashboard.json + index.html（展示页）
@@ -86,8 +115,8 @@ evalbench/
 | `eval/v1-baseline` | 第 1 轮：基线提示词 × 官方参数 × 3 模型 |
 | `eval/v2-prompts` | 第 2 轮：提示词版本对比 → 收敛 |
 | `eval/v3-params` | 第 3 轮：参数组对比 → 收敛 |
-| `eval/v4-models` | 第 4 轮：最终配置 × 3 模型 + 模型差异结论 |
-| `demo/v1` | 最终 Demo：展示页 + 完整说明 |
+| `eval/v4-models` | 第 4 轮：最终配置 × 3 模型 + 模型差异与适配结论 |
+| `demo/v1` | **最终 Demo**：展示页 `out/index.html` + 完整说明（当前交付分支） |
 
 每个 `runs/<run_id>/config_snapshot.json` 记录 `branch` / `commit`、提示词与参数哈希、
 样本哈希、模型、模式与时间戳，可直接把结果对应回代码版本。

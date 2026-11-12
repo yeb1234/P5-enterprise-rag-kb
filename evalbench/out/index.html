@@ -29,7 +29,167 @@ code{background:#f3f4f6;padding:1px 5px;border-radius:4px;font-size:12px}
 .note{color:var(--muted);font-size:12px;margin:8px 0 0}
 ul{margin:6px 0 0 18px;padding:0}li{margin:4px 0}
 .footer{margin-top:36px;padding-top:16px;border-top:1px solid var(--line);color:var(--muted);font-size:12px}
-</style></head><body><div class='wrap'><h1>evalbench · 真实 API 评估工作台</h1><p class='sub'>多提示词 / 多参数 / 多模型对比评估 · 结果按 run 落盘 · 每次迭代对应独立 Git 分支</p><div class='badges'><span class='badge'>数据来源：自建样本 self_built_v1</span><span class='badge'>框架依据：RGB / SQuAD 2.0 公开基准口径</span><span class='badge ok'>live 结果 comparable=true</span><span class='badge warn'>非质量基线 · 不构成准确率承诺</span></div><div class='grid'><div class='kpi'><b>1</b><span>评估 run（含离线）</span></div><div class='kpi'><b>0/3</b><span>live 有效记录 / 全部记录</span></div><div class='kpi'><b>0</b><span>参与评估的模型</span></div><div class='kpi'><b>0</b><span>迭代分支</span></div><div class='kpi'><b>0</b><span>前后对照</span></div></div><h2>1. 分支 ↔ 版本 ↔ 评估结果对应</h2><table><thead><tr><th>run_id</th><th>轮次</th><th>分支 / commit</th><th>提示词版本</th><th>参数组</th><th>模型</th><th>模式</th><th>记录数</th></tr></thead><tbody><tr><td><code>RUN-5a22f12da3b7</code></td><td>smoke</td><td><code>main</code> / <code>4992bed</code></td><td>v1_baseline</td><td>A</td><td>minimax-m3</td><td>offline / 占位</td><td class='num'>3</td></tr></tbody></table><p class='note'>每个 run 的 <code>config_snapshot.json</code> 记录分支、commit、提示词/参数哈希与样本哈希，可精确追溯。</p><h2>2. 按任务类别与评估维度分别给结论</h2><p class='note'>下表取最终轮 <code>—</code>；各类别主指标：事实抽取/噪声鲁棒/信息整合 → answer_accuracy，负面拒绝 → rejection_correctness。</p><div class='card'>尚无 live 评估结果。</div><h2>3. 迭代收敛（前后对照）</h2><table><thead><tr><th>基线轮次</th><th>基线 run</th><th>候选轮次</th><th>候选 run</th><th>主指标均值变化</th><th>候选分支</th></tr></thead><tbody><tr><td colspan=6>暂无对照</td></tr></tbody></table><p class='note'>采纳口径：负面拒绝的 rejection_correctness 不下降，且 answer_accuracy / faithfulness 均不下降、至少一项提升。</p><h2>4. 模型差异与兼容性适配结论</h2><table><thead><tr><th>模型</th><th>角色</th><th>探活延迟(ms)</th><th>正文字数</th><th>24token 空正文</th><th>接受 temp=0</th><th>处理结论</th></tr></thead><tbody><tr><td>minimax-m3</td><td>fast_non_reasoning</td><td class='num'>768</td><td class='num'>2</td><td>True</td><td>True</td><td>max_tokens=24 时正文为空（6 个模型共性，非推理模型独有）→ 统一采用 &gt;=512 token 预算；项目既有实测中 content 可能内联 &lt;mm:think&gt;，评分前做标签过滤（本次短探测未复现）</td></tr><tr><td>kimi-k2.6</td><td>general</td><td class='num'>3624</td><td class='num'>2</td><td>True</td><td>True</td><td>max_tokens=24 时正文为空（6 个模型共性，非推理模型独有）→ 统一采用 &gt;=512 token 预算</td></tr><tr><td>deepseek-v4.1-flash-1017</td><td>reasoning</td><td class='num'>26441</td><td class='num'>2</td><td>True</td><td>True</td><td>max_tokens=24 时正文为空（6 个模型共性，非推理模型独有）→ 统一采用 &gt;=512 token 预算；冷启动/推理阶段延迟高，超时需放宽到 180s</td></tr><tr><td>glm-5.3</td><td>probe_only</td><td class='num'>1719</td><td class='num'>2</td><td>True</td><td>True</td><td>max_tokens=24 时正文为空（6 个模型共性，非推理模型独有）→ 统一采用 &gt;=512 token 预算</td></tr><tr><td>deepseek-v4-pro-0813</td><td>probe_only</td><td class='num'>765</td><td class='num'>2</td><td>True</td><td>True</td><td>max_tokens=24 时正文为空（6 个模型共性，非推理模型独有）→ 统一采用 &gt;=512 token 预算</td></tr><tr><td>qwen3.8-27b</td><td>probe_only</td><td class='num'>2819</td><td class='num'>2</td><td>True</td><td>True</td><td>max_tokens=24 时正文为空（6 个模型共性，非推理模型独有）→ 统一采用 &gt;=512 token 预算</td></tr></tbody></table><div class='card'><h3>共性结论</h3><ul><li>实测 6 个模型在 max_tokens=256 的探活下均返回正文（2 字）、reasoning_only=False；因此「零正文」不是推理模型专属，本轮未复现 reasoning_only 现象</li><li>实测 max_tokens=24 时 6 个模型全部返回空 content（含非推理型），属网关侧 token 预算行为；统一要求 max_tokens&gt;=512，不把它归因于模型类型</li><li>延迟差异达数量级：deepseek-v4.1-flash-1017 26.4s，deepseek-v4-pro-0813 0.8s，minimax-m3 0.8s、glm-5.3 1.7s、qwen3.8-27b 2.8s、kimi-k2.6 3.6s；超时须按模型分级</li><li>temperature=0 / top_p=1 在 6 个模型上均被网关接受（HTTP 200），可用于确定性参数对比</li><li>可观测差异主要是延迟与思考块内联（项目既有实测），而非协议不兼容；适配层统一走 OpenAI 兼容 /chat/completions，仅按模型调整 timeout / 标签过滤 / token 预算</li></ul></div><h2>5. 降级与限流留痕</h2><table><thead><tr><th>run</th><th>轮次</th><th>状态分布</th></tr></thead><tbody><tr><td colspan=3>暂无</td></tr></tbody></table><p class='note'>429 分两类：rate_limit_exceeded 退避重试；quota_exceeded 不重试。失败组合标状态且不参与评分，绝不编造结果。</p><h2>6. 边界与已知限制</h2><div class='card'><ul><li>样本为 12 条自建中文数据，依据公开基准任务定义构造，<b>不是</b> RGB / SQuAD 官方数据抽样，不得称「在官方基准上的分数」。</li><li>本工作台是平行于 <code>eval/</code> 冻结占位体系的新体系；<code>eval/</code> 的 <code>__TBC__</code> / <code>NOT_COMPARABLE</code> / <code>real_api</code> 阻断口径未改动。</li><li>字符串匹配评分对同义改写不鲁棒；未使用 LLM-as-judge，避免裁判漂移。</li><li>离线模式 <code>comparable=false</code>，仅用于验证链路可跑，其分数不进入任何真实结论。</li><li>未做全局并发闸/令牌桶、压测、质量基线冻结；RGB 许可为 CC BY-NC-SA 4.0，商业用途需另行授权。</li></ul></div><h2>7. 复跑</h2><div class='card'><pre style='white-space:pre-wrap;font:12px/1.7 inherit;margin:0'>python evalbench/run_eval.py --offline --label smoke --models minimax-m3 --prompts v1_baseline --params A
+</style></head><body><div class='wrap'><h1>evalbench · 真实 API 评估工作台</h1><p class='sub'>多提示词 / 多参数 / 多模型对比评估 · 结果按 run 落盘 · 每次迭代对应独立 Git 分支</p><div class='badges'><span class='badge'>数据来源：自建样本 self_built_v1</span><span class='badge'>框架依据：RGB / SQuAD 2.0 公开基准口径</span><span class='badge ok'>live 结果 comparable=true</span><span class='badge warn'>非质量基线 · 不构成准确率承诺</span></div><div class='grid'><div class='kpi'><b>13</b><span>评估 run（含离线）</span></div><div class='kpi'><b>323/330</b><span>live 有效记录 / 全部 run 记录</span></div><div class='kpi'><b>3</b><span>参与评估的模型</span></div><div class='kpi'><b>4</b><span>迭代分支</span></div><div class='kpi'><b>6</b><span>前后对照</span></div></div><div class='card'><h3>收敛后的最终配置（Demo 默认）</h3><ul><li>提示词：<code>v2_grounded</code>（grounding + 显式拒答出口 + 简短结论 + 引用编号）</li><li>参数：<code>B</code>（<code>temperature=0</code>、<code>passage_num=5</code>、<code>noise_rate=0.6</code>、<code>max_tokens=512</code>）</li><li>默认模型：<code>minimax-m3</code>（全维度 1.000 / 平均 1.16 s）；<code>deepseek-v4.1-flash-1017</code> 质量相同但延迟高 8.4 倍；<code>kimi-k2.6</code> 因复述 prompt 不推荐用于该配置</li><li>最终 run：<code>RUN-a48c08c0b721</code></li></ul><p class='note'>收敛路径：v1 基线 → 提示词 v2（economy 0.25→1.00）→ 参数 B（可复现性） → 按模型适配与选型。每步的前后对照与结论见第 3 节。</p></div><h2>1. 分支 ↔ 版本 ↔ 评估结果对应</h2><table><thead><tr><th>run_id</th><th>轮次</th><th>分支 / commit</th><th>提示词版本</th><th>参数组</th><th>模型</th><th>模式</th><th>记录数</th></tr></thead><tbody><tr><td><code>RUN-5a22f12da3b7</code></td><td>smoke</td><td><code>main</code> / <code>4992bed</code></td><td>v1_baseline</td><td>A</td><td>minimax-m3</td><td>offline / 占位</td><td class='num'>3</td></tr><tr><td><code>RUN-301337307a9b</code></td><td>v1-baseline</td><td><code>eval/v1-baseline</code> / <code>b66d116</code></td><td>v1_baseline</td><td>A</td><td>minimax-m3,kimi-k2.6,deepseek-v4.1-flash-1017</td><td>live / 可比</td><td class='num'>36</td></tr><tr><td><code>RUN-58a0deda72c2</code></td><td>v1-baseline</td><td><code>eval/v1-baseline</code> / <code>b66d116</code></td><td>v1_baseline</td><td>A</td><td>minimax-m3,kimi-k2.6,deepseek-v4.1-flash-1017</td><td>live / 可比</td><td class='num'>36</td></tr><tr><td><code>RUN-60d21360c41e</code></td><td>v1-baseline (rescored) (rescored)</td><td><code>eval/v1-baseline</code> / <code>b66d116</code></td><td>v1_baseline</td><td>A</td><td>minimax-m3,kimi-k2.6,deepseek-v4.1-flash-1017</td><td>live / 可比</td><td class='num'>36</td></tr><tr><td><code>RUN-c2b5dcf2bd41</code></td><td>v1-baseline (rescored)</td><td><code>eval/v1-baseline</code> / <code>b66d116</code></td><td>v1_baseline</td><td>A</td><td>minimax-m3,kimi-k2.6,deepseek-v4.1-flash-1017</td><td>live / 可比</td><td class='num'>36</td></tr><tr><td><code>RUN-3786315579b0</code></td><td>v2-prompts</td><td><code>eval/v2-prompts</code> / <code>2361ece</code></td><td>v1_baseline,v2_grounded,v3_structured</td><td>A</td><td>minimax-m3</td><td>live / 可比</td><td class='num'>36</td></tr><tr><td><code>RUN-87feb29fc4bd</code></td><td>v2-adopted</td><td><code>eval/v2-prompts</code> / <code>2361ece</code></td><td>v2_grounded</td><td>A</td><td>minimax-m3</td><td>live / 可比</td><td class='num'>12</td></tr><tr><td><code>RUN-3fea07c6fa70</code></td><td>v3-params</td><td><code>eval/v3-params</code> / <code>3a7dc41</code></td><td>v2_grounded</td><td>A,B,C</td><td>minimax-m3</td><td>live / 可比</td><td class='num'>36</td></tr><tr><td><code>RUN-b1a734b77e26</code></td><td>v3-adopted</td><td><code>eval/v3-params</code> / <code>3a7dc41</code></td><td>v2_grounded</td><td>B</td><td>minimax-m3</td><td>live / 可比</td><td class='num'>12</td></tr><tr><td><code>RUN-b0454d8e17db</code></td><td>v4-final</td><td><code>eval/v4-models</code> / <code>466a5cc</code></td><td>v2_grounded</td><td>B</td><td>minimax-m3,kimi-k2.6,deepseek-v4.1-flash-1017</td><td>live / 可比</td><td class='num'>36</td></tr><tr><td><code>RUN-a48c08c0b721</code></td><td>v4-final</td><td><code>eval/v4-models</code> / <code>466a5cc</code></td><td>v2_grounded</td><td>B</td><td>minimax-m3,kimi-k2.6,deepseek-v4.1-flash-1017</td><td>live / 可比</td><td class='num'>36</td></tr><tr><td><code>RUN-bc1ff8330a87</code></td><td>v4-kimi-adapt</td><td><code>eval/v4-models</code> / <code>466a5cc</code></td><td>v2_grounded</td><td>A</td><td>kimi-k2.6</td><td>live / 可比</td><td class='num'>12</td></tr><tr><td><code>RUN-27b130a44e43</code></td><td>v4-kimi-v3probe</td><td><code>eval/v4-models</code> / <code>466a5cc</code></td><td>v3_structured</td><td>A</td><td>kimi-k2.6</td><td>live / 可比</td><td class='num'>3</td></tr></tbody></table><p class='note'>每个 run 的 <code>config_snapshot.json</code> 记录分支、commit、提示词/参数哈希与样本哈希，可精确追溯。</p><h2>2. 按任务类别与评估维度分别给结论</h2><p class='note'>下表取最终轮 <code>RUN-a48c08c0b721</code>；各类别主指标：事实抽取/噪声鲁棒/信息整合 → answer_accuracy，负面拒绝 → rejection_correctness。</p><table><thead><tr><th>任务类别</th><th>模型</th><th>answer_accuracy</th><th>rejection_correctness</th><th>faithfulness</th><th>format_compliance</th><th>answer_economy</th></tr></thead><tbody><tr><td>grounded_extraction</td><td>deepseek-v4.1-flash-1017</td><td class='num'><div class='bar'><i style='width:100%'></i></div>1.000</td><td class='num'><div class='bar'><i style='width:100%'></i></div>1.000</td><td class='num'><div class='bar'><i style='width:100%'></i></div>1.000</td><td class='num'><div class='bar'><i style='width:100%'></i></div>1.000</td><td class='num'><div class='bar'><i style='width:100%'></i></div>1.000</td></tr><tr><td>grounded_extraction</td><td>kimi-k2.6</td><td class='num'><div class='bar'><i style='width:100%'></i></div>1.000</td><td class='num'><div class='bar'><i style='width:100%'></i></div>1.000</td><td class='num'><div class='bar'><i style='width:100%'></i></div>1.000</td><td class='num'><div class='bar'><i style='width:100%'></i></div>1.000</td><td class='num'><div class='bar'><i style='width:100%'></i></div>1.000</td></tr><tr><td>grounded_extraction</td><td>minimax-m3</td><td class='num'><div class='bar'><i style='width:100%'></i></div>1.000</td><td class='num'><div class='bar'><i style='width:100%'></i></div>1.000</td><td class='num'><div class='bar'><i style='width:100%'></i></div>1.000</td><td class='num'><div class='bar'><i style='width:100%'></i></div>1.000</td><td class='num'><div class='bar'><i style='width:100%'></i></div>1.000</td></tr><tr><td>information_integration</td><td>deepseek-v4.1-flash-1017</td><td class='num'><div class='bar'><i style='width:100%'></i></div>1.000</td><td class='num'><div class='bar'><i style='width:100%'></i></div>1.000</td><td class='num'><div class='bar'><i style='width:100%'></i></div>1.000</td><td class='num'><div class='bar'><i style='width:100%'></i></div>1.000</td><td class='num'><div class='bar'><i style='width:100%'></i></div>1.000</td></tr><tr><td>information_integration</td><td>kimi-k2.6</td><td class='num'><div class='bar'><i style='width:78%'></i></div>0.778</td><td class='num'><div class='bar'><i style='width:33%'></i></div>0.333</td><td class='num'><div class='bar'><i style='width:67%'></i></div>0.667</td><td class='num'><div class='bar'><i style='width:33%'></i></div>0.333</td><td class='num'><div class='bar'><i style='width:33%'></i></div>0.333</td></tr><tr><td>information_integration</td><td>minimax-m3</td><td class='num'><div class='bar'><i style='width:100%'></i></div>1.000</td><td class='num'><div class='bar'><i style='width:100%'></i></div>1.000</td><td class='num'><div class='bar'><i style='width:100%'></i></div>1.000</td><td class='num'><div class='bar'><i style='width:100%'></i></div>1.000</td><td class='num'><div class='bar'><i style='width:100%'></i></div>1.000</td></tr><tr><td>negative_rejection</td><td>deepseek-v4.1-flash-1017</td><td class='flat'>—</td><td class='num'><div class='bar'><i style='width:100%'></i></div>1.000</td><td class='num'><div class='bar'><i style='width:100%'></i></div>1.000</td><td class='num'><div class='bar'><i style='width:100%'></i></div>1.000</td><td class='num'><div class='bar'><i style='width:100%'></i></div>1.000</td></tr><tr><td>negative_rejection</td><td>kimi-k2.6</td><td class='flat'>—</td><td class='num'><div class='bar'><i style='width:100%'></i></div>1.000</td><td class='num'><div class='bar'><i style='width:100%'></i></div>1.000</td><td class='num'><div class='bar'><i style='width:100%'></i></div>1.000</td><td class='num'><div class='bar'><i style='width:100%'></i></div>1.000</td></tr><tr><td>negative_rejection</td><td>minimax-m3</td><td class='flat'>—</td><td class='num'><div class='bar'><i style='width:100%'></i></div>1.000</td><td class='num'><div class='bar'><i style='width:100%'></i></div>1.000</td><td class='num'><div class='bar'><i style='width:100%'></i></div>1.000</td><td class='num'><div class='bar'><i style='width:100%'></i></div>1.000</td></tr><tr><td>noise_robustness</td><td>deepseek-v4.1-flash-1017</td><td class='num'><div class='bar'><i style='width:100%'></i></div>1.000</td><td class='num'><div class='bar'><i style='width:100%'></i></div>1.000</td><td class='num'><div class='bar'><i style='width:100%'></i></div>1.000</td><td class='num'><div class='bar'><i style='width:100%'></i></div>1.000</td><td class='num'><div class='bar'><i style='width:100%'></i></div>1.000</td></tr><tr><td>noise_robustness</td><td>kimi-k2.6</td><td class='num'><div class='bar'><i style='width:67%'></i></div>0.667</td><td class='num'><div class='bar'><i style='width:100%'></i></div>1.000</td><td class='num'><div class='bar'><i style='width:100%'></i></div>1.000</td><td class='num'><div class='bar'><i style='width:100%'></i></div>1.000</td><td class='num'><div class='bar'><i style='width:100%'></i></div>1.000</td></tr><tr><td>noise_robustness</td><td>minimax-m3</td><td class='num'><div class='bar'><i style='width:100%'></i></div>1.000</td><td class='num'><div class='bar'><i style='width:100%'></i></div>1.000</td><td class='num'><div class='bar'><i style='width:100%'></i></div>1.000</td><td class='num'><div class='bar'><i style='width:100%'></i></div>1.000</td><td class='num'><div class='bar'><i style='width:100%'></i></div>1.000</td></tr></tbody></table><h2>3. 迭代收敛（前后对照）</h2><table><thead><tr><th>对照名</th><th>基线 run / 轮次</th><th>候选 run / 轮次</th><th>主指标均值变化</th><th>分支</th></tr></thead><tbody><tr><td><code>params_A_B_C</code></td><td><code>RUN-3fea07c6fa70</code></td><td>params_id: A, B, C</td><td class='flat'>—</td><td>eval/v3-params</td></tr><tr><td><code>prompt_v1_v2_v3</code></td><td><code>RUN-3786315579b0</code></td><td>prompt_version: v1_baseline, v2_grounded, v3_structured</td><td class='flat'>—</td><td>eval/v2-prompts</td></tr><tr><td><code>scoring_1.0_vs_1.2</code></td><td><code>RUN-58a0deda72c2</code><br><span class='note'>v1-baseline</span></td><td><code>RUN-60d21360c41e</code><br><span class='note'>v1-baseline (rescored) (rescored)</span></td><td class='num up'>+0.1111</td><td>eval/v1-baseline</td></tr><tr><td><code>v1_vs_final</code></td><td><code>RUN-60d21360c41e</code><br><span class='note'>v1-baseline (rescored) (rescored)</span></td><td><code>RUN-a48c08c0b721</code><br><span class='note'>v4-final</span></td><td class='num down'>-0.0582</td><td>eval/v4-models</td></tr><tr><td><code>v1_vs_v2_adopted</code></td><td><code>RUN-60d21360c41e</code><br><span class='note'>v1-baseline (rescored) (rescored)</span></td><td><code>RUN-87feb29fc4bd</code><br><span class='note'>v2-adopted</span></td><td class='num flat'>0.0</td><td>eval/v2-prompts</td></tr><tr><td><code>v2_vs_v3_adopted</code></td><td><code>RUN-87feb29fc4bd</code><br><span class='note'>v2-adopted</span></td><td><code>RUN-b1a734b77e26</code><br><span class='note'>v3-adopted</span></td><td class='num flat'>0.0</td><td>eval/v3-params</td></tr></tbody></table><p class='note'>采纳口径：负面拒绝的 rejection_correctness 不下降，且 answer_accuracy / faithfulness 均不下降、至少一项提升。</p><div class='card'><h3>逐轮收敛结论</h3><pre style='white-space:pre-wrap;font:12px/1.7 inherit;margin:0'># 迭代收敛记录
+
+每轮只改一个变量族；所有结论必须引用具体 run_id 与分支。
+
+---
+
+## 迭代 0 · 评分口径定稿（第 1 轮内发现并修正，分支 `eval/v1-baseline`）
+
+**发现**：抽查 `RUN-58a0deda72c2` 的 S07，模型已正确拒答（&quot;资料与所问问题无关…无法基于上述资料回答&quot;），
+但 v1.0.0 口径只认固定关键词表，判成 `rejection_correctness=0`（假阴性）。
+
+| 项 | 修正前 | 修正后 |
+|---|---|---|
+| 口径版本 | `METRICS@1.0.0` | `METRICS@1.1.0` → `1.2.0` |
+| 拒答判定 | 固定标记词 | 固定标记 **或**（否定词 × 资料指代 共现） |
+| `negative_rejection`（minimax） | 0.000 | 1.000 |
+| 主指标均值变化 | — | **+0.1111**（对照 `scoring_1.0_vs_1.2.json`） |
+
+**第二个发现**：修正后 4 类主指标在 3 个模型上**全部 1.0**，指标饱和，配置对比将失去分辨力。
+抽查确认 v1 朴素提示会复述资料、输出 Markdown 列表与多段内容。故 `1.2.0` 新增产品维度
+`answer_economy`（单行 / 不复述 / 不成段列表），**不参与主指标与 overall**，仅用于收敛对照。
+v1 实测基线：事实抽取 0.667 / 噪声鲁棒 0.333 / 信息整合 0.000 / 负面拒绝 0.000。
+
+**版本化处置**：`rescore.py` 生成全新 run，原始 `answer` 与旧 run 完整保留，不原地修改任何已产生结果。
+前後对照：`iterations/comparisons/scoring_1.0_vs_1.2.json`。
+
+---
+
+## 迭代 1 · v1 基线（分支 `eval/v1-baseline`）
+
+```bash
+python evalbench/run_eval.py --label v1-baseline \
+  --models minimax-m3,kimi-k2.6,deepseek-v4.1-flash-1017 \
+  --prompts v1_baseline --params A
+```
+
+| 项 | 结果 |
+|---|---|
+| 首次运行 | `RUN-301337307a9b`：36 条，**33 ok / 3 rate_limited**（真实限流，已留痕） |
+| 缓存续跑补齐 | `RUN-58a0deda72c2`：36/36 ok，只重发 3 次失败请求 |
+| 定稿基线（1.2.0 口径） | **`RUN-60d21360c41e`** |
+| 配置 | 参数组 A（RGB 官方 `temp=0.2 / passage_num=5 / noise_rate=0.6`）+ 提示词 v1 |
+
+**按模型分别记录（定稿口径，各类别主指标）**
+
+| 模型 | 事实抽取 | 噪声鲁棒 | 负面拒绝 | 信息整合 | overall | 平均延迟 |
+|---|---:|---:|---:|---:|---:|---:|
+| `minimax-m3` | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 3.76 s |
+| `kimi-k2.6` | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 5.68 s |
+| `deepseek-v4.1-flash-1017` | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 9.65 s |
+
+**结论**：① 质量主指标在自建样本上已饱和，后续轮次改用 `answer_economy` 与延迟作为区分依据；
+② 三个模型质量无差异，**延迟相差 2.6 倍**，这是选型的主要依据；
+③ v1 朴素提示输出冗长、复述资料，`answer_economy` 全类偏低 → 下一轮用提示词版本收敛这一点。
+
+---
+
+## 迭代 2 · 提示词版本收敛（分支 `eval/v2-prompts`）
+
+```bash
+python evalbench/run_eval.py --label v2-prompts --models minimax-m3 \
+  --prompts v1_baseline,v2_grounded,v3_structured --params A
+```
+固定模型与参数组，只改提示词。`RUN-3786315579b0`：36/36 ok（其中 12 条命中缓存）。
+组内对照：`iterations/comparisons/prompt_v1_v2_v3.json`。
+
+| 维度 | v1_baseline | v2_grounded | v3_structured |
+|---|---:|---:|---:|
+| `answer_accuracy` | 1.000 | 1.000 | 1.000 |
+| `rejection_correctness` | 1.000 | 1.000 | 1.000 |
+| `faithfulness` | 1.000 | 1.000 | 1.000 |
+| `format_compliance` | 1.000 | 1.000 | 1.000 |
+| **`answer_economy`** | **0.250** | **1.000** | **1.000** |
+| 平均延迟 | 2325 ms | **1347 ms** | 1602 ms |
+
+**收敛结论**：质量四维度不变（已饱和），`answer_economy` 由 0.25 提升到 1.00，
+真实回答从「Markdown 列表 + 复述资料」变成单行结论（S10 由 154 字降到 106 字）。
+v2 与 v3 在可判定指标上打平，但 **v2 延迟低 19%**（1347 vs 1602 ms）；
+v3 的 few-shot / 严格单行格式在本样本集上未带来可判定增益 →
+**采纳 `v2_grounded`**，v3 保留为候选（复杂语料可再评估），否决理由如上。
+
+定稿 run：`RUN-87feb29fc4bd`（仅 `v2_grounded`，12/12 全部命中缓存，**零新增 API 调用**）。
+跨轮前后对照：`iterations/comparisons/v1_vs_v2_adopted.json`
+→ 主指标 delta = 0.000（不退化），`answer_economy` 平均 **+0.750**，符合采纳口径。
+
+### 本轮内工程修复
+
+`scoring.aggregate` 的 `by_model.avg_latency_ms` 原先按类别逐个赋值，被最后一个类别覆盖
+（显示 2051 ms，records 真实均值 1346.7 ms）。已修为汇总全部记录；
+用 `rebuild_summaries.py` **只重建派生的 summary.json**，
+`records.jsonl` 与 `config_snapshot.json` 一字未动，任何 run 仍可从原始记录完全重算。
+
+---
+
+## 迭代 3 · 参数组收敛（分支 `eval/v3-params`）
+
+```bash
+python evalbench/run_eval.py --label v3-params --models minimax-m3 \
+  --prompts v2_grounded --params A,B,C
+```
+固定提示词与模型，只改参数组。`RUN-3fea07c6fa70`：36/36 ok（A 的 12 条命中缓存，24 次新调用）。
+组内对照：`iterations/comparisons/params_A_B_C.json`。
+
+| 参数组 | 设定 | 质量四维 | `answer_economy` | 平均延迟 |
+|---|---|---:|---:|---:|
+| A | RGB 官方 `temp=0.2 / passage=5 / noise=0.6` | 1.000 | 1.000 | 1347 ms |
+| **B** | **确定性贪心 `temp=0 / passage=5 / noise=0.6`** | **1.000** | **1.000** | **1163 ms** |
+| C | `temp=0 / passage=3 / max_tokens=768` | 1.000 | 1.000 | 1356 ms |
+
+**收敛结论**：三档质量与精简度**全部打平**，说明样本已饱和，减少注入文档（C）也无可判定收益。
+采纳 **B**，主要依据不是单次延迟差（1163 vs 1347 ms 可能受网关抖动影响，未做多次观测），
+而是调研结论：`temperature=0` 贪心解码是降低 run-to-run 方差的首要设置，对**评估可复现性**最关键；
+同时 B 保留 RGB 官方的 `passage_num=5 / noise_rate=0.6` 上下文设定，便于与公开基准口径对齐。
+C 的 `passage_num=3` 会减少噪声文档、改变被测条件，且 `max_tokens=768` 无收益 → 否决。
+
+定稿 run：`RUN-b1a734b77e26`（12/12 命中缓存，零新增 API 调用）。
+前后对照：`iterations/comparisons/v2_vs_v3_adopted.json` → 主指标 delta = 0.000（不退化）。
+
+&gt; 诚实边界：`temperature=0` 在共享 GPU 批处理下**不保证**逐字节确定（见 `datasets/SOURCES.md` §4）；
+&gt; 本工作台靠「固定 prompt/参数/模型哈希 + 原始回答落盘 + 缓存复用」保证可追溯，而非只依赖温度值。
+
+---
+
+## 迭代 4 · 最终配置 × 三模型分别记录（分支 `eval/v4-models`）
+
+**最终配置**：提示词 `v2_grounded` + 参数组 `B`（`temp=0 / passage_num=5 / noise_rate=0.6`）。
+```bash
+python evalbench/run_eval.py --label v4-final \
+  --models minimax-m3,kimi-k2.6,deepseek-v4.1-flash-1017 \
+  --prompts v2_grounded --params B
+```
+`RUN-b0454d8e17db` 首次 35 ok / 1 rate_limited；缓存续跑补齐后 **`RUN-a48c08c0b721`：36/36 ok**（最终定稿）。
+
+### 按模型 × 评估维度分别给结论
+
+| 模型 | answer_accuracy | rejection | faithfulness | format | **economy** | overall（主指标） | 平均延迟 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| `minimax-m3` | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | **1.000** | **1.16 s** |
+| `deepseek-v4.1-flash-1017` | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | **1.000** | 9.81 s |
+| `kimi-k2.6` | 0.815 | 0.833 | 0.917 | 0.833 | 0.833 | **0.861** | 6.85 s |
+
+按任务类别（主指标）：`minimax` 与 `deepseek` 四类全 1.000；
+`kimi` 事实抽取 1.000 / 负面拒绝 1.000 / 噪声鲁棒 0.667 / 信息整合 0.778。
+
+### 跨轮对照与解读
+
+`iterations/comparisons/v1_vs_final.json`：主指标均值 **−0.0582**。
+**不能解读成「配置退化」**：v1 基线用的是 `v1_baseline`（允许复述资料，因此关键事实全部命中），
+收敛后的 `v2_grounded` 要求简短结论，`minimax` / `deepseek` 保持 1.000 不退化，
+全部降幅来自 `kimi-k2.6` 的指令遵循问题。这恰恰说明**单一提示词不可无验证地推广到所有模型**。
+
+### 模型差异与兼容性适配（三步实证）
+
+| 步骤 | 配置 | 结果 |
+|---|---|---|
+| ① 最终配置 | `v2_grounded × B(temp=0)` × kimi | 4 条掉分：S05「7个」漏「工作日」；S10 漏热线/时间；**S11/S12 整段复述 prompt** |
+| ② 温度适配 | `v2_grounded × A(temp=0.2)` × kimi（`RUN-bc1ff8330a87`） | 噪声鲁棒 0.667→1.000、overall 0.861→0.945；但 S10/S11/S12 仍失败（3 条）。温度只解决过度压缩 |
+| ③ few-shot 适配 | `v3_structured × A` × kimi × S10/S11/S12（`RUN-27b130a44e43`） | **仍整段复述 prompt**，与温度、few-shot 无关 → 模型级指令遵循问题 |
+
+**另一个必须记录的评分发现**：复述 prompt 会把资料原文带进答案，从而**骗过 `answer_accuracy`**
+（v3 探测里信息整合主指标显示 1.000），但 `format_compliance` / `answer_economy`</pre></div><h2>4. 模型差异与兼容性适配结论</h2><table><thead><tr><th>模型</th><th>角色</th><th>探活延迟(ms)</th><th>正文字数</th><th>24token 空正文</th><th>接受 temp=0</th><th>处理结论</th></tr></thead><tbody><tr><td>minimax-m3</td><td>fast_non_reasoning</td><td class='num'>768</td><td class='num'>2</td><td>True</td><td>True</td><td>max_tokens=24 时正文为空（6 个模型共性，非推理模型独有）→ 统一采用 &gt;=512 token 预算；项目既有实测中 content 可能内联 &lt;mm:think&gt;，评分前做标签过滤（本次短探测未复现）</td></tr><tr><td>kimi-k2.6</td><td>general</td><td class='num'>3624</td><td class='num'>2</td><td>True</td><td>True</td><td>max_tokens=24 时正文为空（6 个模型共性，非推理模型独有）→ 统一采用 &gt;=512 token 预算</td></tr><tr><td>deepseek-v4.1-flash-1017</td><td>reasoning</td><td class='num'>26441</td><td class='num'>2</td><td>True</td><td>True</td><td>max_tokens=24 时正文为空（6 个模型共性，非推理模型独有）→ 统一采用 &gt;=512 token 预算；冷启动/推理阶段延迟高，超时需放宽到 180s</td></tr><tr><td>glm-5.3</td><td>probe_only</td><td class='num'>1719</td><td class='num'>2</td><td>True</td><td>True</td><td>max_tokens=24 时正文为空（6 个模型共性，非推理模型独有）→ 统一采用 &gt;=512 token 预算</td></tr><tr><td>deepseek-v4-pro-0813</td><td>probe_only</td><td class='num'>765</td><td class='num'>2</td><td>True</td><td>True</td><td>max_tokens=24 时正文为空（6 个模型共性，非推理模型独有）→ 统一采用 &gt;=512 token 预算</td></tr><tr><td>qwen3.8-27b</td><td>probe_only</td><td class='num'>2819</td><td class='num'>2</td><td>True</td><td>True</td><td>max_tokens=24 时正文为空（6 个模型共性，非推理模型独有）→ 统一采用 &gt;=512 token 预算</td></tr></tbody></table><div class='card'><h3>共性结论</h3><ul><li>实测 6 个模型在 max_tokens=256 的探活下均返回正文（2 字）、reasoning_only=False；因此「零正文」不是推理模型专属，本轮未复现 reasoning_only 现象</li><li>实测 max_tokens=24 时 6 个模型全部返回空 content（含非推理型），属网关侧 token 预算行为；统一要求 max_tokens&gt;=512，不把它归因于模型类型</li><li>延迟差异达数量级：deepseek-v4.1-flash-1017 26.4s，deepseek-v4-pro-0813 0.8s，minimax-m3 0.8s、glm-5.3 1.7s、qwen3.8-27b 2.8s、kimi-k2.6 3.6s；超时须按模型分级</li><li>temperature=0 / top_p=1 在 6 个模型上均被网关接受（HTTP 200），可用于确定性参数对比</li><li>可观测差异主要是延迟与思考块内联（项目既有实测），而非协议不兼容；适配层统一走 OpenAI 兼容 /chat/completions，仅按模型调整 timeout / 标签过滤 / token 预算</li></ul></div><h2>5. 降级与限流留痕</h2><table><thead><tr><th>run</th><th>轮次</th><th>状态分布</th></tr></thead><tbody><tr><td><code>RUN-301337307a9b</code></td><td>v1-baseline</td><td>{&quot;ok&quot;: 33, &quot;rate_limited&quot;: 3}</td></tr><tr><td><code>RUN-58a0deda72c2</code></td><td>v1-baseline</td><td>{&quot;ok&quot;: 36}</td></tr><tr><td><code>RUN-60d21360c41e</code></td><td>v1-baseline (rescored) (rescored)</td><td>{&quot;ok&quot;: 36}</td></tr><tr><td><code>RUN-c2b5dcf2bd41</code></td><td>v1-baseline (rescored)</td><td>{&quot;ok&quot;: 36}</td></tr><tr><td><code>RUN-3786315579b0</code></td><td>v2-prompts</td><td>{&quot;ok&quot;: 36}</td></tr><tr><td><code>RUN-87feb29fc4bd</code></td><td>v2-adopted</td><td>{&quot;ok&quot;: 12}</td></tr><tr><td><code>RUN-3fea07c6fa70</code></td><td>v3-params</td><td>{&quot;ok&quot;: 36}</td></tr><tr><td><code>RUN-b1a734b77e26</code></td><td>v3-adopted</td><td>{&quot;ok&quot;: 12}</td></tr><tr><td><code>RUN-b0454d8e17db</code></td><td>v4-final</td><td>{&quot;ok&quot;: 35, &quot;rate_limited&quot;: 1}</td></tr><tr><td><code>RUN-a48c08c0b721</code></td><td>v4-final</td><td>{&quot;ok&quot;: 36}</td></tr><tr><td><code>RUN-bc1ff8330a87</code></td><td>v4-kimi-adapt</td><td>{&quot;ok&quot;: 12}</td></tr><tr><td><code>RUN-27b130a44e43</code></td><td>v4-kimi-v3probe</td><td>{&quot;ok&quot;: 3}</td></tr></tbody></table><p class='note'>429 分两类：rate_limit_exceeded 退避重试；quota_exceeded 不重试。失败组合标状态且不参与评分，绝不编造结果。</p><h2>6. 边界与已知限制</h2><div class='card'><ul><li>样本为 12 条自建中文数据，依据公开基准任务定义构造，<b>不是</b> RGB / SQuAD 官方数据抽样，不得称「在官方基准上的分数」。</li><li>本工作台是平行于 <code>eval/</code> 冻结占位体系的新体系；<code>eval/</code> 的 <code>__TBC__</code> / <code>NOT_COMPARABLE</code> / <code>real_api</code> 阻断口径未改动。</li><li>字符串匹配评分对同义改写不鲁棒；未使用 LLM-as-judge，避免裁判漂移。</li><li>离线模式 <code>comparable=false</code>，仅用于验证链路可跑，其分数不进入任何真实结论。</li><li>未做全局并发闸/令牌桶、压测、质量基线冻结；RGB 许可为 CC BY-NC-SA 4.0，商业用途需另行授权。</li></ul></div><h2>7. 复跑</h2><div class='card'><pre style='white-space:pre-wrap;font:12px/1.7 inherit;margin:0'>python evalbench/run_eval.py --offline --label smoke --models minimax-m3 --prompts v1_baseline --params A
 python evalbench/probe_models.py            # 多模型兼容性探测
 python evalbench/run_eval.py --label &lt;轮次&gt; --models &lt;模型&gt; --prompts &lt;版本&gt; --params &lt;组&gt;
 python evalbench/compare.py --a &lt;基线run&gt; --b &lt;候选run&gt; --label &lt;对照名&gt;
