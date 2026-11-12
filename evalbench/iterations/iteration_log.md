@@ -91,3 +91,32 @@ v3 的 few-shot / 严格单行格式在本样本集上未带来可判定增益 �
 `records.jsonl` 与 `config_snapshot.json` 一字未动，任何 run 仍可从原始记录完全重算。
 
 ---
+
+## 迭代 3 · 参数组收敛（分支 `eval/v3-params`）
+
+```bash
+python evalbench/run_eval.py --label v3-params --models minimax-m3 \
+  --prompts v2_grounded --params A,B,C
+```
+固定提示词与模型，只改参数组。`RUN-3fea07c6fa70`：36/36 ok（A 的 12 条命中缓存，24 次新调用）。
+组内对照：`iterations/comparisons/params_A_B_C.json`。
+
+| 参数组 | 设定 | 质量四维 | `answer_economy` | 平均延迟 |
+|---|---|---:|---:|---:|
+| A | RGB 官方 `temp=0.2 / passage=5 / noise=0.6` | 1.000 | 1.000 | 1347 ms |
+| **B** | **确定性贪心 `temp=0 / passage=5 / noise=0.6`** | **1.000** | **1.000** | **1163 ms** |
+| C | `temp=0 / passage=3 / max_tokens=768` | 1.000 | 1.000 | 1356 ms |
+
+**收敛结论**：三档质量与精简度**全部打平**，说明样本已饱和，减少注入文档（C）也无可判定收益。
+采纳 **B**，主要依据不是单次延迟差（1163 vs 1347 ms 可能受网关抖动影响，未做多次观测），
+而是调研结论：`temperature=0` 贪心解码是降低 run-to-run 方差的首要设置，对**评估可复现性**最关键；
+同时 B 保留 RGB 官方的 `passage_num=5 / noise_rate=0.6` 上下文设定，便于与公开基准口径对齐。
+C 的 `passage_num=3` 会减少噪声文档、改变被测条件，且 `max_tokens=768` 无收益 → 否决。
+
+定稿 run：`RUN-b1a734b77e26`（12/12 命中缓存，零新增 API 调用）。
+前后对照：`iterations/comparisons/v2_vs_v3_adopted.json` → 主指标 delta = 0.000（不退化）。
+
+> 诚实边界：`temperature=0` 在共享 GPU 批处理下**不保证**逐字节确定（见 `datasets/SOURCES.md` §4）；
+> 本工作台靠「固定 prompt/参数/模型哈希 + 原始回答落盘 + 缓存复用」保证可追溯，而非只依赖温度值。
+
+---

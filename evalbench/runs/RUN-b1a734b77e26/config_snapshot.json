@@ -1,0 +1,53 @@
+{
+  "run_id": "RUN-b1a734b77e26",
+  "label": "v3-adopted",
+  "mode": "live",
+  "comparable": true,
+  "git": {
+    "branch": "eval/v3-params",
+    "commit": "3a7dc41",
+    "commit_full": "3a7dc411eee6c5e253fcb436ae2523baa0f6bf76",
+    "dirty": true,
+    "captured_at": "2026-11-12T11:40:55Z"
+  },
+  "dataset": {
+    "file": "samples_v1.jsonl",
+    "hash": "3483a9721338fe40",
+    "n_samples": 12,
+    "origin": "self_built_v1 (见 datasets/SOURCES.md)"
+  },
+  "metrics_version": "METRICS@1.2.0",
+  "models": {
+    "minimax-m3": {
+      "id": "minimax-m3",
+      "role": "fast_non_reasoning",
+      "timeout_s": 60,
+      "adaptations": [
+        "strip_inline_think"
+      ],
+      "reason": "延迟最低（约 1.3s）、无 reasoning 阶段，适合做多轮提示词/参数对比的主力，控制调用成本"
+    }
+  },
+  "prompts": {
+    "v2_grounded": {
+      "sha256_16": "686fca887f0ef094"
+    }
+  },
+  "params": {
+    "B": {
+      "sha256_16": "48f76435f1634861",
+      "id": "B",
+      "label": "确定性贪心",
+      "source": "可复现性实践：temperature=0 / top_p=1 / 固定 max_tokens（见 datasets/SOURCES.md §4）",
+      "temperature": 0.0,
+      "top_p": 1.0,
+      "max_tokens": 512,
+      "passage_num": 5,
+      "noise_rate": 0.6,
+      "repeats": 1,
+      "note": "与 A 只差 temperature，用于隔离采样随机性对结论的影响"
+    }
+  },
+  "repeats": 1,
+  "created_at": "2026-11-12T11:40:55Z"
+}
