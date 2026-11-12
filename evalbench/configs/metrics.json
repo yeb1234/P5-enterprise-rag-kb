@@ -1,0 +1,58 @@
+{
+  "version": "METRICS@1.0.0",
+  "dataset": "self_built_v1",
+  "comparable_note": "live 模式结果 comparable=true；offline 模式为占位，comparable=false，禁止与 live 结果合并结论",
+  "normalization": {
+    "rules": ["lowercase", "strip_punctuation", "collapse_whitespace", "remove_articles", "keep_chinese"],
+    "basis": "SQuAD evaluate-v2.0.py 归一化口径（去冠词/标点/大小写）+ 中文原样保留"
+  },
+  "dimensions": {
+    "answer_accuracy": {
+      "type": "ratio",
+      "range": [0, 1],
+      "definition": "归一化后 key_facts 命中数 / key_facts 总数；无 key_facts 的样本不计入本维度",
+      "applies_to": ["grounded_extraction", "noise_robustness", "information_integration"],
+      "basis": "SQuAD EM/F1 的关键事实覆盖近似（不做 token F1，避免中文分词引入额外误差）"
+    },
+    "rejection_correctness": {
+      "type": "binary",
+      "range": [0, 1],
+      "definition": "expected_behavior=abstain 时答案含拒答标记得 1；expected_behavior=answer 时答案不含拒答标记得 1；否则 0",
+      "reject_markers": ["INSUFFICIENT", "信息不足", "无法回答", "没有找到", "资料不足", "不能回答", "抱歉"],
+      "applies_to": ["negative_rejection", "grounded_extraction", "noise_robustness", "information_integration"],
+      "basis": "RGB reject_rate / SQuAD 2.0 不可回答问题须弃答"
+    },
+    "faithfulness": {
+      "type": "binary",
+      "range": [0, 1],
+      "definition": "答案出现任一 forbidden_facts 得 0，否则 1；无 forbidden_facts 的样本默认 1",
+      "applies_to": ["grounded_extraction", "noise_robustness", "information_integration"],
+      "basis": "RAG 答案忠实度（不引入噪声/上下文外事实）的确定性近似"
+    },
+    "format_compliance": {
+      "type": "binary",
+      "range": [0, 1],
+      "definition": "答案非空、不含思考标签（<mm:think>/</think>/<think>）、长度不超过 600 字得 1",
+      "applies_to": ["all"],
+      "basis": "结构化输出与流式过滤器兼容性检查"
+    },
+    "latency_ms": {
+      "type": "observation",
+      "range": null,
+      "definition": "单次生成墙钟耗时，仅记录不参与质量评分",
+      "applies_to": ["all"]
+    }
+  },
+  "category_primary_dimension": {
+    "grounded_extraction": "answer_accuracy",
+    "noise_robustness": "answer_accuracy",
+    "negative_rejection": "rejection_correctness",
+    "information_integration": "answer_accuracy"
+  },
+  "aggregation": "按 (model, prompt_version, params_id, task_category, dimension) 分组取均值；整体分按 4 类等权平均",
+  "known_limits": [
+    "12 条自建样本，无统计显著性，不构成质量基线",
+    "字符串匹配对同义改写不鲁棒，可能低估语义正确但措辞不同的答案",
+    "未使用 LLM-as-judge，避免裁判模型漂移，代价是语义等价无法识别"
+  ]
+}

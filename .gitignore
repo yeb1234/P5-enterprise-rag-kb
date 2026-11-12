@@ -20,4 +20,5 @@ eval/results/
 demo/out/
 webapp/out/
 *.jsonl.tmp
+evalbench/cache/
 

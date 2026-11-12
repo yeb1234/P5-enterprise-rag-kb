@@ -1,0 +1,12 @@
+{
+  "id": "B",
+  "label": "确定性贪心",
+  "source": "可复现性实践：temperature=0 / top_p=1 / 固定 max_tokens（见 datasets/SOURCES.md §4）",
+  "temperature": 0.0,
+  "top_p": 1.0,
+  "max_tokens": 512,
+  "passage_num": 5,
+  "noise_rate": 0.6,
+  "repeats": 1,
+  "note": "与 A 只差 temperature，用于隔离采样随机性对结论的影响"
+}

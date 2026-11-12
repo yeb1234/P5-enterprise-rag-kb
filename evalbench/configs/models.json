@@ -1,0 +1,50 @@
+{
+  "version": "MODELS@1.0.0",
+  "gateway": {
+    "provider": "discovery",
+    "base_url_env": "DISCOVERY_BASE_URL",
+    "api_key_env": "DISCOVERY_API_KEY",
+    "models_endpoint": "/models",
+    "chat_endpoint": "/chat/completions",
+    "note": "密钥只从 .env 读取，不写入任何版本化文件"
+  },
+  "available_at_probe": [
+    "Agents-A1", "Atria-Dawn", "Atria-Dawn-Preview", "Sage-A1.5", "Sage-A1.5-Taiyi",
+    "deepseek-v4-flash-0731", "deepseek-v4-flash-vision", "deepseek-v4-pro-0813",
+    "deepseek-v4.1-flash-1017", "glm-5.3", "intern-s2", "kimi-k2.6",
+    "minimax-m3", "qwen3.8-27b"
+  ],
+  "selected": [
+    {
+      "id": "minimax-m3",
+      "role": "fast_non_reasoning",
+      "timeout_s": 60,
+      "adaptations": ["strip_inline_think"],
+      "reason": "延迟最低（约 1.3s）、无 reasoning 阶段，适合做多轮提示词/参数对比的主力，控制调用成本"
+    },
+    {
+      "id": "kimi-k2.6",
+      "role": "general",
+      "timeout_s": 90,
+      "adaptations": [],
+      "reason": "中间档通用模型，作为与推理模型、快速模型的对照"
+    },
+    {
+      "id": "deepseek-v4.1-flash-1017",
+      "role": "reasoning",
+      "timeout_s": 180,
+      "adaptations": ["require_min_max_tokens_512", "strip_reasoning_content", "tolerate_empty_content"],
+      "reason": "推理模型，冷启动与 reasoning 阶段显著影响延迟/空正文，必须单独验证兼容性"
+    }
+  ],
+  "excluded": {
+    "reason": "网关共 14 个模型；为控制 RPM 50 / 5h 墨点配额，仅选 3 个覆盖「快/通用/推理」三类做完整评估，其余在 probe 阶段做轻量兼容性探测并记录，不跑全量样本",
+    "ids": ["Agents-A1", "Atria-Dawn", "Atria-Dawn-Preview", "Sage-A1.5", "Sage-A1.5-Taiyi", "deepseek-v4-flash-0731", "deepseek-v4-flash-vision", "deepseek-v4-pro-0813", "glm-5.3", "intern-s2", "qwen3.8-27b"]
+  },
+  "adaptation_notes": {
+    "strip_inline_think": "部分模型把思考块内联进 content（<mm:think>...</mm:think>）；复用 webapp/providers.py::_filter_inline_think 的标签集合做后处理",
+    "strip_reasoning_content": "推理模型可能只在 message.reasoning_content 出内容、content 为空；评分前先取 content，回退 reasoning_content 需标记 reasoning_only",
+    "require_min_max_tokens_512": "2026-11-12 实测：max_tokens=24 时网关上 6 个模型（含非推理型）全部返回空 content，属网关侧预算行为而非推理模型专属；256 token 时均有正文。评估统一 >=512，避免把预算问题误判成模型兼容性问题",
+    "tolerate_empty_content": "零正文不判为「模型不可用」，而是记为 degraded=empty_model_output 并参与拒答判定，避免把兼容性问题伪装成质量分数"
+  }
+}

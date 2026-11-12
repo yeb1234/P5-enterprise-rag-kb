@@ -1,0 +1,209 @@
+{
+  "probed_at": "2026-11-12T11:22:18Z",
+  "gateway": {
+    "provider": "discovery",
+    "base_url_env": "DISCOVERY_BASE_URL",
+    "api_key_env": "DISCOVERY_API_KEY",
+    "models_endpoint": "/models",
+    "chat_endpoint": "/chat/completions",
+    "note": "密钥只从 .env 读取，不写入任何版本化文件"
+  },
+  "available_at_probe": [
+    "Agents-A1",
+    "Atria-Dawn",
+    "Atria-Dawn-Preview",
+    "Sage-A1.5",
+    "Sage-A1.5-Taiyi",
+    "deepseek-v4-flash-0731",
+    "deepseek-v4-flash-vision",
+    "deepseek-v4-pro-0813",
+    "deepseek-v4.1-flash-1017",
+    "glm-5.3",
+    "intern-s2",
+    "kimi-k2.6",
+    "minimax-m3",
+    "qwen3.8-27b"
+  ],
+  "probe_mode": "full",
+  "results": [
+    {
+      "model": "minimax-m3",
+      "test_llm": {
+        "ok": true,
+        "latency_ms": 768,
+        "content": "你好",
+        "content_chars": 2,
+        "reasoning_tokens": null,
+        "reasoning_only": false
+      },
+      "test_llm_wall_ms": 768,
+      "temperature_param": {
+        "status": 200,
+        "supported": true,
+        "note": ""
+      },
+      "small_budget": {
+        "status": 200,
+        "content_chars": 0,
+        "reasoning_only": true,
+        "empty_content": true
+      },
+      "selected_for_full_eval": true,
+      "role": "fast_non_reasoning",
+      "adaptations": [
+        "strip_inline_think"
+      ],
+      "conclusion": "max_tokens=24 时正文为空（6 个模型共性，非推理模型独有）→ 统一采用 >=512 token 预算；项目既有实测中 content 可能内联 <mm:think>，评分前做标签过滤（本次短探测未复现）"
+    },
+    {
+      "model": "kimi-k2.6",
+      "test_llm": {
+        "ok": true,
+        "latency_ms": 3624,
+        "content": "你好",
+        "content_chars": 2,
+        "reasoning_tokens": 196,
+        "reasoning_only": false
+      },
+      "test_llm_wall_ms": 3624,
+      "temperature_param": {
+        "status": 200,
+        "supported": true,
+        "note": ""
+      },
+      "small_budget": {
+        "status": 200,
+        "content_chars": 0,
+        "reasoning_only": true,
+        "empty_content": true
+      },
+      "selected_for_full_eval": true,
+      "role": "general",
+      "adaptations": [],
+      "conclusion": "max_tokens=24 时正文为空（6 个模型共性，非推理模型独有）→ 统一采用 >=512 token 预算"
+    },
+    {
+      "model": "deepseek-v4.1-flash-1017",
+      "test_llm": {
+        "ok": true,
+        "latency_ms": 26441,
+        "content": "你好",
+        "content_chars": 2,
+        "reasoning_tokens": 26,
+        "reasoning_only": false
+      },
+      "test_llm_wall_ms": 26441,
+      "temperature_param": {
+        "status": 200,
+        "supported": true,
+        "note": ""
+      },
+      "small_budget": {
+        "status": 200,
+        "content_chars": 0,
+        "reasoning_only": true,
+        "empty_content": true
+      },
+      "selected_for_full_eval": true,
+      "role": "reasoning",
+      "adaptations": [
+        "require_min_max_tokens_512",
+        "strip_reasoning_content",
+        "tolerate_empty_content"
+      ],
+      "conclusion": "max_tokens=24 时正文为空（6 个模型共性，非推理模型独有）→ 统一采用 >=512 token 预算；冷启动/推理阶段延迟高，超时需放宽到 180s"
+    },
+    {
+      "model": "glm-5.3",
+      "test_llm": {
+        "ok": true,
+        "latency_ms": 1719,
+        "content": "你好",
+        "content_chars": 2,
+        "reasoning_tokens": 86,
+        "reasoning_only": false
+      },
+      "test_llm_wall_ms": 1719,
+      "temperature_param": {
+        "status": 200,
+        "supported": true,
+        "note": ""
+      },
+      "small_budget": {
+        "status": 200,
+        "content_chars": 0,
+        "reasoning_only": true,
+        "empty_content": true
+      },
+      "selected_for_full_eval": false,
+      "role": "probe_only",
+      "adaptations": [],
+      "conclusion": "max_tokens=24 时正文为空（6 个模型共性，非推理模型独有）→ 统一采用 >=512 token 预算"
+    },
+    {
+      "model": "deepseek-v4-pro-0813",
+      "test_llm": {
+        "ok": true,
+        "latency_ms": 765,
+        "content": "你好",
+        "content_chars": 2,
+        "reasoning_tokens": 33,
+        "reasoning_only": false
+      },
+      "test_llm_wall_ms": 765,
+      "temperature_param": {
+        "status": 200,
+        "supported": true,
+        "note": ""
+      },
+      "small_budget": {
+        "status": 200,
+        "content_chars": 0,
+        "reasoning_only": true,
+        "empty_content": true
+      },
+      "selected_for_full_eval": false,
+      "role": "probe_only",
+      "adaptations": [],
+      "conclusion": "max_tokens=24 时正文为空（6 个模型共性，非推理模型独有）→ 统一采用 >=512 token 预算"
+    },
+    {
+      "model": "qwen3.8-27b",
+      "test_llm": {
+        "ok": true,
+        "latency_ms": 2819,
+        "content": "你好",
+        "content_chars": 2,
+        "reasoning_tokens": 24,
+        "reasoning_only": false
+      },
+      "test_llm_wall_ms": 2819,
+      "temperature_param": {
+        "status": 200,
+        "supported": true,
+        "note": ""
+      },
+      "small_budget": {
+        "status": 200,
+        "content_chars": 0,
+        "reasoning_only": true,
+        "empty_content": true
+      },
+      "selected_for_full_eval": false,
+      "role": "probe_only",
+      "adaptations": [],
+      "conclusion": "max_tokens=24 时正文为空（6 个模型共性，非推理模型独有）→ 统一采用 >=512 token 预算"
+    }
+  ],
+  "differences": [
+    "实测 6 个模型在 max_tokens=256 的探活下均返回正文（2 字）、reasoning_only=False；因此「零正文」不是推理模型专属，本轮未复现 reasoning_only 现象",
+    "实测 max_tokens=24 时 6 个模型全部返回空 content（含非推理型），属网关侧 token 预算行为；统一要求 max_tokens>=512，不把它归因于模型类型",
+    "延迟差异达数量级：deepseek-v4.1-flash-1017 26.4s，deepseek-v4-pro-0813 0.8s，minimax-m3 0.8s、glm-5.3 1.7s、qwen3.8-27b 2.8s、kimi-k2.6 3.6s；超时须按模型分级",
+    "temperature=0 / top_p=1 在 6 个模型上均被网关接受（HTTP 200），可用于确定性参数对比",
+    "可观测差异主要是延迟与思考块内联（项目既有实测），而非协议不兼容；适配层统一走 OpenAI 兼容 /chat/completions，仅按模型调整 timeout / 标签过滤 / token 预算"
+  ],
+  "selection_conclusion": "网关 14 个模型中选 3 个覆盖「快 / 通用 / 推理」做全量评估；其余仅做兼容探测，理由与配额约束见 configs/models.json",
+  "note": "本文件只记录公开端点与模型行为，不含任何密钥",
+  "interpretation_revised_at": "2026-11-12T11:23:45Z",
+  "interpretation_note": "原始测量值未改动；仅修正把网关共性误归因为推理模型的解释"
+}

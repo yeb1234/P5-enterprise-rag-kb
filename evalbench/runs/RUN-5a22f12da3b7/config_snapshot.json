@@ -1,0 +1,53 @@
+{
+  "run_id": "RUN-5a22f12da3b7",
+  "label": "smoke",
+  "mode": "offline",
+  "comparable": false,
+  "git": {
+    "branch": "main",
+    "commit": "4992bed",
+    "commit_full": "4992bedada527deb446476f4139f3ebca0e91ab3",
+    "dirty": true,
+    "captured_at": "2026-11-12T11:19:43Z"
+  },
+  "dataset": {
+    "file": "samples_v1.jsonl",
+    "hash": "4bbfe9af904c1a8e",
+    "n_samples": 3,
+    "origin": "self_built_v1 (见 datasets/SOURCES.md)"
+  },
+  "metrics_version": "METRICS@1.0.0",
+  "models": {
+    "minimax-m3": {
+      "id": "minimax-m3",
+      "role": "fast_non_reasoning",
+      "timeout_s": 60,
+      "adaptations": [
+        "strip_inline_think"
+      ],
+      "reason": "延迟最低（约 1.3s）、无 reasoning 阶段，适合做多轮提示词/参数对比的主力，控制调用成本"
+    }
+  },
+  "prompts": {
+    "v1_baseline": {
+      "sha256_16": "582231c4ff68acc5"
+    }
+  },
+  "params": {
+    "A": {
+      "sha256_16": "1d93be89064be4f8",
+      "id": "A",
+      "label": "RGB 官方推荐基线",
+      "source": "https://github.com/chen700564/RGB/blob/master/readme.md (--temp 0.2 --noise_rate 0.6 --passage_num 5)",
+      "temperature": 0.2,
+      "top_p": 1.0,
+      "max_tokens": 512,
+      "passage_num": 5,
+      "noise_rate": 0.6,
+      "repeats": 1,
+      "note": "官方评测脚本默认设定，作为对比起点"
+    }
+  },
+  "repeats": 1,
+  "created_at": "2026-11-12T11:19:43Z"
+}

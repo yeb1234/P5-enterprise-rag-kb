@@ -1,0 +1,12 @@
+{
+  "id": "A",
+  "label": "RGB 官方推荐基线",
+  "source": "https://github.com/chen700564/RGB/blob/master/readme.md (--temp 0.2 --noise_rate 0.6 --passage_num 5)",
+  "temperature": 0.2,
+  "top_p": 1.0,
+  "max_tokens": 512,
+  "passage_num": 5,
+  "noise_rate": 0.6,
+  "repeats": 1,
+  "note": "官方评测脚本默认设定，作为对比起点"
+}

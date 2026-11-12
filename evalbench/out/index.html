@@ -1,0 +1,37 @@
+<!doctype html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>evalbench · 评估结果与演示</title><style>
+:root{--bg:#f7f8fa;--card:#fff;--ink:#1f2430;--muted:#6b7280;--line:#e5e7eb;
+--accent:#2563eb;--good:#15803d;--bad:#b91c1c;--warn:#b45309;--chip:#eef2ff}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);
+font:14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
+.wrap{max-width:1180px;margin:0 auto;padding:32px 24px 64px}
+h1{font-size:26px;margin:0 0 6px}h2{font-size:18px;margin:32px 0 12px;padding-left:10px;
+border-left:4px solid var(--accent)}h3{font-size:15px;margin:18px 0 8px}
+.sub{color:var(--muted);margin:0 0 18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 20px}
+.badge{background:var(--chip);color:#3730a3;border:1px solid #c7d2fe;border-radius:999px;
+padding:3px 11px;font-size:12px}
+.badge.warn{background:#fffbeb;color:var(--warn);border-color:#fde68a}
+.badge.ok{background:#f0fdf4;color:var(--good);border-color:#bbf7d0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin:16px 0}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.kpi b{display:block;font-size:24px;line-height:1.2}.kpi span{color:var(--muted);font-size:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin:12px 0}
+table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);
+border-radius:8px;overflow:hidden;font-size:13px}
+th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line)}
+th{background:#f3f4f6;font-weight:600;color:#374151}tr:last-child td{border-bottom:0}
+tbody tr:nth-child(even){background:#fafafa}
+.num{font-variant-numeric:tabular-nums}.up{color:var(--good);font-weight:600}
+.down{color:var(--bad);font-weight:600}.flat{color:var(--muted)}
+.bar{height:8px;background:#e5e7eb;border-radius:99px;overflow:hidden;min-width:90px}
+.bar>i{display:block;height:100%;background:var(--accent)}
+code{background:#f3f4f6;padding:1px 5px;border-radius:4px;font-size:12px}
+.note{color:var(--muted);font-size:12px;margin:8px 0 0}
+ul{margin:6px 0 0 18px;padding:0}li{margin:4px 0}
+.footer{margin-top:36px;padding-top:16px;border-top:1px solid var(--line);color:var(--muted);font-size:12px}
+</style></head><body><div class='wrap'><h1>evalbench · 真实 API 评估工作台</h1><p class='sub'>多提示词 / 多参数 / 多模型对比评估 · 结果按 run 落盘 · 每次迭代对应独立 Git 分支</p><div class='badges'><span class='badge'>数据来源：自建样本 self_built_v1</span><span class='badge'>框架依据：RGB / SQuAD 2.0 公开基准口径</span><span class='badge ok'>live 结果 comparable=true</span><span class='badge warn'>非质量基线 · 不构成准确率承诺</span></div><div class='grid'><div class='kpi'><b>1</b><span>评估 run（含离线）</span></div><div class='kpi'><b>0/3</b><span>live 有效记录 / 全部记录</span></div><div class='kpi'><b>0</b><span>参与评估的模型</span></div><div class='kpi'><b>0</b><span>迭代分支</span></div><div class='kpi'><b>0</b><span>前后对照</span></div></div><h2>1. 分支 ↔ 版本 ↔ 评估结果对应</h2><table><thead><tr><th>run_id</th><th>轮次</th><th>分支 / commit</th><th>提示词版本</th><th>参数组</th><th>模型</th><th>模式</th><th>记录数</th></tr></thead><tbody><tr><td><code>RUN-5a22f12da3b7</code></td><td>smoke</td><td><code>main</code> / <code>4992bed</code></td><td>v1_baseline</td><td>A</td><td>minimax-m3</td><td>offline / 占位</td><td class='num'>3</td></tr></tbody></table><p class='note'>每个 run 的 <code>config_snapshot.json</code> 记录分支、commit、提示词/参数哈希与样本哈希，可精确追溯。</p><h2>2. 按任务类别与评估维度分别给结论</h2><p class='note'>下表取最终轮 <code>—</code>；各类别主指标：事实抽取/噪声鲁棒/信息整合 → answer_accuracy，负面拒绝 → rejection_correctness。</p><div class='card'>尚无 live 评估结果。</div><h2>3. 迭代收敛（前后对照）</h2><table><thead><tr><th>基线轮次</th><th>基线 run</th><th>候选轮次</th><th>候选 run</th><th>主指标均值变化</th><th>候选分支</th></tr></thead><tbody><tr><td colspan=6>暂无对照</td></tr></tbody></table><p class='note'>采纳口径：负面拒绝的 rejection_correctness 不下降，且 answer_accuracy / faithfulness 均不下降、至少一项提升。</p><h2>4. 模型差异与兼容性适配结论</h2><table><thead><tr><th>模型</th><th>角色</th><th>探活延迟(ms)</th><th>正文字数</th><th>24token 空正文</th><th>接受 temp=0</th><th>处理结论</th></tr></thead><tbody><tr><td>minimax-m3</td><td>fast_non_reasoning</td><td class='num'>768</td><td class='num'>2</td><td>True</td><td>True</td><td>max_tokens=24 时正文为空（6 个模型共性，非推理模型独有）→ 统一采用 &gt;=512 token 预算；项目既有实测中 content 可能内联 &lt;mm:think&gt;，评分前做标签过滤（本次短探测未复现）</td></tr><tr><td>kimi-k2.6</td><td>general</td><td class='num'>3624</td><td class='num'>2</td><td>True</td><td>True</td><td>max_tokens=24 时正文为空（6 个模型共性，非推理模型独有）→ 统一采用 &gt;=512 token 预算</td></tr><tr><td>deepseek-v4.1-flash-1017</td><td>reasoning</td><td class='num'>26441</td><td class='num'>2</td><td>True</td><td>True</td><td>max_tokens=24 时正文为空（6 个模型共性，非推理模型独有）→ 统一采用 &gt;=512 token 预算；冷启动/推理阶段延迟高，超时需放宽到 180s</td></tr><tr><td>glm-5.3</td><td>probe_only</td><td class='num'>1719</td><td class='num'>2</td><td>True</td><td>True</td><td>max_tokens=24 时正文为空（6 个模型共性，非推理模型独有）→ 统一采用 &gt;=512 token 预算</td></tr><tr><td>deepseek-v4-pro-0813</td><td>probe_only</td><td class='num'>765</td><td class='num'>2</td><td>True</td><td>True</td><td>max_tokens=24 时正文为空（6 个模型共性，非推理模型独有）→ 统一采用 &gt;=512 token 预算</td></tr><tr><td>qwen3.8-27b</td><td>probe_only</td><td class='num'>2819</td><td class='num'>2</td><td>True</td><td>True</td><td>max_tokens=24 时正文为空（6 个模型共性，非推理模型独有）→ 统一采用 &gt;=512 token 预算</td></tr></tbody></table><div class='card'><h3>共性结论</h3><ul><li>实测 6 个模型在 max_tokens=256 的探活下均返回正文（2 字）、reasoning_only=False；因此「零正文」不是推理模型专属，本轮未复现 reasoning_only 现象</li><li>实测 max_tokens=24 时 6 个模型全部返回空 content（含非推理型），属网关侧 token 预算行为；统一要求 max_tokens&gt;=512，不把它归因于模型类型</li><li>延迟差异达数量级：deepseek-v4.1-flash-1017 26.4s，deepseek-v4-pro-0813 0.8s，minimax-m3 0.8s、glm-5.3 1.7s、qwen3.8-27b 2.8s、kimi-k2.6 3.6s；超时须按模型分级</li><li>temperature=0 / top_p=1 在 6 个模型上均被网关接受（HTTP 200），可用于确定性参数对比</li><li>可观测差异主要是延迟与思考块内联（项目既有实测），而非协议不兼容；适配层统一走 OpenAI 兼容 /chat/completions，仅按模型调整 timeout / 标签过滤 / token 预算</li></ul></div><h2>5. 降级与限流留痕</h2><table><thead><tr><th>run</th><th>轮次</th><th>状态分布</th></tr></thead><tbody><tr><td colspan=3>暂无</td></tr></tbody></table><p class='note'>429 分两类：rate_limit_exceeded 退避重试；quota_exceeded 不重试。失败组合标状态且不参与评分，绝不编造结果。</p><h2>6. 边界与已知限制</h2><div class='card'><ul><li>样本为 12 条自建中文数据，依据公开基准任务定义构造，<b>不是</b> RGB / SQuAD 官方数据抽样，不得称「在官方基准上的分数」。</li><li>本工作台是平行于 <code>eval/</code> 冻结占位体系的新体系；<code>eval/</code> 的 <code>__TBC__</code> / <code>NOT_COMPARABLE</code> / <code>real_api</code> 阻断口径未改动。</li><li>字符串匹配评分对同义改写不鲁棒；未使用 LLM-as-judge，避免裁判漂移。</li><li>离线模式 <code>comparable=false</code>，仅用于验证链路可跑，其分数不进入任何真实结论。</li><li>未做全局并发闸/令牌桶、压测、质量基线冻结；RGB 许可为 CC BY-NC-SA 4.0，商业用途需另行授权。</li></ul></div><h2>7. 复跑</h2><div class='card'><pre style='white-space:pre-wrap;font:12px/1.7 inherit;margin:0'>python evalbench/run_eval.py --offline --label smoke --models minimax-m3 --prompts v1_baseline --params A
+python evalbench/probe_models.py            # 多模型兼容性探测
+python evalbench/run_eval.py --label &lt;轮次&gt; --models &lt;模型&gt; --prompts &lt;版本&gt; --params &lt;组&gt;
+python evalbench/compare.py --a &lt;基线run&gt; --b &lt;候选run&gt; --label &lt;对照名&gt;
+python evalbench/report.py --final-run &lt;最终run&gt;   # 重新生成展示页
+python -m unittest discover -s evalbench/tests -t .</pre></div><div class='footer'>evalbench · 生成于静态汇总，无外部依赖 · 事实源：evalbench/runs/、evalbench/iterations/comparisons/、evalbench/out/models_probe.json</div></div></body></html>

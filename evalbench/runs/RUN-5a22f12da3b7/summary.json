@@ -1,0 +1,66 @@
+{
+  "groups": [
+    {
+      "model": "minimax-m3",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "grounded_extraction",
+      "dimension": "answer_accuracy",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "minimax-m3",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "grounded_extraction",
+      "dimension": "faithfulness",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "minimax-m3",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "grounded_extraction",
+      "dimension": "format_compliance",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "minimax-m3",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "grounded_extraction",
+      "dimension": "rejection_correctness",
+      "mean": 1.0,
+      "n": 3
+    }
+  ],
+  "by_model": {
+    "minimax-m3": {
+      "per_category": {
+        "grounded_extraction": 1.0
+      },
+      "overall": 1.0,
+      "avg_latency_ms": 0.0
+    }
+  },
+  "scored_records": 3,
+  "skipped_records": 0,
+  "run_id": "RUN-5a22f12da3b7",
+  "label": "smoke",
+  "mode": "offline",
+  "comparable": false,
+  "git": {
+    "branch": "main",
+    "commit": "4992bed",
+    "commit_full": "4992bedada527deb446476f4139f3ebca0e91ab3",
+    "dirty": true,
+    "captured_at": "2026-11-12T11:19:43Z"
+  },
+  "n_records": 3,
+  "status_counts": {
+    "ok": 3
+  }
+}
