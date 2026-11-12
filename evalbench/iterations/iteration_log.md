@@ -120,3 +120,56 @@ C 的 `passage_num=3` 会减少噪声文档、改变被测条件，且 `max_toke
 > 本工作台靠「固定 prompt/参数/模型哈希 + 原始回答落盘 + 缓存复用」保证可追溯，而非只依赖温度值。
 
 ---
+
+## 迭代 4 · 最终配置 × 三模型分别记录（分支 `eval/v4-models`）
+
+**最终配置**：提示词 `v2_grounded` + 参数组 `B`（`temp=0 / passage_num=5 / noise_rate=0.6`）。
+```bash
+python evalbench/run_eval.py --label v4-final \
+  --models minimax-m3,kimi-k2.6,deepseek-v4.1-flash-1017 \
+  --prompts v2_grounded --params B
+```
+`RUN-b0454d8e17db` 首次 35 ok / 1 rate_limited；缓存续跑补齐后 **`RUN-a48c08c0b721`：36/36 ok**（最终定稿）。
+
+### 按模型 × 评估维度分别给结论
+
+| 模型 | answer_accuracy | rejection | faithfulness | format | **economy** | overall（主指标） | 平均延迟 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| `minimax-m3` | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | **1.000** | **1.16 s** |
+| `deepseek-v4.1-flash-1017` | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | **1.000** | 9.81 s |
+| `kimi-k2.6` | 0.815 | 0.833 | 0.917 | 0.833 | 0.833 | **0.861** | 6.85 s |
+
+按任务类别（主指标）：`minimax` 与 `deepseek` 四类全 1.000；
+`kimi` 事实抽取 1.000 / 负面拒绝 1.000 / 噪声鲁棒 0.667 / 信息整合 0.778。
+
+### 跨轮对照与解读
+
+`iterations/comparisons/v1_vs_final.json`：主指标均值 **−0.0582**。
+**不能解读成「配置退化」**：v1 基线用的是 `v1_baseline`（允许复述资料，因此关键事实全部命中），
+收敛后的 `v2_grounded` 要求简短结论，`minimax` / `deepseek` 保持 1.000 不退化，
+全部降幅来自 `kimi-k2.6` 的指令遵循问题。这恰恰说明**单一提示词不可无验证地推广到所有模型**。
+
+### 模型差异与兼容性适配（三步实证）
+
+| 步骤 | 配置 | 结果 |
+|---|---|---|
+| ① 最终配置 | `v2_grounded × B(temp=0)` × kimi | 4 条掉分：S05「7个」漏「工作日」；S10 漏热线/时间；**S11/S12 整段复述 prompt** |
+| ② 温度适配 | `v2_grounded × A(temp=0.2)` × kimi（`RUN-bc1ff8330a87`） | 噪声鲁棒 0.667→1.000、overall 0.861→0.945；但 S10/S11/S12 仍失败（3 条）。温度只解决过度压缩 |
+| ③ few-shot 适配 | `v3_structured × A` × kimi × S10/S11/S12（`RUN-27b130a44e43`） | **仍整段复述 prompt**，与温度、few-shot 无关 → 模型级指令遵循问题 |
+
+**另一个必须记录的评分发现**：复述 prompt 会把资料原文带进答案，从而**骗过 `answer_accuracy`**
+（v3 探测里信息整合主指标显示 1.000），但 `format_compliance` / `answer_economy` /
+`rejection_correctness` 同时为 0。因此只看 overall 会误判，必须按维度分别给结论
+—— 这也是第 1 轮新增 `answer_economy` 的价值所在。
+
+### 处理结论
+
+- **默认选型 `minimax-m3`**：全维度 1.000、延迟 1.16 s，配置收敛结论在其上成立。
+- **`deepseek-v4.1-flash-1017`** 质量相同但延迟高 **8.4 倍**（9.81 s），仅在需要推理能力时选用；
+  已在 `models.json` 放宽超时到 180 s 并保留 `>=512` token 预算。
+- **`kimi-k2.6` 不纳入该配置的默认选型**：对带规则列表的提示词会复述 prompt，换温度/加 few-shot 均未解决。
+  若必须使用，需在适配层增加「输出复读检测 + 截断或改用无规则列表极简提示词」——**当前未实现，属后续工作**。
+- 网关侧共性：`max_tokens=24` 时 6 个模型全部空正文，`temperature=0/top_p=1` 全部接受；
+  详见 `out/models_probe.json` 与 `datasets/SOURCES.md`。
+
+---
