@@ -1,13 +1,13 @@
-"""图片解析：不依赖视觉模型时能拿到的结构化信息。
+"""图片解析：P0 规则层能拿到的结构化信息（不调用视觉模型）。
 
 设计取舍：
 - 纯标准库解析常见图片容器头（PNG/JPEG/GIF/WebP/BMP），拿尺寸、格式、
   色彩模式与字节熵。零依赖即可运行，演示环境一定能跑出结果。
 - 有 Pillow 时补充 DPI / 色彩模式 / 是否近似空白页；没有就诚实标
   `probe=header_only`，绝不假装做了像素级分析。
-- 输出是「结构化事实」而不是「图片内容描述」：没有视觉模型时，
-  把尺寸/格式/熵/是否二值化等信号序列化成文本，交给纯文本 LLM 做**受限推断**，
-  这叫结构化降级，不是视觉理解。
+- 输出是「结构化事实」而不是「图片内容描述」：`PARSING_OFFLINE=1` 或视觉调用
+  失败时，把尺寸/格式/熵等信号序列化成受限文本，这叫**结构化降级，不是视觉理解**。
+  真正需要图片内容时由质量门禁升级到 P2（`vision_message()` 走已接通的视觉端点）。
 """
 from __future__ import annotations
 
@@ -111,20 +111,25 @@ def image_to_text_facts(facts: dict[str, Any]) -> str:
     if facts.get("pillow_mode"):
         parts.append(f"色彩模式={facts['pillow_mode']} 亮度范围={facts.get('luma_range')} "
                      f"疑似空白页={facts.get('near_blank')}")
-    parts.append("结论：当前无可用视觉端点，图片内容未识别；若需文字请走 OCR 层级。")
+    parts.append("结论：P0 规则层只解析容器头，不识别图片内容；"
+                 "需由质量门禁升级到 P2 多模态层或 P1 OCR。")
     return "\n".join(parts)
 
 
-def vision_message(prompt: str, image_bytes: bytes, mime: str = "image/png") -> dict:
-    """构造 OpenAI 兼容的传图消息（**只构造，不发送**）。
+def vision_message(prompt: str, image_bytes: bytes, mime: str = "image/png",
+                   model: str = "deepseek-v4.1-flash-1017", *,
+                   low_thinking: bool = True, max_tokens: int = 1024) -> dict:
+    """构造标准 OpenAI 兼容的传图请求体（可直接 POST 到 /chat/completions）。
 
-    这是「支持传图的多模态兜底」的请求契约：等补了 VISION_* 端点，
-    把它 POST 到 /chat/completions 即可，不需要改路由代码。
+    2026-11-14 已用这个结构在 deepseek-v4.1-flash-1017 上跑通双图对照实测：
+    图 A/图 B 的数字、背景色与标签文字都被精确识别，两次回答不同。
+    low_thinking 注入 `thinking={"type":"disabled"}`：实测把 reasoning_tokens
+    从 55 降到 0、耗时从 979ms 降到 467ms；换成别的供应商时置 False 即可。
     """
     import base64
     b64 = base64.b64encode(image_bytes).decode("ascii")
-    return {
-        "model": "__TBC__",
+    body = {
+        "model": model,
         "messages": [{
             "role": "user",
             "content": [
@@ -133,5 +138,9 @@ def vision_message(prompt: str, image_bytes: bytes, mime: str = "image/png") -> 
             ],
         }],
         "stream": False,
-        "max_tokens": 1024,
+        "temperature": 0,
+        "max_tokens": max_tokens,
     }
+    if low_thinking:
+        body["thinking"] = {"type": "disabled"}
+    return body

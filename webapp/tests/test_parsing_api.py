@@ -21,18 +21,20 @@ def auth(client):
     return {"Authorization": "Bearer " + r.json()["access_token"]}
 
 
-def test_parse_status_reports_unavailable_external_tiers(client, auth):
+def test_parse_status_reports_p1_contract_and_gateway_vision_facts(client, auth):
     r = client.get("/api/parse/status", headers=auth)
     assert r.status_code == 200
     d = r.json()
     levels = {x["level"]: x for x in d["levels"]}
     assert levels["local"]["available"] is True
-    assert levels["ocr_api"]["available"] is False
-    assert levels["multimodal"]["available"] is False
+    assert levels["ocr_api"]["available"] is False             # P1 未接通
+    assert levels["multimodal"]["available"] is False          # 单测离线开关
     assert levels["ocr_api"]["contract"]["endpoint"] == "__TBC__"
-    assert d["vision_models_probe"]["has_vision"] is False
+    assert d["vision_models_probe"]["has_vision"] is True
     assert len(d["vision_models_probe"]["models"]) == 10
+    assert len(d["vision_models_probe"]["vision_capable"]) == 6
     assert d["budget"]["vision_escalation_ratio"] == 0.10
+    assert d["thresholds"]["offline"] is True
 
 
 def test_parse_probe_markdown_stays_local(client, auth):
@@ -66,7 +68,8 @@ def test_parse_probe_image_does_not_claim_vision(client, auth):
     assert r.status_code == 200
     d = r.json()
     assert d["traces"][0]["degraded"] == "vision_unavailable"
-    assert "非视觉" in d["results"][0]["text"] or "未识别" in d["results"][0]["text"]
+    # 离线开关下走结构化降级：只报 P0 可测事实，不编造图片内容
+    assert "不识别图片内容" in d["results"][0]["text"] or "兜底已跳过" in d["results"][0]["text"]
 
 
 def test_parse_strategy_write_requires_admin(client, auth):

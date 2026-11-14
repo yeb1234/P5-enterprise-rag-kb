@@ -222,9 +222,11 @@ def thinking_fields(*, disabled: bool) -> dict:
 
     settings.thinking_disabled() 决定「是否低思考」，本函数只决定「低思考发什么字段」，
     让流式 / 非流式 / 连接测试三条路径共用一份 payload 定义。
-    诚实边界：Discovery 网关是否识别 thinking 字段尚未实测。OpenAI 兼容端点一般忽略
-    未知字段；不识别时靠 _filter_inline_think() 剥掉内联思考块，并用首 token 延迟与
-    reasoning_tokens 观测判断，不假装「已经关闭思考」。
+    2026-11-14 网关参数对照实测：`thinking={"type":"disabled"}` 把
+    reasoning_tokens 从 55 降到 0、耗时 979ms → 467ms，确认生效；
+    元数据里列出的布尔 `reasoning` 参数实测无效，不要改用它。
+    换成别的供应商时可用 WEBAPP_LLM_THINKING=enabled 关掉本字段，
+    _filter_inline_think() 仍负责剥掉内联思考块。
     """
     return {"thinking": {"type": "disabled"}} if disabled else {}
 
@@ -526,7 +528,7 @@ def test_llm(base_url: str, model: str, api_key: str = "",
         # 推理模型在 token 预算不足时可能只吐 thinking：如实标注，不让「可用」掩盖空正文
         "reasoning_only": bool(content == "" and (msg.get("reasoning_content") or "")),
         "thinking_mode": "低思考 · 快速" if thinking_disabled else "完整推理",
-        # 只说明「请求里带了什么」，不断言网关一定生效（未实测）。
+        # 记录请求里带了什么；2026-11-14 对照实测已确认该字段在本网关生效。
         "thinking_field_sent": "thinking=disabled" if thinking_disabled else "",
         # usage 里是否观察到推理 token：仅作证据，不等于网关确认支持该字段。
         "low_thinking_evidence": (

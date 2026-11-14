@@ -10,6 +10,23 @@ import os
 from dataclasses import dataclass
 
 from parsing.contracts import STRATEGIES, STRATEGY_AUTO
+from parsing.envfile import load_env
+
+# 端点默认值在类定义时求值，必须先把 .env 补进 os.environ；
+# 独立运行（vision_probe / server）时没有 webapp 替我们做这件事。
+load_env()
+
+
+def _flag(name: str, default: bool) -> bool:
+    """布尔开关统一判定：1/true/yes/on 都算开，0/false/no/off/空 算关。
+
+    必须与 MultimodalStrategy 的开关判定完全一致，否则 status() 显示的
+    offline 与实际是否发起请求会不一致。
+    """
+    v = os.environ.get(name)
+    if v is None:
+        return default
+    return v.strip().lower() not in ("0", "false", "no", "off", "")
 
 
 def _f(name: str, default: float) -> float:
@@ -45,15 +62,29 @@ class ParseConfig:
     # 单次任务至少允许 1 页升级，避免小文件被比例算成 0
     vision_min_slots: int = _i("PARSING_VISION_MIN_SLOTS", 1)
 
-    # --- 外部端点（未提供时适配器自动不可用，全部保持 __TBC__）---
+    # --- 外部端点 ---
+    # P1 收费 OCR：未提供凭证时适配器自动不可用，契约字段保持 __TBC__。
     ocr_api_base_url: str = os.environ.get("PARSING_OCR_BASE_URL", "")
     ocr_api_key: str = os.environ.get("PARSING_OCR_API_KEY", "")
     ocr_api_model: str = os.environ.get("PARSING_OCR_MODEL", "")
-    vision_base_url: str = os.environ.get("PARSING_VISION_BASE_URL", "")
-    vision_api_key: str = os.environ.get("PARSING_VISION_API_KEY", "")
-    vision_model: str = os.environ.get("PARSING_VISION_MODEL", "")
-    # 别名为现有 Discovery 网关；实查 10 个模型全为纯文本，故默认 False
-    discovery_as_vision: bool = os.environ.get("PARSING_DISCOVERY_AS_VISION", "false").lower() == "true"
+
+    # P2 多模态：2026-11-14 实查网关 /models 的 input_modalities，
+    # 10 个模型里 6 个支持 image，deepseek-v4.1-flash-1017 支持 url/base64。
+    # 双图对照传图实测已跑通，因此默认回退到现成的 Discovery 网关，
+    # 不需要用户再补一份凭证；仍可用 PARSING_VISION_* 显式覆盖成别的端点。
+    vision_base_url: str = (os.environ.get("PARSING_VISION_BASE_URL")
+                            or os.environ.get("DISCOVERY_BASE_URL", ""))
+    vision_api_key: str = (os.environ.get("PARSING_VISION_API_KEY")
+                           or os.environ.get("DISCOVERY_API_KEY", ""))
+    vision_model: str = (os.environ.get("PARSING_VISION_MODEL")
+                         or os.environ.get("DISCOVERY_MODEL", "")
+                         or "deepseek-v4.1-flash-1017")
+    vision_timeout_s: int = _i("PARSING_VISION_TIMEOUT_S", 60)
+    # 低思考档：实测 thinking={"type":"disabled"} 把 reasoning_tokens 从 55 降到 0、
+    # 耗时从 979ms 降到 467ms；元数据里的布尔 reasoning 参数实测无效。
+    vision_low_thinking: bool = _flag("PARSING_VISION_LOW_THINKING", True)
+    vision_enabled: bool = _flag("PARSING_VISION_ENABLED", True)
+    offline: bool = _flag("PARSING_OFFLINE", False)
 
     def as_dict(self) -> dict:
         return {
@@ -65,9 +96,29 @@ class ParseConfig:
             "vision_min_slots": self.vision_min_slots,
             "ocr_configured": bool(self.ocr_api_base_url and self.ocr_api_key),
             "vision_configured": bool(self.vision_base_url and self.vision_api_key and self.vision_model),
-            "discovery_as_vision": self.discovery_as_vision,
+            "vision_model": self.vision_model,
+            # 动态读，保证 status() 反映当前进程状态，而不是 import 时的快照
+            "vision_enabled": _flag("PARSING_VISION_ENABLED", True),
+            "vision_low_thinking": _flag("PARSING_VISION_LOW_THINKING", True),
+            "offline": _flag("PARSING_OFFLINE", False),
             "threshold_note": "演示默认经验起始值，非压测结论，需用真实语料校准",
         }
+
+
+# 2026-11-14 实测 /models 元数据得到的静态事实，供 status() 与文档引用。
+# 用 `python -m parsing.vision_probe` 可重新探测（见该模块）。
+VISION_CAPABLE_MODELS = (
+    "Agents-A1", "Sage-A1.5", "deepseek-v4.1-flash-1017",
+    "intern-s2", "kimi-k3.1-pro", "qwen3.8-27b",
+)
+TEXT_ONLY_MODELS = (
+    "Atria-Dawn", "Atria-Dawn-Preview", "Sage-A1.5-Taiyi", "glm-5.3",
+)
+VISION_PROBE_NOTE = (
+    "2026-11-14 实测网关 /models 的 input_modalities：10 个模型中 6 个支持 image；"
+    "deepseek-v4.1-flash-1017 双图对照传图实测通过（数字/背景色/标签均命中）。"
+    "这是功能连通性实测，不是质量基线。"
+)
 
 
 def current_strategy() -> str:

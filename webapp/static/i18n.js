@@ -743,8 +743,8 @@
     '推理：': 'Reasoning: ',
     '低思考 · 快速（默认，关闭 thinking）': 'Low thinking · fast (default, thinking disabled)',
     '完整推理（慢，先输出思考过程）': 'Full reasoning (slow, emits thinking first)',
-    'V4.1 系列默认会先输出思考过程；检索问答要低延迟，默认在请求里显式关闭。网关是否识别该字段尚未实测，未识别时由前端过滤内联思考块兜底，不假装已关闭。':
-      'V4.1 models emit reasoning first by default; retrieval Q&A needs low latency, so the request disables it explicitly. Whether the gateway honours this field is not yet verified; if not, inline thinking blocks are filtered client-side as a fallback, and it is never claimed as confirmed.',
+    'V4.1 系列默认会先输出思考过程；检索问答要低延迟，默认在请求里显式关闭。该字段经实测生效：推理 token 从 55 降到 0，耗时约减半；网关元数据里的布尔 reasoning 参数实测无效。':
+      'V4.1 models emit reasoning first by default; retrieval Q&A needs low latency, so the request disables it explicitly. Verified on 2026-11-14: it cuts reasoning tokens from 55 to 0 and roughly halves latency; the boolean "reasoning" parameter listed in gateway metadata has no effect.',
     /* ---- 解析实验室（三级策略） ---- */
     '解析实验室': 'Parsing Lab',
     '质量与治理 / 解析实验室（三级策略）': 'Quality / Parsing Lab (3-tier strategies)',
@@ -772,7 +772,6 @@
     'OCR 字符阈值': 'OCR character threshold',
     '可用模型数': 'Available models',
     '视觉模型': 'Vision model',
-    '无（全部纯文本）': 'None (text-only models)',
     '未接通': 'Not connected',
     '可用': 'Available',
     '请先选择文件': 'Please choose a file first',

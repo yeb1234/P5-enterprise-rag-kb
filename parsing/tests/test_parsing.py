@@ -59,7 +59,10 @@ def test_vision_message_has_data_uri():
     assert content[0]["type"] == "text"
     assert content[1]["type"] == "image_url"
     assert content[1]["image_url"]["url"].startswith("data:image/png;base64,")
-    assert msg["model"] == "__TBC__"  # 不编造模型名
+    # 2026-11-14 实测：模型名是网关 /models 里的真实 id，不再占位
+    assert msg["model"] == "deepseek-v4.1-flash-1017"
+    assert msg["thinking"] == {"type": "disabled"}
+    assert msg["temperature"] == 0
 
 
 def test_unknown_bytes_are_not_reported_as_image():
@@ -78,14 +81,15 @@ def test_plain_text_stays_local():
 
 
 def test_no_text_layer_escalates_and_degrades_honestly():
+    """离线开关打开时，P2 跳过并留痕，不能把降级结果说成视觉理解。"""
     rep = ParseRouter(strategy=STRATEGY_AUTO).parse_document(
         b"", filename="blank.txt", mime="text/plain")
     tr = rep["traces"][0]
     assert tr["level"] == LEVEL_MULTIMODAL
     assert tr["degraded"] == "vision_unavailable"
-    assert "未配置" in rep["results"][0]["text"] or "结构化降级" in rep["results"][0]["text"]
-    # 网关无视觉模型，绝不能写成已跑通视觉理解
-    assert "视觉理解" not in rep["results"][0]["text"] or "非视觉" in rep["results"][0]["text"]
+    assert "结构化降级" in rep["results"][0]["text"]
+    assert "PARSING_OFFLINE" in rep["results"][0]["text"]
+    assert "视觉理解已跑通" not in rep["results"][0]["text"]
 
 
 def test_pdf_without_text_layer_is_flagged():
@@ -102,7 +106,7 @@ def test_degradation_keeps_local_text():
         text, filename="ragged.md", mime="text/markdown")
     body = rep["results"][0]["text"]
     assert "| a | b | c |" in body  # 本级正文仍在
-    assert "结构化降级" in body or "待 OCR" in body or "兜底不可用" in body
+    assert "结构化降级" in body or "待 OCR" in body or "兜底已跳过" in body
 
 
 # ---------------------------------------------------------------- 预算闸门
@@ -127,15 +131,96 @@ def test_budget_blocked_marks_trace():
 
 
 # ---------------------------------------------------------------- 端点可用性
-def test_unconfigured_external_levels_never_claim_available():
+def test_offline_switch_and_p1_contract_are_honest():
+    """离线开关下 P2 不可用，但网关能力的事实不能被改成「无视觉模型」。"""
     st = ParseRouter().status()
     levels = {x["level"]: x for x in st["levels"]}
     assert levels[LEVEL_LOCAL]["available"] is True
-    assert levels["ocr_api"]["available"] is False
-    assert levels[LEVEL_MULTIMODAL]["available"] is False
+    assert levels["ocr_api"]["available"] is False          # P1 未接通
+    assert levels[LEVEL_MULTIMODAL]["available"] is False   # 离线开关
+    assert "PARSING_OFFLINE" in levels[LEVEL_MULTIMODAL]["reason"]
     assert levels["ocr_api"]["contract"]["endpoint"] == "__TBC__"
-    assert st["vision_models_probe"]["has_vision"] is False
-    assert len(st["vision_models_probe"]["models"]) == 10
+    probe = st["vision_models_probe"]
+    assert probe["has_vision"] is True
+    assert len(probe["models"]) == 10
+    assert len(probe["vision_capable"]) == 6
+    assert "deepseek-v4.1-flash-1017" in probe["vision_capable"]
+
+
+def test_config_snapshot_of_gateway_modalities():
+    from parsing.config import TEXT_ONLY_MODELS, VISION_CAPABLE_MODELS
+    assert len(VISION_CAPABLE_MODELS) == 6 and len(TEXT_ONLY_MODELS) == 4
+    assert "deepseek-v4.1-flash-1017" in VISION_CAPABLE_MODELS
+    assert not (set(VISION_CAPABLE_MODELS) & set(TEXT_ONLY_MODELS))
+
+
+def test_vision_layer_available_when_online(monkeypatch):
+    """关掉离线开关后，P2 复用现成网关即可用，无需额外凭证。"""
+    from dataclasses import replace
+    monkeypatch.setenv("PARSING_OFFLINE", "0")
+    monkeypatch.setenv("PARSING_VISION_ENABLED", "1")
+    cfg = replace(ParseConfig(), vision_base_url="https://example.invalid/v1",
+                  vision_api_key="test-key", vision_model="deepseek-v4.1-flash-1017")
+    assert MultimodalStrategy(cfg).available() is True
+    assert ParseRouter(cfg=cfg).status()["levels"][2]["available"] is True
+
+
+def test_vision_parse_maps_real_response(monkeypatch):
+    """mock urlopen 验证响应映射，不消耗真实流量。"""
+    import json
+    from dataclasses import replace
+    monkeypatch.setenv("PARSING_OFFLINE", "0")
+    cfg = replace(ParseConfig(), vision_base_url="https://example.invalid/v1",
+                  vision_api_key="test-key")
+    s = MultimodalStrategy(cfg)
+    assert s.available() is True
+    payload = {
+        "choices": [{"message": {"content": "73492 on a light blue background."}}],
+        "usage": {"prompt_tokens": 267, "completion_tokens": 90, "total_tokens": 357,
+                  "completion_tokens_details": {"reasoning_tokens": 0}},
+    }
+
+    class _Resp:
+        def read(self):
+            return json.dumps(payload).encode()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    monkeypatch.setattr("urllib.request.urlopen", lambda req, timeout=None: _Resp())
+    r = s.parse(b"\x89PNG", mime="image/png", page_no=1)
+    assert r.level == LEVEL_MULTIMODAL and r.degraded is None
+    assert "73492" in r.text
+    assert r.upstream["usage"]["total_tokens"] == 357
+    assert r.upstream["reasoning_tokens"] == 0
+    assert s.build_request(b"\x89PNG")["thinking"] == {"type": "disabled"}
+
+
+def test_vision_empty_content_triggers_fallback(monkeypatch):
+    import json
+    from dataclasses import replace
+    from parsing.contracts import StrategyUnavailable
+    monkeypatch.setenv("PARSING_OFFLINE", "0")
+    cfg = replace(ParseConfig(), vision_base_url="https://example.invalid/v1",
+                  vision_api_key="test-key")
+    s = MultimodalStrategy(cfg)
+
+    class _Resp:
+        def read(self):
+            return json.dumps({"choices": [{"message": {"content": ""}}]}).encode()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    monkeypatch.setattr("urllib.request.urlopen", lambda req, timeout=None: _Resp())
+    with pytest.raises(StrategyUnavailable):
+        s.parse(b"\x89PNG", mime="image/png", page_no=1)
 
 
 def test_ocr_strategy_raises_when_unconfigured():

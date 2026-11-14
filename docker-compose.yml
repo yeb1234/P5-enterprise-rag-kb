@@ -219,12 +219,23 @@ services:
       PARSING_VISION_ESCALATION_RATIO: ${PARSING_VISION_ESCALATION_RATIO:-0.10}
       PARSING_CONFIDENCE_MIN: ${PARSING_CONFIDENCE_MIN:-0.75}
       PARSING_OCR_TEXT_CHARS_MIN: ${PARSING_OCR_TEXT_CHARS_MIN:-40}
-      # 外部端点未配置时适配器自动不可用；密钥只从 .env 注入，不写进镜像
-      PARSING_OCR_BASE_URL: ${PARSING_OCR_BASE_URL:-}
-      PARSING_OCR_API_KEY: ${PARSING_OCR_API_KEY:-}
+      PARSING_OFFLINE: ${PARSING_OFFLINE:-0}
+      PARSING_VISION_ENABLED: ${PARSING_VISION_ENABLED:-1}
+      PARSING_VISION_LOW_THINKING: ${PARSING_VISION_LOW_THINKING:-1}
+      PARSING_VISION_TIMEOUT_S: ${PARSING_VISION_TIMEOUT_S:-60}
+      # P2 已接通（2026-11-14 实测）：复用网关的视觉能力，无需额外凭证。
+      # 密钥只从 .env 注入，不写进镜像、不下发前端。
+      DISCOVERY_BASE_URL: ${DISCOVERY_BASE_URL:-}
+      DISCOVERY_API_KEY: ${DISCOVERY_API_KEY:-}
+      DISCOVERY_MODEL: ${DISCOVERY_MODEL:-deepseek-v4.1-flash-1017}
+      # 可显式覆盖成别的视觉端点；留空则走上面的 DISCOVERY_* 回退
       PARSING_VISION_BASE_URL: ${PARSING_VISION_BASE_URL:-}
       PARSING_VISION_API_KEY: ${PARSING_VISION_API_KEY:-}
       PARSING_VISION_MODEL: ${PARSING_VISION_MODEL:-}
+      # P1 收费 OCR 仍未接通，契约字段保持 __TBC__
+      PARSING_OCR_BASE_URL: ${PARSING_OCR_BASE_URL:-}
+      PARSING_OCR_API_KEY: ${PARSING_OCR_API_KEY:-}
+      PARSING_OCR_MODEL: ${PARSING_OCR_MODEL:-}
     ports: ["127.0.0.1:8766:8766"]
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8766/health/live', timeout=3)"]

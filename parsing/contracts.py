@@ -100,6 +100,9 @@ class ParseResult:
             "signals": self.signals.as_dict(),
             "level": self.level, "degraded": self.degraded,
             "latency_ms": self.latency_ms, "source": self.source,
+            # 外部调用的模型、token 用量与推理 token 数必须回传：
+            # P2 已接通并真实计费，轨迹里要能看到每次调用花了什么。
+            "upstream": dict(self.upstream),
         }
 
 

@@ -71,7 +71,7 @@ class LocalStrategy(ParseStrategy):
                     table_cells=0, table_complete=True,
                     ocr_needed=entropy >= self.cfg.image_entropy_min,
                     confidence=0.35,
-                    notes=("图片容器头解析，无视觉端点",
+                    notes=("图片容器头解析（P0 层不调用视觉，交由质量门禁升级）",
                            f"熵={entropy}（高熵通常意味着压缩位图）",
                            "内容未识别，需 OCR 或视觉层级"),
                 ),

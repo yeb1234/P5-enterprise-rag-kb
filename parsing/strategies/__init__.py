@@ -3,7 +3,7 @@
 导入本包即完成注册，路由器按 name 取类：
   local        P0 自研（零外部服务）
   ocr_api      P1 收费 OCR / 版面解析（适配器，契约 __TBC__）
-  multimodal   P2 多模态 LLM 传图兜底（端点待补，含结构化降级）
+  multimodal   P2 多模态 LLM 传图兜底（已接通 Discovery 网关，失败时结构化降级）
 """
 from parsing.strategies.base import ParseStrategy, REGISTRY, register
 from parsing.strategies.local import LocalStrategy

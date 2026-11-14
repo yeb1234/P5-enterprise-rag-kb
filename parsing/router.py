@@ -18,7 +18,8 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
-from parsing.config import ParseConfig, current_strategy
+from parsing.config import (ParseConfig, TEXT_ONLY_MODELS, VISION_CAPABLE_MODELS,
+                            VISION_PROBE_NOTE, current_strategy)
 from parsing.contracts import (
     LEVEL_LOCAL, LEVEL_OCR_API, LEVEL_MULTIMODAL, LEVEL_DEGRADED,
     STRATEGY_AUTO, STRATEGY_LOCAL_ONLY, STRATEGY_OCR_API,
@@ -111,19 +112,22 @@ class ParseRouter:
                 {"level": LEVEL_MULTIMODAL, "name": "P2 多模态 LLM 传图兜底",
                  "available": self.vision.available(),
                  "reason": "" if self.vision.available() else self.vision.unavailable_reason(),
-                 "contract": self.vision.contract(), "cost": "__TBC__"},
+                 "contract": self.vision.contract(), "cost": "按网关 token 计费，单价 __TBC__"},
             ],
             "budget": {"vision_escalation_ratio": self.cfg.vision_escalation_ratio,
                        "vision_min_slots": self.cfg.vision_min_slots,
-                       "meaning": "最贵链路最多占 10% 的页，是上限/熔断线，不是随机分流"},
+                       "meaning": "最贵链路最多占 10% 的页，是上限/熔断线，不是随机分流；"
+                                  "P2 已接通后它是真实的成本控制点"},
             "thresholds": self.cfg.as_dict(),
             "vision_models_probe": {
                 "gateway": "Intern-AI Discovery /models",
-                "models": ["Agents-A1", "Atria-Dawn", "Atria-Dawn-Preview", "Sage-A1.5",
-                           "Sage-A1.5-Taiyi", "deepseek-v4.1-flash-1017", "glm-5.3",
-                           "intern-s2", "kimi-k3.1-pro", "qwen3.8-27b"],
-                "has_vision": False,
-                "note": "2026-11-14 实查，10 个模型全为纯文本；传图请求构造已就绪，端点待补",
+                "models": list(VISION_CAPABLE_MODELS) + list(TEXT_ONLY_MODELS),
+                "vision_capable": list(VISION_CAPABLE_MODELS),
+                "text_only": list(TEXT_ONLY_MODELS),
+                "has_vision": True,
+                "verified_by": "双图对照传图实测（2026-11-14）：不同数字/背景色/标签均精确命中",
+                "note": VISION_PROBE_NOTE,
+                "reprobe": "python -m parsing.vision_probe",
             },
         }
 
@@ -339,7 +343,10 @@ class ParseRouter:
             },
             "traces": [t.as_dict() for t in traces],
             "results": [r.as_dict() for r in results],
-            "note": "P1/P2 外部端点未配置；契约保持 __TBC__，当前不会发起任何外部请求",
+            "note": ("P1 收费 OCR 未接通，契约字段保持 __TBC__；"
+                     "P2 已接通 Discovery 网关的视觉能力（deepseek-v4.1-flash-1017，"
+                     "双图对照实测通过）。auto 策略仅在质量门禁命中且预算闸门允许时才调用 P2；"
+                     "设置 PARSING_OFFLINE=1 可全程零外部请求"),
         }
 
 

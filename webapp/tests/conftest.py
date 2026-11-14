@@ -13,6 +13,8 @@ os.environ["WEBAPP_DB_PATH"] = _test_db
 os.environ["WEBAPP_LLM_PROVIDER"] = "offline"
 os.environ["WEBAPP_EMBEDDING_PROVIDER"] = "offline"
 os.environ["WEBAPP_RERANK_PROVIDER"] = "off"
+# P2 多模态已接通真实网关，单测必须显式关掉，避免图片用例消耗真实流量
+os.environ["PARSING_OFFLINE"] = "1"
 
 
 @atexit.register

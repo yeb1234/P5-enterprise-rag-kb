@@ -1354,7 +1354,7 @@ async function loadParsing() {
     $('ps-vision').innerHTML =
       `<div class="kv-line"><span>探测端点</span><b>${esc(vp.gateway || '—')}</b></div>` +
       `<div class="kv-line"><span>可用模型数</span><b>${esc(String((vp.models || []).length))}</b></div>` +
-      `<div class="kv-line"><span>视觉模型</span><b style="color:var(${vp.has_vision ? '--success' : '--danger'})">${vp.has_vision ? '有' : '无（全部纯文本）'}</b></div>` +
+      `<div class="kv-line"><span>视觉模型</span><b style="color:var(${vp.has_vision ? '--success' : '--danger'})">${vp.has_vision ? ((vp.vision_capable || []).length + ' 个支持 image') : '无'}</b></div>` +
       `<p class="muted small" style="margin:10px 0 0">${esc(vp.note || '')}</p>`;
     $('ps-levels').innerHTML = (r.levels || []).map(x =>
       `<div class="card padded" style="box-shadow:none">` +
