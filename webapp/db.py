@@ -192,7 +192,7 @@ CREATE TABLE IF NOT EXISTS budgets (
 -- 限流规则：用户 / 接口 / 模型调用三个维度各自独立计数窗口。
 -- 部门只用于成本归因（usage_events.department_id），不在这里建规则行。
 CREATE TABLE IF NOT EXISTS rate_rules (
-    dimension   TEXT PRIMARY KEY,               -- user|department|endpoint|model
+    dimension   TEXT PRIMARY KEY,               -- user|endpoint|model
     limit_count INTEGER NOT NULL,
     window_s    INTEGER NOT NULL,
     enabled     INTEGER NOT NULL DEFAULT 1,

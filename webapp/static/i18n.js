@@ -745,6 +745,42 @@
     '完整推理（慢，先输出思考过程）': 'Full reasoning (slow, emits thinking first)',
     'V4.1 系列默认会先输出思考过程；检索问答要低延迟，默认在请求里显式关闭。网关是否识别该字段尚未实测，未识别时由前端过滤内联思考块兜底，不假装已关闭。':
       'V4.1 models emit reasoning first by default; retrieval Q&A needs low latency, so the request disables it explicitly. Whether the gateway honours this field is not yet verified; if not, inline thinking blocks are filtered client-side as a fallback, and it is never claimed as confirmed.',
+    /* ---- 解析实验室（三级策略） ---- */
+    '解析实验室': 'Parsing Lab',
+    '质量与治理 / 解析实验室（三级策略）': 'Quality / Parsing Lab (3-tier strategies)',
+    '三级解析策略（自研 / 收费 OCR / 多模态兜底）可切换；质量门禁决定逐页升级，预算闸门限制最贵链路占比，全过程留下可核对的轨迹。':
+      'Switch between three parsing tiers (in-house / paid OCR / multimodal fallback); a quality gate drives per-page escalation, a budget gate caps the most expensive tier, and every step leaves an auditable trace.',
+    '策略开关': 'Strategy switch',
+    '解析策略': 'Parsing strategy',
+    '保存策略': 'Save strategy',
+    '自动档按质量门禁逐级升级：': 'Auto mode escalates tier by tier based on the quality gate:',
+    '才会往贵的一级走，不是随机分流。': 'triggers a more expensive tier; this is not random splitting.',
+    '预算闸门 · 90:10': 'Budget gate · 90:10',
+    '网关视觉能力探测': 'Gateway vision capability probe',
+    '三级策略可用性': 'Availability of the three tiers',
+    '上传文件并解析（演示探测，不落业务库、不写向量）':
+      'Upload and parse (demo probe; no business DB writes, no vector indexing)',
+    '选择文件（支持 PDF / 图片 / Markdown / CSV / 纯文本，≤ 8 MiB）':
+      'Choose a file (PDF / image / Markdown / CSV / plain text, up to 8 MiB)',
+    '开始解析': 'Start parsing',
+    '逐页解析轨迹': 'Per-page parsing trace',
+    '尚未解析。': 'Not parsed yet.',
+    '第一页结构化结果预览': 'Structured preview of page 1',
+    '最贵链路占比上限': 'Cap on the most expensive tier',
+    '单次任务最小名额': 'Minimum slots per job',
+    '质量门禁置信度阈值': 'Quality-gate confidence threshold',
+    'OCR 字符阈值': 'OCR character threshold',
+    '可用模型数': 'Available models',
+    '视觉模型': 'Vision model',
+    '无（全部纯文本）': 'None (text-only models)',
+    '未接通': 'Not connected',
+    '可用': 'Available',
+    '请先选择文件': 'Please choose a file first',
+    '自动（质量门禁逐级升级）': 'Auto (quality-gated escalation)',
+    '仅自研 P0': 'In-house P0 only',
+    '强制收费 OCR P1': 'Force paid OCR P1',
+    '强制多模态 P2': 'Force multimodal P2',
+    '关闭（只登记不解析）': 'Off (register only, no parsing)',
   };
 
   /* 富文本整段替换：用 data-i18n-html 标记，保留标签结构 */

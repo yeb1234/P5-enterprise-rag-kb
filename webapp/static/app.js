@@ -116,8 +116,19 @@ function showAuthError(msg) { $('auth-error').textContent = msg; $('auth-error')
 
 function forceLogout(msg) {
   S.token = ''; S.user = null;
+  // 会话态必须随身份一起清空：否则 A 登出后 B 登录仍看到 A 的对话，
+  // 且下一次发问会追加到 A 的 conversation_id（跨用户串号）。
+  // 流式状态也要复位，避免 A 生成中途被踢出后 B 永久无法发问。
+  S.conversationId = '';
+  S.msgCount = 0;
+  S.streaming = false;
+  S._modalData = {};
+  S.evalTasks = [];
+  S._lastBusy = null;
   localStorage.removeItem('kb_token');
   if (S._timer) { clearInterval(S._timer); S._timer = null; }
+  const chatLog = $('chat-log'); if (chatLog) chatLog.innerHTML = '';
+  const send = $('chat-send'); if (send) send.disabled = false;
   $('app-view').classList.add('hidden');
   $('auth-view').classList.remove('hidden');
   if (msg) toast(msg, 'warn');
@@ -164,6 +175,7 @@ const VIEW_META = {
   tasks:  ['任务中心', '质量与治理 / 任务中心'],
   eval:   ['评测中心', '质量与治理 / 评测中心'],
   evaltest: ['评估测试', '质量与治理 / 评估测试（可观测）'],
+  parsing: ['解析实验室', '质量与治理 / 解析实验室（三级策略）'],
   admin:  ['管理后台', '质量与治理 / 管理后台（仅 admin）'],
   audit:  ['审计日志', '质量与治理 / 审计日志（仅 admin）'],
   settings: ['模型设置', '系统 / 模型设置（仅 admin）'],
@@ -175,7 +187,7 @@ const VIEWS = Object.keys(VIEW_META);
 const LOADERS = {
   home: loadOverview, docs: refreshDocs, tasks: loadTasks, eval: loadEval,
   admin: loadAdmin, audit: loadAudit, settings: loadSettings, system: loadSystem,
-  evaltest: loadEvalTest,
+  evaltest: loadEvalTest, parsing: loadParsing,
 };
 function switchView(view) {
   if (ADMIN_VIEWS.includes(view) && (!S.user || S.user.role !== 'admin')) {
@@ -428,6 +440,7 @@ async function sendChat() {
   updateConvStats();
 
   let resumeFrom = 0, retries = 0, finished = false, degrade = false, reason = '', convId = S.conversationId;
+  let authExpired = false;
   let lastSources = [];
   const setStatus = (t) => { $('chat-status').innerHTML = t; $('conv-conn').textContent = t.replace(/<[^>]+>/g, ''); };
 
@@ -440,7 +453,11 @@ async function sendChat() {
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + S.token },
         body: JSON.stringify({ question: q, conversation_id: convId || null, resume_from: resumeFrom }),
       });
-      if (res.status === 401) { forceLogout('登录已过期，请重新登录'); return; }
+      if (res.status === 401) {
+        forceLogout('登录已过期，请重新登录');
+        authExpired = true;
+        break;  // 不能直接 return：会跳过下面的流式状态复位
+      }
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const reader = res.body.getReader();
       const dec = new TextDecoder();
@@ -489,6 +506,16 @@ async function sendChat() {
       if (retries > 3) { bot.bubble.insertAdjacentText('beforeend', '\n\n' + t('[连接中断，重试次数已用尽，请重新发送]')); }
       else await new Promise(r => setTimeout(r, 600));
     }
+  }
+
+  // 401 提前退出时没有答案可展示，但必须在返回前复位流式状态；
+  // 否则重新登录后 sendChat() 开头的 if (S.streaming) 守卫会永久拦截。
+  if (authExpired) {
+    const c = bot.bubble.querySelector('.cursor-blink'); if (c) c.remove();
+    S.streaming = false;
+    $('chat-send').disabled = false;
+    setStatus(esc(t('登录已过期，请重新登录后重试')));
+    return;
   }
 
   // 收尾
@@ -1303,7 +1330,93 @@ async function loadEtGov() {
   } catch (e) { safeToast(e); }
 }
 
-/* 语言切换后，评估页的动态内容需要重渲染（本页全部用 t() 生成） */
+/* ================= 解析实验室（可插拔三级策略） ================= */
+let PS_STATUS = null;
+
+async function loadParsing() {
+  try {
+    const r = await api('/api/parse/status');
+    PS_STATUS = r;
+    const sel = $('ps-strategy');
+    if (sel) {
+      sel.innerHTML = (r.strategies || []).map(s =>
+        `<option value="${esc(s.id)}">${esc(s.label)}</option>`).join('');
+      sel.value = r.strategy;
+    }
+    const th = r.thresholds || {}, bud = r.budget || {};
+    $('ps-budget').innerHTML =
+      `<div class="kv-line"><span>最贵链路占比上限</span><b>${esc(String((bud.vision_escalation_ratio ?? 0.1) * 100) + '%')}</b></div>` +
+      `<div class="kv-line"><span>单次任务最小名额</span><b>${esc(String(bud.vision_min_slots ?? 1))} 页</b></div>` +
+      `<div class="kv-line"><span>质量门禁置信度阈值</span><b>${esc(String(th.confidence_min ?? '—'))}</b></div>` +
+      `<div class="kv-line"><span>OCR 字符阈值</span><b>${esc(String(th.ocr_text_chars_min ?? '—'))}</b></div>` +
+      `<p class="muted small" style="margin:10px 0 0">${esc(bud.meaning || '')}<br/>${esc(th.threshold_note || '')}</p>`;
+    const vp = r.vision_models_probe || {};
+    $('ps-vision').innerHTML =
+      `<div class="kv-line"><span>探测端点</span><b>${esc(vp.gateway || '—')}</b></div>` +
+      `<div class="kv-line"><span>可用模型数</span><b>${esc(String((vp.models || []).length))}</b></div>` +
+      `<div class="kv-line"><span>视觉模型</span><b style="color:var(${vp.has_vision ? '--success' : '--danger'})">${vp.has_vision ? '有' : '无（全部纯文本）'}</b></div>` +
+      `<p class="muted small" style="margin:10px 0 0">${esc(vp.note || '')}</p>`;
+    $('ps-levels').innerHTML = (r.levels || []).map(x =>
+      `<div class="card padded" style="box-shadow:none">` +
+      `<div class="kv-line"><span>${esc(x.name)}</span><b style="color:var(${x.available ? '--success' : '--danger'})">${x.available ? '可用' : '未接通'}</b></div>` +
+      `<div class="muted small" style="margin-top:6px">${esc(x.source || x.reason || '')}</div>` +
+      `<div class="muted small" style="margin-top:6px">成本：${esc(x.cost || '__TBC__')}</div></div>`).join('');
+  } catch (e) { safeToast(e); }
+}
+
+async function saveParsingStrategy() {
+  const v = $('ps-strategy').value;
+  try {
+    const r = await api('/api/parse/strategy', { method: 'PUT', body: JSON.stringify({ strategy: v }) });
+    $('ps-strategy-msg').textContent = '当前策略：' + r.strategy + '（' + r.effective + '）';
+    toast(t('设置已保存，已即时生效'), 'ok');
+    await loadParsing();
+  } catch (e) { safeToast(e); }
+}
+
+async function runParsingProbe() {
+  const f = $('ps-file').files[0];
+  if (!f) { toast('请先选择文件', 'warn'); return; }
+  const msg = $('ps-probe-msg');
+  msg.textContent = '解析中…（本演示不会发起任何外部 OCR / 视觉请求）';
+  try {
+    const fd = new FormData(); fd.append('file', f);
+    const r = await api('/api/parse/probe', { method: 'POST', body: fd });
+    msg.textContent = `完成：${r.page_count} 页，策略 ${r.strategy}，总耗时 ${r.summary.total_latency_ms} ms`;
+    renderParsingReport(r);
+    await loadParsing();
+  } catch (e) { msg.textContent = '解析失败：' + e.message; safeToast(e); }
+}
+
+function renderParsingReport(rep) {
+  const s = rep.summary || {};
+  const byLevel = Object.entries(s.by_level || {}).map(([k, v]) => `${k}: ${v}`).join(' · ');
+  $('ps-summary').innerHTML =
+    `<div class="kv-line"><span>文件 / 页数</span><b>${esc(rep.filename)} · ${rep.page_count} 页</b></div>` +
+    `<div class="kv-line"><span>级别分布</span><b>${esc(byLevel || '—')}</b></div>` +
+    `<div class="kv-line"><span>升级 / 预算拦截 / 降级</span><b>${s.upgrades || 0} / ${s.budget_blocked || 0} / ${s.degraded || 0}</b></div>` +
+    `<div class="kv-line"><span>视觉预算用量</span><b>${rep.budget.used} / ${rep.budget.slots} 页</b></div>` +
+    `<p class="muted small" style="margin:8px 0 0">${esc(rep.note || '')}</p>`;
+  const rows = (rep.traces || []).map(t => {
+    const notes = (t.notes || []).slice(0, 3).join('；');
+    return `<tr><td>${t.page_no}</td><td><span class="badge ${t.level === 'local' ? 'badge-green' : t.level === 'multimodal' ? 'badge-purple' : 'badge-blue'}">${esc(t.level)}</span></td>` +
+      `<td>${esc(String(t.confidence))}</td><td>${t.latency_ms} ms</td>` +
+      `<td>${esc(t.upgraded_from || '—')}</td><td>${t.budget_blocked ? '是' : '—'}</td>` +
+      `<td class="small">${esc(t.reason || '—')}</td><td class="small">${esc(t.degraded || '—')}</td>` +
+      `<td class="small">${esc(notes || '—')}</td></tr>`;
+  }).join('');
+  $('ps-traces').innerHTML =
+    `<table class="table"><thead><tr><th>页</th><th>级别</th><th>置信度</th><th>耗时</th><th>升级自</th><th>预算拦截</th><th>原因</th><th>降级</th><th>判定依据</th></tr></thead><tbody>${rows}</tbody></table>`;
+  const first = (rep.results || [])[0];
+  if (!first) { $('ps-preview').textContent = '无结果'; return; }
+  const sig = first.signals || {};
+  $('ps-preview').innerHTML =
+    `<div class="kv-line"><span>结构化块数 / 表格单元格</span><b>${(first.blocks || []).length} / ${sig.table_cells || 0}</b></div>` +
+    `<div class="kv-line"><span>字符数 / 密度 / 置信度</span><b>${sig.text_chars || 0} / ${sig.text_density || 0} / ${sig.confidence || 0}</b></div>` +
+    `<pre class="small" style="white-space:pre-wrap;margin:10px 0 0;max-height:220px;overflow:auto">${esc((first.text || '').slice(0, 1200))}</pre>`;
+}
+
+/* 语言切换后，评估页与解析页的动态内容需要重渲染 */
 document.addEventListener('kb:langchange', () => { if (S.user && S.view === 'evaltest') loadEvalTest(); });
 
 /* 启动外观控件（DOMContentLoaded 里已在下方调用） */

@@ -17,6 +17,7 @@ from webapp.routers_chat import router as chat_router
 from webapp.routers_docs import router as docs_router
 from webapp.routers_evaltest import router as evaltest_router
 from webapp.routers_ops import router as ops_router
+from webapp.routers_parse import router as parse_router
 from webapp.routers_settings import router as settings_router
 
 STATIC_DIR = __import__("pathlib").Path(__file__).resolve().parent / "static"
@@ -113,6 +114,7 @@ def create_app() -> FastAPI:
     app.include_router(ops_router)
     app.include_router(settings_router)
     app.include_router(evaltest_router)
+    app.include_router(parse_router)
 
     # 无构建静态前端（同源托管，免去 dev server）
     STATIC_DIR.mkdir(exist_ok=True)

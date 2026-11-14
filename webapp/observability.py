@@ -516,7 +516,7 @@ PLUGINS = [
     {"id": "cost_budget", "name": "Token 计量、成本归因与预算闸门", "module": "webapp/observability.py · usage_events / budgets",
      "status": "已落地（演示级）", "boundary": "token 按字符估算、单价为演示值；生产须接供应商 usage 与账单对账，预算周期与多币种未做",
      "why": "面试高频：怎么防止某个部门把月度预算打爆，超限是告警还是硬拦"},
-    {"id": "rate_limit", "name": "多维限流（用户/部门/接口/模型调用）", "module": "webapp/observability.py · rate_check()；webapp/main.py 中间件",
+    {"id": "rate_limit", "name": "多维限流（用户/接口/模型调用）", "module": "webapp/observability.py · rate_check()；webapp/main.py 中间件",
      "status": "已落地（演示级）", "boundary": "进程内滑动窗口，单实例有效；生产须换 Redis 令牌桶 + 网关层，且区分 rate/quota 两类 429",
      "why": "面试高频：RPM/TPM 共享配额下如何做隔离，429 的 Retry-After 与退避策略"},
     {"id": "retry_circuit", "name": "退避重试与配额不重试", "module": "webapp/providers.py · classify_429() / backoff_seconds()",

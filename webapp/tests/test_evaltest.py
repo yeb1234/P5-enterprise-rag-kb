@@ -174,6 +174,9 @@ def test_rate_limit_returns_429_with_headers(client):
         assert s3.headers["X-RateLimit-Code"] == body["code"]
         assert s3.headers["X-Trace-Id"] == body["trace_id"]
     finally:
+        # 先清窗口再发恢复请求：否则恢复请求本身会被刚设的 2/60s 规则挡下，
+        # 规则表残留成 2，污染同进程后续测试（本轮新增解析 API 测试时发现）。
+        obs._WINDOWS.clear()
         client.put("/api/evaltest/ratelimit", headers=h,
                    json={"rules": [{"dimension": "user", "limit_count": 1200, "window_s": 60}]})
         obs._WINDOWS.clear()
