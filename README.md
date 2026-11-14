@@ -31,6 +31,17 @@ React + FastAPI + PostgreSQL + Milvus + Redis/Celery + 外部 DeepSeek 的**可�
 > Git 规范 `docs/git-conventions.md`、安全前中后置与低思考档 `docs/llm-safety-positions.md`。
 > **独立面试演示页**：`interview/index.html`（单文件、零外部依赖，可直接双击打开）。
 > 部署编排见 `docker-compose.yml`，提交前检查清单见 `docs/git-conventions.md`。
+>
+> **可插拔文档解析（2026-11-14 新增，重点）**：入口 `parsing/README.md`。
+> 三级策略 `自研 P0 / 收费 OCR P1 / 多模态兜底 P2` 可在前端「解析实验室」切换，
+> 质量门禁决定逐页升级、预算闸门把最贵链路限制在 10% 的页（上限/熔断线，非随机分流），
+> 每页留下可核对的解析轨迹。原理资料 `docs/parsing/01–07`，交付话术 `docs/PARSING-DELIVERY.md`，
+> 待补 API 清单 `docs/parsing/07-api-contracts.md`。
+> **已实查：Discovery 网关 10 个模型全为纯文本、没有视觉模型**；P1/P2 当前是「契约已就绪、端点待补」，
+> 未接通时优雅降级并标 `degraded`，不宣称已跑通 OCR 或视觉理解。
+> 独立解析服务：`docker compose --profile parsing up -d --build parser`（默认 11 服务不受影响）。
+>
+> **通用开发规约（可复制到别的项目）**：`docs/HARNESS.md`（YEBSPEC@1.0，Y1–Y22 规则 + 最小文件骨架 + 交付前闸门）。
 
 > **想直接看界面？** 另有一个「拿来即可演示」的可运行切片 `webapp/`：
 > `python -m uvicorn webapp.main:app --port 8765`，浏览器打开 `http://127.0.0.1:8765`，

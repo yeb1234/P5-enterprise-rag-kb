@@ -491,3 +491,63 @@ $ ls -la backend/Dockerfile frontend/Dockerfile
 
 > 全部校验复跑：`docker compose config -q` PASS；`git diff --exit-code -- eval/ demo/` 返回 0；`nginx/nginx.conf`、`frontend/nginx.conf` 零改动。
 
+---
+
+## 8. 可插拔解析服务的部署（2026-11-14 新增）
+
+### 8.1 编排形态
+
+新增 `parser` 服务，用 **`profiles: ["parsing"]` 隔离**：
+
+```bash
+docker compose up -d --build                              # 仍是原来的 11 个服务
+docker compose --profile parsing up -d --build parser     # 额外拉起解析服务，共 12 个
+curl http://127.0.0.1:8766/health/live
+```
+
+为什么不塞进 `api` 或 `worker-*`：`parsing/` 是**纯函数包**（零 PG / Milvus / Celery 依赖），单独一个进程/镜像才能独立扩容、独立跑单测、独立替换供应商；把演示替身（`webapp/` 的 SQLite + 进程内队列）和它混编会讲不清边界。
+
+| 项 | 值 | 理由 |
+|---|---|---|
+| 镜像 | `Dockerfile.parse`（项目根为 context，只 `COPY parsing/`） | 不把 webapp / backend 的重依赖带进解析镜像 |
+| 依赖 | `fastapi` + `uvicorn[standard]` + `python-multipart` | P0 自研层本身是纯标准库 |
+| 端口 | `127.0.0.1:8766:8766` | 只绑本地；探测接口未做鉴权，不暴露公网（呼应 §G1） |
+| 健康检查 | 标准库 `urllib` 打 `/health/live` | 镜像里不额外装 `curl` |
+| 资源 | `mem_limit: 512m` / `cpus: 0.5` | 与既有 `x-logging` 锚点、restart 策略一致 |
+| 配置 | `PARSING_*` 从 `.env` 注入 | 密钥不进源码、不进镜像、不下发前端 |
+
+### 8.2 未接通的两层与上线前置
+
+`parser` 服务**当前不会发起任何外部请求**：P1 收费 OCR 与 P2 多模态端点的 `PARSING_OCR_*` / `PARSING_VISION_*` 在 `.env.example` 里全部留空，`available()` 返回 `False`，路由器降级并标 `degraded`。契约槽位全为 `__TBC__`，见 `docs/parsing/07-api-contracts.md`。
+
+补端点后上线前必须补的四件事（当前**未做**，不要写成已完成）：
+1. 给 `/parse/*` 加鉴权与速率限制（现在只绑本地回环，靠网络边界保护）；
+2. 确认外部服务的配额、超时与重试语义，接入 `VisionBudget` 的真实成本口径；
+3. 把 8 MiB 探测上限换成流式落盘 + 按页范围处理（与 `backend/app/tasks/ingest.py` 对齐）；
+4. 补 TLS 终止与反向代理配置；若要从其它主机访问，改端口绑定前先做鉴权。
+
+### 8.3 与既有链路的关系
+
+```
+上传 → 对象存储 → ingest / ingest_heavy 双队列 → 按页范围并行
+                                                    ↓
+                                    parsing/（可插拔策略，本章的新服务）
+                                                    ↓
+        ChunkSpec(page_no, section_path, block_type, confidence, source_level)
+                                                    ↓
+                          chunks 表 / Milvus / citation 契约（不变）
+```
+
+`parsing/` 只替换「原始字节 → 结构化文本」这一步，**不改下游任何契约**。这也是换供应商时不需要动数据库迁移和向量库 schema 的原因。
+
+### 8.4 校验
+
+```bash
+docker compose config -q                         # PASS
+docker compose config --services | wc -l          # 11
+docker compose --profile parsing config --services | wc -l   # 12
+python -m pytest parsing/tests -q                 # 18 passed（零外部调用）
+```
+
+> 本节的 compose 改动是**纯增量**：未删服务、未改服务名/端口/卷/depends_on，默认 `up` 行为与上一轮完全一致。
+

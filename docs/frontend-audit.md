@@ -11,6 +11,39 @@
 
 ---
 
+## 0. 主理人复核与修复记录（2026-11-14，最终态优先）
+
+> 本报告是**问题清单**，状态以检查时为准。下面记录主理人逐条复核后的处置，
+> **本节结论优先级高于正文的状态标注**；正文保留不回改，用于追溯「发现 → 处置」。
+
+### 0.1 两条致命缺陷：核实属实，本轮已修
+
+| ID | 复核结论 | 修复落点 | 修复方式 |
+|---|---|---|---|
+| F-01 跨用户聊天记录串号 | **属实**。`app.js` `forceLogout()` 只清 token/user，不清 `S.conversationId` 与 `#chat-log`；`bootApp()` 只在 `!S.conversationId` 时 `newConversation()`，B 登录后会看到 A 的对话并续写到 A 的会话 | `webapp/static/app.js` `forceLogout()` | 身份登出时一并清空 `conversationId` / `msgCount` / `_modalData` / `evalTasks` / `_lastBusy`，清空 `#chat-log`、复位 `S.streaming` 与发送按钮 |
+| F-02 流式 401 后问答永久锁死 | **属实**。`sendChat()` 的 401 分支 `forceLogout(); return;` 跳过收尾段的 `S.streaming = false`，重新登录后开头守卫永久拦截 | `webapp/static/app.js` `sendChat()` | 401 改为置 `authExpired=true` 后 `break`，在收尾前插入专门的复位分支（清光标、复位 `S.streaming`、解禁按钮、状态提示后 return），不再直接 return |
+
+两条都会直接在「多用户 / 断线恢复」演示中暴露，属于本轮必须修的演示阻断项。修复后 `node --check` 通过、`webapp/selftest.py` 33/33 `DEMO_READY` 复跑通过。
+
+### 0.2 三条被实查推翻的结论（未写入本报告的交付结论）
+
+| 说法 | 复核结果 |
+|---|---|
+| `index.html` 有 6 个 `onclick` 函数未在 `app.js` 定义、触发 ReferenceError | **不成立**。40 个内联处理器目标函数全部有定义；`setLang` 定义在 `i18n.js` 并挂 `window`（`index.html:9` 先于 `app.js` 加载），其余「缺失」是正则把 DOM 方法名（`click` / `getElementById` / `preventDefault`）与关键字（`if`）误当函数 |
+| `backend/Dockerfile` / `frontend/Dockerfile` 全缺、compose healthcheck 必然失败 | **不成立**。两个文件都在（406 B / 369 B），backend 镜像 `apt-get install curl libmagic1 libpq5`，`backend/app/main.py` 确有 `/health/live` |
+| `frontend/src/` 只有骨架、`App.tsx` 导入不存在、build 会覆盖已有静态页 | **不成立**。`frontend/src/` 实有 16 个文件、9 个导入全在；`npm run build` 实跑通过（3505 modules / 6.83 s，仅 antd chunk 875 KB 警告）；`dist/index.html` 本来就是带 hash 资源名的 Vite 构建产物 |
+
+### 0.3 其余条目的处置
+
+- S-01（重复 `kb:langchange` 监听）、S-02（`S._modalData` 只增不删）、S-04（2.5 s 轮询无条件重写 `innerHTML`）等**性能与资源类**问题：确认为真实改进项，本轮因范围纪律留作后续，不夸大、不静默修。
+- S-09（React 骨架 `tenant_id` / `tenant_name` / `tenant_slug` 与新口径冲突）：**确认属实且有意保留**。用户本轮口径是「单组织 + 多用户多部门，暂不实现多租户」，但 `backend/` 的数据模型 13 步清理方案仍是「方案已定、代码尚未改造」；前端单方面删字段会造成 422，已登记为跨端同批改造项。
+- 报告里的 `?v=11` 表述：本轮静态资源已统一升 **`?v=12`**（`index.html` 四处），报告写作时点的快照正确，当前值以 v=12 为准。
+- 两处代码注释失真（`db.py` 的 `rate_rules.dimension` 四维字面、`observability.py` PLUGINS 把部门列为限流维度）：**本轮已修**，最终限流为三维 `("user","endpoint","model")`。
+
+**最终回归**：`pytest webapp/tests` **66 passed**（含本轮新增 15 项）、`webapp/selftest.py` 33/33、`npm run build` 通过、`git diff --exit-code -- eval/ demo/` 返回 0。详见 `docs/acceptance-report.md` §5.2。
+
+---
+
 ## 1. 检查范围与方法
 
 ### 1.1 文件清单（全部实读）
@@ -136,7 +169,7 @@ grep 计数：
 
 ### S-04 【严重｜②⑤｜已确认缺陷】2.5 秒轮询无条件重写 `innerHTML`，EN 模式下持续触发 i18n 重扫
 
-- **位置**：`app.js:148` `setInterval(tick, 2500)` → `app.js:138-143` `tick()` → `app.js:246-259` `pollBusy()` → `app.js:260-286` `renderBanners()`；其中 L268 `box.innerHTML = html;` 与 L281 `$('busy-detail').innerHTML = ...` **无条件赋值**，即使内容一字未变。对照 `i18n.js:938` 的 `MutationObserver` 监听 `childList + subtree + characterData`。
+- **位置**：`app.js:148` `setInterval(tick, 2500)` → `app.js:151` `tick()` → `app.js:246-259` `pollBusy()` → `app.js:260-286` `renderBanners()`；其中 L268 `box.innerHTML = html;` 与 L281 `$('busy-detail').innerHTML = ...` **无条件赋值**，即使内容一字未变。对照 `i18n.js:938` 的 `MutationObserver` 监听 `childList + subtree + characterData`。
 - **现象**：空闲状态下每 2.5 秒仍销毁并重建 `#banners` 与 `#busy-detail` 的全部子节点。EN 模式下每次重建都会产生一批 `childList` 记录 → `onMutation()` 重新 TreeWalker 扫描 + 逐文本节点跑 `SUB_RE`。`pollBusy()` 在 L252 还会 `renderBanners(r)` 第二次调用同一次轮询路径上的渲染。
 - **影响**：恒定 0.4 Hz 的无效 DOM 抖动与翻译扫描；长挂机时主线程被反复占用；`#banners` 内的焦点/选择态会被清空。
 - **建议**：`renderBanners()` 先比对 `box.innerHTML !== html` 再写；`busy-detail` 同理；把「状态真正变化」作为刷新条件，或在 `pollBusy()` 里比较 `JSON.stringify(r)` 与 `S._lastBusy`。同时见 S-01 —— 语言切换时还会额外触发一轮。
@@ -259,9 +292,9 @@ grep 计数：
 
 ### G-10 【一般｜⑥｜演示取舍（需标注）】React 登录页硬编码演示口令与 bootstrap 按钮
 
-- **位置**：`frontend/src/pages/LoginPage.tsx:45` `initialValues={{ email: 'admin@demo.local', password: 'Admin@12345' }}`；`:56-57` 演示账号明文；`:28-37` `bootstrap()` + `:59` 「初始化演示数据」按钮调用 `POST /auth/bootstrap`；对照 `app.js:361-374` `autoLoginAdmin()` 硬编码 `admin/admin123` 与 `?demo=admin` 分支。
+- **位置**：`frontend/src/pages/LoginPage.tsx:45` `initialValues={{ email: 'admin@demo.local', password: 'Admin@12345' }}`；`:56-57` 演示账号明文；`:28-37` `bootstrap()` + `:59` 「初始化演示数据」按钮调用 `POST /auth/bootstrap`；对照 `app.js:362-387` `?demo=admin` 分支与 `autoLoginAdmin()` 硬编码 `admin/admin123`（L378）。
 - **判定**：**演示切片可接受的取舍，但必须显式标注**。依据：`backend/app/api/v1/auth.py:126-127` 有 `if settings.is_production: raise Forbidden("生产环境禁止调用")` 保护；`webapp/README.md:30-31` 明写「仅本地演示切片使用，生产环境必须移除该分支」。
-- **风险**：React 骨架的登录页没有「仅演示」水印，容易被误认为是生产骨架的一部分；`?demo=admin` 分支在 `app.js:350` 有注释但没有任何运行时环境判断。
+- **风险**：React 骨架的登录页没有「仅演示」水印，容易被误认为是生产骨架的一部分；`?demo=admin` 分支在 `app.js:362` 有注释但没有任何运行时环境判断。
 - **建议**：加 `import.meta.env.DEV` / `settings.is_demo` 条件渲染，登录页加「演示环境」角标；把口令移到 `.env.example`；README 账号表补部门列（见 S-09）。
 
 ### G-11 【一般｜①｜已确认缺陷】`tsconfig strict: false` + `any` 泛滥
@@ -285,7 +318,7 @@ grep 计数：
 
 ### G-14 【一般｜⑥｜已确认机制有效但脆弱】无 `value` 的 `<option>` 依赖 MutationObserver 时序固化提交值
 
-- **位置**：`webapp/static/app.js:768` `openEditModal()` 生成 `<option ${v === r.verdict ? 'selected' : ''}>${v}</option>`（**无 value 属性**）；对照 `i18n.js:814-826` `handleTextNode()` 的 OPTION 固化逻辑（`p.dataset.i18nValue = 中文原文; p.value = ...`）；对照 `app.js:626` `openBadcaseModal()` 用的是显式 `value="错误"` 等。
+- **位置**：`webapp/static/app.js:768` `openEditModal()` 生成 `<option ${v === r.verdict ? 'selected' : ''}>${v}</option>`（**无 value 属性**）；对照 `i18n.js:814-826` `handleTextNode()` 的 OPTION 固化逻辑（`p.dataset.i18nValue = 中文原文; p.value = ...`）；对照 `app.js:639` `openBadcaseModal()` 用的是显式 `value="错误"` 等。
 - **结论**：机制**当前有效** —— ZH 模式下无 value 的 option 提交值天然等于中文文本；EN 模式下 `openModal()` 写 `innerHTML`（`app.js:38`）后 MutationObserver 在微任务里执行 `handleTextNode`，把中文原文固化进 `p.value`，因此 `$('ed-verdict').value` 仍提交中文，不破坏后端 `verdict` 判定。这符合既有硬约束。
 - **风险**：固化发生在**异步微任务**里，且依赖「EN 模式 + MutationObserver 正常注册 + 容器未被 `skipped()` 命中」三个前提；一旦有人给弹窗容器加 `data-i18n-skip`、或提前读 `.value`、或改用 `applyI18n` 之外的方式插入，提交值就会变成英文，badcase 判定静默写错。两套弹窗（L626 显式 value / L768 隐式）写法也不一致。
 - **建议**：**保留固化机制**（不要删），但 `openEditModal` 也显式写 `value="错误"` 等，让正确性不依赖观察者时序；把该约束写成回归用例（切 EN → 打开编辑弹窗 → 保存 → 断言提交值为中文）。
@@ -306,9 +339,9 @@ grep 计数：
 | R-02 | ① | `SearchPage.tsx:1` 与 `:6` 两次 `from 'react'`；`UploadCenterPage.tsx:1` 与 `:8` 同样；`DocumentsPage.tsx:3` 导入 `InputNumber` 但全文未使用（grep 仅 1 处命中） | 重复 import / 死导入；`tsconfig` 未开 `noUnusedLocals` 所以不报错 | 合并 import；删 `InputNumber`；开启 `noUnusedLocals` 并配 ESLint |
 | R-03 | ① | `DocumentsPage.tsx:10` `statusColor`、`TaskCenterPage.tsx:6` `stateColor`、`UploadCenterPage.tsx:46` `statusColor`、`app.js:1282` `stBadge` | 状态→颜色映射 4 份，键名重叠但不一致（`succeeded/indexed/completed` 都映射到 green） | 抽 `src/constants/status.ts`（React）与 `app.js` 顶部常量表，统一枚举 |
 | R-04 | ① | `frontend/package.json:6-9` 仅有 `dev/build/preview`；`frontend/` 下无 ESLint/Prettier/测试配置（已 grep 确认） | 无 lint、无 test、无格式化约束，`strict:false` 下问题只能靠人肉发现（S-07/S-08/G-11 均属此类） | 加 `lint`(`eslint src`)、`typecheck`(`tsc --noEmit`)、`test`(`vitest`) 脚本与最小配置；CI 里跑 `npm run build` |
-| R-05 | ①② | `app.js:432` `const setStatus = (t) => { ... t.replace(...) }` | 参数名 `t` **遮蔽全局 i18n 函数 `t()`**，函数体内只当字符串用，暂时无害但极易误改（若以后在里面调 `t('...')` 会 `TypeError`） | 改名 `setStatus(html)`；全局搜索类似的 `t` 作变量名处（`app.js:609` 的 `.map(t => ...)`、`app.js:693` 的 `tasks.map(t => ...)` 同理） |
+| R-05 | ①② | `app.js:432` `const setStatus = (t) => { ... t.replace(...) }` | 参数名 `t` **遮蔽全局 i18n 函数 `t()`**，函数体内只当字符串用，暂时无害但极易误改（若以后在里面调 `t('...')` 会 `TypeError`） | 改名 `setStatus(html)`；全局搜索类似的 `t` 作变量名处（`app.js:622` / `:638` 的 `S.evalTasks.map(t => ...)`、`app.js:706` 的 `tasks.map(t => ...)` 同理） |
 | R-06 | ① | `i18n.js:750-753` `EN_HTML`、`:860-869` `handleRich()`；`index.html` 中 `data-i18n-html` **命中 0 处** | 富文本整段替换机制与 `auth.hero` 词条为死代码（登录页 `<h1>` 实际靠普通文本节点 `t()` 翻译） | 要么删掉 `EN_HTML` / `handleRich` 减少引擎复杂度，要么补上 `data-i18n-html="auth.hero"` 并验证；当前状态容易被误认为「已实现富文本 i18n」 |
-| R-07 | ①② | `index.html` 仅 `:567` 一处 `data-i18n`；`app.js` 8 处；而 `app.js` 有 59 处 `innerHTML` 赋值，其中 `:726` / `:744` / `:847` / `:878` / `:900` / `:933` / `:950` 等表格头与空态是硬编码中文 | 动态文案大量依赖 MutationObserver + `SUB_RE` 片段替换（见 S-03/G-02），而非既有约定的 `data-i18n="中文原文"` 可逆重设 | 新增视图/表格一律走 `etTh(key)` / `etEmpty(key)` 同款 `t(key)` + `data-i18n` 模式；把「动态文案必须加 data-i18n」写成 lint 规则 |
+| R-07 | ①② | `index.html` 仅 `:567` 一处 `data-i18n`；`app.js` 中 `data-i18n=` 命中 5 处（`:323 / :516 / :539 / :548 / :1084`），而 `innerHTML` 赋值 59 处，其中 `:757` badcase 表头、`:847` `runSearch()`、`:878` `loadTasks()`、`:900` `loadEval()`、`:933` `loadAudit()`、`:950` `loadSystem()` 等的表格头与空态是硬编码中文 | 动态文案大量依赖 MutationObserver + `SUB_RE` 片段替换（见 S-03/G-02），而非既有约定的 `data-i18n="中文原文"` 可逆重设 | 新增视图/表格一律走 `app.js:1084-1085` 的 `etTh(key)` / `etEmpty(key)` 同款 `t(key)` + `data-i18n` 模式；把「动态文案必须加 data-i18n」写成 lint 规则 |
 | R-08 | ④③ | `style.css:492-500`（760px 断点：`.nav-group{display:none}` / `.nav .nav-tag{display:none}` / `.side-foot{display:none}`） | 11 个导航项在窄屏变成**无分组标签**的横向滚动条，ADMIN/OBS/DEV 徽标隐藏后权限提示消失；侧栏底部「离线演示切片 · SQLite 真值」说明也消失 | 保留分组名（改为行内小标题）或加 `aria-label`；把「离线演示切片」说明移到顶栏或系统页，避免窄屏丢失诚实边界提示 |
 | R-09 | ③ | `style.css:378` `.table-wrap { overflow:auto; max-height:520px }`；`app.js:744` badcase 表 9 列 | 窄屏横向滚动时表头不吸顶，长表滚到中部后列名不可见 | `thead th { position: sticky; top: 0; background: var(--surface-2); z-index:1 }`；或窄屏改卡片式列表 |
 | R-10 | ① | `index.html:8,9,10,646` 四处 `?v=11`（**已确认全部一致，无缺陷**）；`webapp/selftest.py:368` 请求 `/app.js?v=8` | 测试里残留旧版本号；静态路由忽略 query 所以不影响判定，但会掩盖「升版漏改」的真实问题 | 把 `selftest.py:368` 同步为当前版本；把「改任一 JS/CSS → 四处 `?v` 一次性同升且 `style.css` 与 `app.js` 同号」写成检查脚本；`docs/CHANGELOG.md` 已有 v=11 记录（本次按纪律不动该文件） |
@@ -326,7 +359,7 @@ grep 计数：
 | 1 | 零构建原生 JS、单文件 `app.js` 1314 行、全局 `S` 对象 | `app.js:5-20` | 项目定位「零构建静态页」便于双击/单端口演示与代码精读；引入框架会推翻既有契约 | 需要多人协作开发真实业务、或页面数继续增长（>20）时 |
 | 2 | 50 处内联 `onclick=` | `index.html` 全文计数 | 无构建、无打包，事件绑定最简；`storeModalData()`（`app.js:42`）已规避把用户输入拼进属性 | 引入 CSP（`script-src` 禁止 unsafe-inline）时 |
 | 3 | 59 处 `innerHTML` 拼接 | `app.js` 计数 | 已有 `esc()`（`app.js:24-25`）统一转义 + `data-i18n-skip` 约定；演示数据均为本地 SQLite | 接入不可信外部内容前必须改 DOM API / 加 DOMPurify（另见 S-03：跳过表覆盖不全需先补） |
-| 4 | `?demo=admin` 自动登录 + 硬编码 `admin/admin123` | `app.js:350-374`；`webapp/README.md:30-31` 明写「生产环境必须移除」 | 一键看到含管理后台全貌，是演示切片的显式设计 | **任何非 127.0.0.1 的部署**（当前无运行时环境判断，建议尽快加 `is_demo` 守卫） |
+| 4 | `?demo=admin` 自动登录 + 硬编码 `admin/admin123` | `app.js:362-387`（口令在 L378）；`webapp/README.md:30-31` 明写「生产环境必须移除」 | 一键看到含管理后台全貌，是演示切片的显式设计 | **任何非 127.0.0.1 的部署**（当前无运行时环境判断，建议尽快加 `is_demo` 守卫） |
 | 5 | 2.5s 轮询替代 WebSocket / Redis pub/sub | `app.js:148`；`index.html:107` 已注明「进程内队列」 | 演示切片用进程内信号量 + SQLite 作替身，页面明确标注「不是 Celery + RabbitMQ」 | 上生产 / 需要 <1s 进度反馈时 |
 | 6 | SQLite + 进程内队列替身 | `webapp/db.py`、`webapp/queue.py`；`index.html:404-409` 替身映射表 | 契约与生产骨架对齐，换掉替身即真链路；界面已诚实标注 | 讲成「已实现生产级 ACL / PG / Milvus」时（口径失真） |
 | 7 | i18n 手写字典 951 行、中文原文即 key | `i18n.js:12-741` | 无构建约束下最简单可逆方案；`theme.js` 防闪烁、`kb-boot` 首帧禁过渡均已到位 | 字典超过千条 / 需要复数、日期本地化时（另见 G-02 性能） |

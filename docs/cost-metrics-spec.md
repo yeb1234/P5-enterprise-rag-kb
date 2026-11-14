@@ -4,7 +4,8 @@
 > **适用范围**：`webapp/` 演示切片（SQLite 替身）为主；`backend/` 生产骨架的对应关系单列，不混写为「已实现」。
 > **本轮口径**：系统为「多用户多部门」，**暂不实现多租户**；多租户仅作为未来研发方向写入本文 §6。统计维度从 `tenant` 改为 `department` / `department_id`（口径依据 Part A、C18、C22-3、C23、C24、C26、C27 裁决与 Delta v3/v4）。
 > **版本与裁决优先级**：本文为 **v2（#13 落地冻结后同步版）**。代码按用户任务 3 原文（用户 / 接口 / 模型调用**三维**限流）与主理人裁定落地，是最终态；规格原为编制时快照，9 项差异经主理人裁决**全部「改规格、不改代码」**。**§9 主理人裁定记录为后发裁决，优先级高于前文对应表述**。
-> **单价免责（强制）**：本文出现的一切单价数字均引自 `webapp/observability.py:27-34` 的 `PRICES`，是**演示估算值，非任何供应商报价**；`PRICE_NOTE`（`observability.py:24`）固定随成本响应返回：「单价为演示估算值，非供应商报价；上线前必须用真实账单校准」。
+> **行号基准**：本文所有 `文件:行号` 引用均为 **2026-11-14 代码冻结后逐个重读实际文件的实读值**；后续改动需重新核对，不得按偏移量推算沿用。`docs/` 章节号与历史文档行号不在本基准内。
+> **单价免责（强制）**：本文出现的一切单价数字均引自 `webapp/observability.py:28-35` 的 `PRICES`，是**演示估算值，非任何供应商报价**；`PRICE_NOTE`（`observability.py:25`）固定随成本响应返回：「单价为演示估算值，非供应商报价；上线前必须用真实账单校准」。
 > **纪律**：本文只定义规格、不修改任何源码；#13 的实际迁移由主理人执行，本文**不提供也不要求编写迁移脚本文件**。不触碰 `eval/`、`demo/`、`evalbench/`、`docs/CHANGELOG.md`；不新增校验脚本；不运行任何真实外部 LLM 调用。
 > **三态标注**：下文以「**已实现**＝仓库有可运行代码」「**只设计**＝本文给出规格、代码未落地」「**未做**＝明确不在本期」区分，不得把只设计说成已落地。
 
@@ -37,7 +38,7 @@
 | M03 | `total_tokens` | 单次调用总 token | token | `prompt_tokens + completion_tokens` | `total_tokens`（写入时物化） | 必须等于 M01+M02；聚合时用 SUM，不重算 |
 | M04 | `estimated` | 该行 token 的来源标志 | 布尔(0/1) | `1`＝字符估算；`0`＝供应商 usage 回传的真实 token 数 | `estimated` | **当前默认值为 1**（`record_usage(estimated=1)`）；口径缺陷见 §1.2 |
 | M05 | `estimated_cost`（列名 `cost_cny`） | 单次调用的估算成本 | 元(CNY) | `round((prompt/1000)×price_in + (completion/1000)×price_out, 6)` | `cost_cny`、`model` | 单价来自 `PRICES[model]` 或 `PRICES["default"]`；未知模型走 default；embedding / reranker 的 `out=0.0`；**必须随响应带 `price_note`** |
-| M06 | `price_note` / 单价口径 | 单价免责声明 | 文本 | 常量 `PRICE_NOTE` | `observability.py:24` | 每个成本响应（`check_budget()`、`usage_summary()`）必须携带；缺字段即判定失真 |
+| M06 | `price_note` / 单价口径 | 单价免责声明 | 文本 | 常量 `PRICE_NOTE` | `observability.py:25` | 每个成本响应（`check_budget()`、`usage_summary()`）必须携带；缺字段即判定失真 |
 | M07 | `calls`（请求数） | 台账行数即调用次数 | 次 | `COUNT(*)` | `id` | 旁路写失败时 `record_usage()` 吞异常并仍返回 row，故「返回 row」≠「已落库」；以库内 COUNT 为准 |
 | M08 | 五维分组聚合 | 按 `project` / `department_id` / `call_type` / `model` / `user_id` 分组的 token 与成本 | 各维一组 | `SELECT <dim>, COUNT(*), SUM(prompt_tokens), SUM(completion_tokens), SUM(total_tokens), SUM(cost_cny), SUM(estimated) FROM usage_events [WHERE user_id=?] GROUP BY <dim> ORDER BY cost DESC` | `usage_summary(dim)` | `dim` 必须命中 `DIMENSIONS` 白名单，否则回退 `project`；普通用户强制 `WHERE user_id=?`（**不查而非隐藏**）；空值分组展示为 `—` |
 | M09 | `avg_latency_ms` | 平均端到端延迟 | 毫秒 | `AVG(latency_ms)`（或 `SUM/COUNT`） | **当前 webapp 无该列** → 只设计；`backend::MetricEvent.latency_ms` 已有 | 无 `latency_ms` 时返回 `null` 并标「未埋点」，**不得输出 0 冒充实测** |
@@ -55,16 +56,16 @@
 
 | 情形 | 当前实现 | 目标规格 |
 |---|---|---|
-| 未拿到供应商 usage | `record_usage()` 未传 `prompt_tokens`/`completion_tokens` 时按 `estimate_tokens()` 字符估算，逐条 `estimated=1`（`observability.py:44-50, 70-71`） | 保持；`estimated=1` |
-| 拿到供应商 usage 并显式传入 token 数 | `record_usage(prompt_tokens=..., completion_tokens=...)` 会用真实值计算成本，但 **`estimated` 参数默认仍为 1**，除非调用方显式传 `estimated=0`（`observability.py:68`） | **`estimated` 必须由来源自动推导**：显式 token 来自供应商 usage → `0`；走 `estimate_tokens()` → `1`；禁止调用方手工传错 |
-| 演示切片现状 | 绝大多数行为估算（`estimated=1`）；离线评估 `run_offline_eval()` 逐样本 `estimated=1`（`:452-455`）；真实 usage 回传仅在少数 provider 路径 | 不编造「少数」的具体条数；验收按「任一 `estimated=0` 行必须能追溯到 usage 来源」判定 |
+| 未拿到供应商 usage | `record_usage()` 未传 `prompt_tokens`/`completion_tokens` 时按 `estimate_tokens()` 字符估算，逐条 `estimated=1`（`observability.py:47-53, 77-78`） | 保持；`estimated=1` |
+| 拿到供应商 usage 并显式传入 token 数 | `record_usage(prompt_tokens=..., completion_tokens=...)` 会用真实值计算成本，但 **`estimated` 参数默认仍为 1**，除非调用方显式传 `estimated=0`（`observability.py:71`） | **`estimated` 必须由来源自动推导**：显式 token 来自供应商 usage → `0`；走 `estimate_tokens()` → `1`；禁止调用方手工传错 |
+| 演示切片现状 | 绝大多数行为估算（`estimated=1`）；离线评估 `run_offline_eval()` 逐样本 `estimated=1`（`:465-468`）；真实 usage 回传仅在少数 provider 路径 | 不编造「少数」的具体条数；验收按「任一 `estimated=0` 行必须能追溯到 usage 来源」判定 |
 | 成本口径 | `cost_cny` 一律是**估算成本**，与 token 是否真实无关（因为单价本身是演示估算） | 即使 `estimated=0`，`cost_cny` 仍须标「估算」，因为单价未校准 |
 
 > 结论：**token 来源（估算/真实）与成本性质（估算/账单）是两件事**。当前演示切片两者都是估算；`estimated` 只描述 token 来源，不表示成本已与账单对齐。
 
 ### 1.3 演示估算单价表（引用，非报价）
 
-来源 `webapp/observability.py:27-34`，单位「元 / 1K token」，**演示估算值，非供应商报价**：
+来源 `webapp/observability.py:28-35`，单位「元 / 1K token」，**演示估算值，非供应商报价**：
 
 | model | `in` | `out` | label |
 |---|---|---|---|
@@ -75,7 +76,7 @@
 | `BAAI/bge-m3` | 0.0005 | 0.0 | bge-m3 embedding（估算） |
 | `BAAI/bge-reranker-v2-m3` | 0.0005 | 0.0 | bge-reranker（估算） |
 
-- `cost_of()` 保留 6 位小数（`observability.py:57-59`）；聚合展示取 4 位（`usage_summary()`、`check_budget()`）。
+- `cost_of()` 保留 6 位小数（`observability.py:60-62`）；聚合展示取 4 位（`usage_summary()`、`check_budget()`）。
 - `docs/enterprise-readiness.md` §5.1 明确：「单价表是演示估算值，非任何供应商报价；API 响应固定带 `price_note`；上线前必须用真实账单校准」。
 - **真实账单校准属 U03 / Won't**，本期不做，也不得把上表数字写进任何对外成本结论。
 
@@ -99,21 +100,21 @@
 | 层 | 旧 | 新 | 位置 / 依据 |
 |---|---|---|---|
 | SQL 列 | `usage_events.tenant TEXT NOT NULL DEFAULT 'default'` | `usage_events.department_id TEXT NOT NULL DEFAULT 'default'` | `webapp/db.py:163` |
-| SQL 索引 | `ix_usage_tenant ON usage_events(tenant)` | `ix_usage_department ON usage_events(department_id)` | `webapp/db.py:178`；旧库旧索引由 `_migrate` `:284` DROP |
+| SQL 索引 | `ix_usage_tenant ON usage_events(tenant)` | `ix_usage_department ON usage_events(department_id)` | **索引不在 SCHEMA 里**：`db.py:176-177` 只保留 `ix_usage_ts`/`ix_usage_project`，`:178-180` 说明原因；由 `_migrate` 末尾 `:308` 统一 `CREATE INDEX IF NOT EXISTS`；旧索引在 `:290` DROP（详见 §9.4） |
 | 新增派生列 | 无 | `stat_date TEXT NOT NULL`（`date(ts)`，UTC，写入时物化） | **只设计 / #13 不做**，本文 §3.1 |
 | 新增复合索引 | 无 | `ix_usage_stat_dept_model(stat_date, department_id, model)` | **只设计 / #13 不做**，本文 §3.2 |
-| 维度集合 | `DIMENSIONS = {"project","tenant","call_type","model","user_id"}` | `{"project","department_id","call_type","model","user_id"}` | `observability.py:36`；`usage_summary()` 先过白名单再拼 SQL（`:139-140`），故集合内必须是**物理列名** |
-| 限流维度元组 | `RATE_DIMENSIONS = ("user","tenant","endpoint","model")` | **`("user","endpoint","model")` 三维**；`department` 仅成本归因，**不参与计数、不产生按部门 429** | `observability.py:39`；用户任务 3 原文；主理人裁定 §9.1 |
-| 函数入参 | `record_usage(*, project, tenant, ...)` / `rate_check(*, tenant, ...)` / `run_offline_eval(*, tenant, ...)` | `record_usage(department_id=...)` / `rate_check(department=...)` / `run_offline_eval(department=...)` | `observability.py:67,206,427`；INSERT 列名同步 `:89-92` |
-| 预算 scope 注释 | `budgets.scope: global\|tenant\|project` | `global\|department\|project` | `webapp/db.py:182` |
-| 限流规则注释 | `rate_rules.dimension: user\|tenant\|endpoint\|model` | **`user\|endpoint\|model`（三维）** | `webapp/db.py:192`（代码侧注释由主理人同步修改）；§9.1 |
-| 规则种子 | `defaults = {"user":(1200,60),"tenant":(3000,60),"endpoint":(900,60),"model":(600,60)}` | **3 条三维规则** `{"user":(1200,60),"endpoint":(900,60),"model":(600,60)}`；旧 `tenant` / `department` 规则行由 `_migrate` 的 `DELETE FROM rate_rules WHERE dimension IN ('tenant','department')` 收敛，**不迁移成 department 规则** | `webapp/db.py:341`、`:288`；§9.1 |
-| 评估配置键 | `CONFIG_KEYS` 末位 `"tenant"`；`cfg = {... "tenant": "default"}` | `"department"` / `"department": "default"` | **C22-3 同步 4 处**：`webapp/observability.py:264`、`webapp/db.py:348`、`webapp/routers_chat.py:130`、`webapp/routers_evaltest.py:72` |
+| 维度集合 | `DIMENSIONS = {"project","tenant","call_type","model","user_id"}` | `{"project","department_id","call_type","model","user_id"}` | `observability.py:37`；`usage_summary()` 先过白名单再拼 SQL（`:140-141`），故集合内必须是**物理列名** |
+| 限流维度元组 | `RATE_DIMENSIONS = ("user","tenant","endpoint","model")` | **`("user","endpoint","model")` 三维**；`department` 仅成本归因，**不参与计数、不产生按部门 429** | `observability.py:40`；用户任务 3 原文；主理人裁定 §9.1 |
+| 函数入参 | `record_usage(*, project, tenant, ...)` / `rate_check(*, tenant, ...)` / `run_offline_eval(*, tenant, ...)` | `record_usage(department_id=...)` / `rate_check(department=...)` / `run_offline_eval(department=...)` | `observability.py:68,207,428`；INSERT 列名同步 `:90-93` |
+| 预算 scope 注释 | `budgets.scope: global\|tenant\|project` | `global\|department\|project` | `webapp/db.py:184` |
+| 限流规则注释 | `rate_rules.dimension: user\|tenant\|endpoint\|model` | **`user\|endpoint\|model`（三维）** | `webapp/db.py:192-195`（`:192-193` 已改三维说明；`:195` 列注释仍为四维字面，属展示层纠偏）；§9.1 |
+| 规则种子 | `defaults = {"user":(1200,60),"tenant":(3000,60),"endpoint":(900,60),"model":(600,60)}` | **3 条三维规则** `{"user":(1200,60),"endpoint":(900,60),"model":(600,60)}`；旧 `tenant` / `department` 规则行由 `_migrate` 的 `DELETE FROM rate_rules WHERE dimension IN ('tenant','department')` 收敛，**不迁移成 department 规则** | `webapp/db.py:364`、`:311`；§9.1 |
+| 评估配置键 | `CONFIG_KEYS` 末位 `"tenant"`；`cfg = {... "tenant": "default"}` | `"department"` / `"department": "default"` | **C22-3 同步 4 处**：`webapp/observability.py:265`、`webapp/db.py:370-371`、`webapp/routers_chat.py:130`、`webapp/routers_evaltest.py:72` |
 | API 参数 | `/api/evaltest/usage?dim=tenant` | `?dim=department_id`（物理列名，与 `DIMENSIONS` 白名单一致） | `webapp/static/index.html:519`（`<option value="department_id">部门</option>`）、`webapp/tests/test_evaltest.py:70`、`webapp/routers_evaltest.py:108` |
 | 响应头 / 契约 | `X-RateLimit-Dimension: user\|tenant\|endpoint\|model`，4 个响应头 | **`X-RateLimit-Dimension: user\|endpoint\|model`（三维）**；`RATE_CODES` 三维；body 主干 `code`/`kind`/`message`/`detail`/`trace_id`/`policy` + 保留原扁平字段；**6 个响应头**（原 4 个 + `X-RateLimit-Code` / `X-Trace-Id`）；`detail` 仍为字符串 | `webapp/main.py:26-30,84-105`、`webapp/routers_evaltest.py:155-163,209-219`；§9.2 |
 | 429 探针 | `rate_check(..., tenant="__probe__")` | `department="__probe__"` | `webapp/routers_evaltest.py:205` |
 | 中间件调用 | `obs.rate_check(path=..., tenant="default", ...)` | **`department="default"` 演示占位**（webapp 未建部门树）；生产由 `principal` 派生 | `webapp/main.py:78`；§9.1 |
-| 前端展示文案 | 「租户」「按租户」「多租户隔离」 | 「部门」「按部门」「多用户多部门」 | `webapp/static/app.js:1090,1273`、`index.html:519`；残留展示文案归文档纠偏（§9.5） |
+| 前端展示文案 | 「租户」「按租户」「多租户隔离」 | 「部门」「按部门」「多用户多部门」 | `webapp/static/app.js:1103,1286`、`index.html:519`；残留展示文案归文档纠偏（§9.5） |
 | 测试断言 | `assert set(rules) == {"user","tenant","endpoint","model"}` | **`{"user","endpoint","model"}`** + `PRAGMA table_info(usage_events)` 断言（有 `department_id`、无 `tenant`）+ `eval_configs` 键断言（有 `department`、无 `tenant`）+ `?dim=department_id` | `webapp/tests/test_evaltest.py:54,57-60,70` |
 | 文档措辞 | enterprise-readiness §3.1/§4.1/§5.1「租户」「按租户聚合」 | 「部门」「按项目/部门/调用类型/模型聚合」 | 文档纠偏范围（C23-8 / C24-5），不纳入 #13 口径不一致判定 |
 
@@ -181,14 +182,14 @@ CREATE TABLE IF NOT EXISTS usage_events (
 | 索引 | 字段 | 服务查询 | 理由 |
 |---|---|---|---|
 | **`ix_usage_stat_dept_model`**（主） | `(stat_date, department_id, model)` | `WHERE stat_date BETWEEN ? AND ? AND department_id=? GROUP BY model`、按日×部门×模型的成本/token 聚合 | ① 最左前缀 `stat_date` 服务日期范围扫描；② 第二列 `department_id` 服务部门筛选与分组（本轮核心改动）；③ 第三列 `model` 服务模型分组，且三列联合可覆盖「按项目/部门/调用类型/模型」面板的主链路，避免回表；④ 与 `daily_stats` 的按日预聚合口径对齐，为未来按日分区预留 |
-| `ix_usage_department` | `(department_id)` | 单维「按部门」聚合、`dim=department_id` | 主索引第二列不是最左前缀，单独按部门查需自有索引 |
-| `ix_usage_project` | `(project)` | `dim=project`（默认） | 保留现状 `ix_usage_project`（`db.py:175`） |
+| `ix_usage_department` | `(department_id)` | 单维「按部门」聚合、`dim=department_id` | 主索引第二列不是最左前缀，单独按部门查需自有索引；**落地位置在 `_migrate` 末尾（`db.py:308`）而非 SCHEMA**，原因见 §9.4 |
+| `ix_usage_project` | `(project)` | `dim=project`（默认） | 保留现状 `ix_usage_project`（`db.py:177`） |
 | `ix_usage_user` | `(user_id)` | 普通用户强制 `WHERE user_id=?`（不查而非隐藏） | 权限过滤是主链路高频条件 |
 | `ix_usage_run` | `(run_id)` | 按评估 run 对账、离线 comparable=false 稽核 | 现状无，建议加（只设计） |
-| `ix_usage_ts` | `(ts)` | 时间排序、台账回放 | 保留现状 `ix_usage_ts`（`db.py:174`）；与 `stat_date` 索引职责不同 |
+| `ix_usage_ts` | `(ts)` | 时间排序、台账回放 | 保留现状 `ix_usage_ts`（`db.py:176`）；与 `stat_date` 索引职责不同 |
 | 覆盖列（可选） | `(stat_date, department_id, model, cost_cny, total_tokens, estimated)` | 纯聚合免回表 | SQLite 可加宽索引、PG 用 `INCLUDE`；**默认不加**，避免写放大与索引过宽 |
 
-> **不过度设计**：现状只有 3 个单列索引（`ts`/`project`/`tenant`）。目标保留 3 个等价（含 `department_id`）+ 1 个复合主索引 + 2 个建议索引；演示库数据量小，不为炫技铺覆盖索引。
+> **不过度设计**：现状只有 3 个单列索引（`ts`/`project`/`department_id`）。目标保留 3 个等价 + 1 个复合主索引 + 2 个建议索引；演示库数据量小，不为炫技铺覆盖索引。
 
 ### 3.3 `budgets` 粒度与唯一键
 
@@ -204,7 +205,7 @@ CREATE TABLE IF NOT EXISTS budgets (
 ```
 
 - **唯一键保持 `(scope, key)` 不变**；`key` 的语义随 `scope` 变化，无需改结构。
-- **当前唯一生效粒度**：`('global','default')`，`limit_cny=50.0`、`policy='warn'`（`db.py:314-316` 种子，`check_budget()` 硬编码查这一行）；`put_budget()` 也只写这一行（`routers_evaltest.py:136-140`）。
+- **当前唯一生效粒度**：`('global','default')`，`limit_cny=50.0`、`policy='warn'`（`db.py:360-362` 种子，`check_budget()` 硬编码查这一行）；`put_budget()` 也只写这一行（`routers_evaltest.py:135-140`）。
 - **`('department', <id>)` / `('project', <name>)` 为只设计**：需 `check_budget()` 支持按 scope 查、并做「最严档位合并」判定（多 scope 命中时取最严策略），本期不做。
 - 只设计的新增列：`warn_at` / `degrade_at` / `block_at`（阈值比例）、`period` / `period_start`（预算周期）、`currency`、`updated_by`、`last_state`（幂等去重用，§4.3）。当前「累计、不重置周期」是演示口径，生产须按月/按账期重置。
 
@@ -238,8 +239,8 @@ CREATE INDEX IF NOT EXISTS ix_rate_hits_ts ON rate_hits(ts);
 | `model` | `llm` / `settings` / `-` | 600 / 60s | 对应上游 RPM/TPM 共享配额 |
 
 - **`department` 不在此表建规则行**：它只作为 429 错误体的成本归因标签（`webapp/main.py:96`），**不参与计数、不产生按部门 429**（§2.5、§9.1）。任务 1 的部门是统计维度，任务 3 的三维才是配额本体。
-- **旧规则收敛（幂等）**：`_migrate_tenant_to_department()` 执行 `DELETE FROM rate_rules WHERE dimension IN ('tenant','department')`（`webapp/db.py:288`），把存量库的 tenant 规则行与任何 department 规则行一并清除；`_seed` 再按 `db.py:341` 补 3 条三维规则。全新库上该 DELETE 为空操作。
-- 默认阈值刻意宽松，**不误伤 33 项端到端自测与 51 项 pytest**（`docs/enterprise-readiness.md:63`）；admin 可在页面下调阈值复现超限（V09 断言即把 user 调到 2/60s）。
+- **旧规则收敛（幂等）**：`_migrate_tenant_to_department()` 执行 `DELETE FROM rate_rules WHERE dimension IN ('tenant','department')`（`webapp/db.py:311`），把存量库的 tenant 规则行与任何 department 规则行一并清除；`_seed` 再按 `db.py:364` 补 3 条三维规则。全新库上该 DELETE 为空操作。
+- 默认阈值刻意宽松，**不误伤 33 项端到端自测与 66 项 pytest**（`docs/enterprise-readiness.md:63`）；admin 可在页面下调阈值复现超限（V09 断言即把 user 调到 2/60s）。
 
 ### 3.5 SQLite 演示替身 vs PG 生产骨架差异
 
@@ -259,7 +260,7 @@ CREATE INDEX IF NOT EXISTS ix_rate_hits_ts ON rate_hits(ts);
 
 ## 4. 预算三级策略（warn / degrade / block）
 
-> **现状诚实说明**：`webapp/` 当前只有 `warn` 与 `block` 两档（`check_budget()` `:124`、`put_budget()` 白名单 `routers_evaltest.py:130`）。**`degrade` 是本文新增规格（只设计/未做）**，不得写成已落地。
+> **现状诚实说明**：`webapp/` 当前只有 `warn` 与 `block` 两档（`check_budget()` `:131`、`put_budget()` 白名单 `routers_evaltest.py:130`）。**`degrade` 是本文新增规格（只设计/未做）**，不得写成已落地。
 
 ### 4.1 触发条件与数值阈值
 
@@ -324,8 +325,8 @@ sequenceDiagram
 | 项 | 现状 | 目标规格（只设计） |
 |---|---|---|
 | 判定幂等 | `check_budget()` 为只读；`record_usage()` 用 `id=uuid4().hex` 行级幂等 | 保持；禁止在判定函数里写业务数据 |
-| 告警幂等 | 当前每次 `exceeded` 都写一条 WARN（`observability.py:119-123`），高频请求会刷屏 | 改为**状态跃迁边沿触发**：`budgets.last_state`（`normal/warn/degrade/block`）或按 `(event, state, stat_date)` 去重，同一状态每天只留一条 |
-| 离线 run 幂等 | `run_offline_eval()` 每次生成新 `run_id`（`:437`），不幂等 | 可接受：每个 run 是独立快照；但 `eval_runs.comparable` 必须恒为 0 |
+| 告警幂等 | 当前每次 `exceeded` 都写一条 WARN（`observability.py:126-130`），高频请求会刷屏 | 改为**状态跃迁边沿触发**：`budgets.last_state`（`normal/warn/degrade/block`）或按 `(event, state, stat_date)` 去重，同一状态每天只留一条 |
+| 离线 run 幂等 | `run_offline_eval()` 每次生成新 `run_id`（`:450`），不幂等 | 可接受：每个 run 是独立快照；但 `eval_runs.comparable` 必须恒为 0 |
 | 并发（读-改窗口） | `check_budget()` 先 `SUM(cost_cny)` 再在业务层决定是否执行，中间**无锁**；`db._lock` 只用于 `init_db()`，`rate_check` 才有 `_rate_lock` → 并发请求可双双在阈值下通过（超卖） | 演示切片：`BEGIN IMMEDIATE` 把「读 spend + 预留额度 + 写 usage」放单事务，或加进程内 `_budget_lock`；生产：PG `INSERT ... ON CONFLICT DO UPDATE` 原子计数器 / Redis Lua。**明确标注当前未实现** |
 | 旁路失败 | `record_usage()` / `log_event()` 吞异常（`except Exception: pass`） | 保持「审计旁路不得影响业务主流程」，但须在文档写明「返回 row ≠ 已落库」，验收以库内 SQL 为准 |
 
@@ -343,16 +344,16 @@ sequenceDiagram
 ### 4.5 与限流 429 的先后关系（**统一 429 契约已落地**）
 
 1. **429 在中间件层先执行**（`webapp/main.py:56-106`），命中即短路；预算检查在业务层（`run_offline_eval()` 与 `/api/evaltest/*` 接口），**同时命中时 429 优先**。
-2. **本轮落地的统一 429 契约**：`RATE_CODES` 按三维命中维度给业务错误码（`main.py:26-30`），body 主干含 `code/kind/message/detail/trace_id/policy`（`:84-91`），保留原扁平字段 `dimension/key/path/limit/window_s/retry_after/current`（`:93-95`）与 `department` 归因标签（`:96`）；6 个响应头 = 原 4 个 + `X-RateLimit-Code` + `X-Trace-Id`（`:98-105`）。`detail` 保持字符串，前端 `app.js:56/66` 直接读 `j.detail`。
-3. **拒绝语义不同，不可混为一类**：429 是频率/配额（`rate_limit_exceeded` 可退避 1/2/4s + 抖动、尊重 `Retry-After`、最多 3 次；`quota_exceeded` 不重试）；**预算耗尽仍是 HTTP 200 + `{ok:false, reason:"budget_exceeded"}`**（`observability.py:438`）—— **阻断生效，但错误码未统一**，本轮保留现状（§9.2）。预算 `block` 是业务体拒绝，**不是 429**，不得并入 `quota_exceeded` 的 429 分类（`enterprise-readiness.md:82`）。
+2. **本轮落地的统一 429 契约**：`RATE_CODES` 按三维命中维度给业务错误码（`main.py:26-30`），body 主干含 `code/kind/message/detail/trace_id/policy`（`:84-91`），保留原扁平字段 `dimension/key/path/limit/window_s/retry_after/current`（`:93-95`）与 `department` 归因标签（`:96`）；6 个响应头 = 原 4 个 + `X-RateLimit-Code` + `X-Trace-Id`（`:98-105`）。`detail` 保持字符串，前端 `app.js:56/79` 直接读 `j.detail`。
+3. **拒绝语义不同，不可混为一类**：429 是频率/配额（`rate_limit_exceeded` 可退避 1/2/4s + 抖动、尊重 `Retry-After`、最多 3 次；`quota_exceeded` 不重试）；**预算耗尽仍是 HTTP 200 + `{ok:false, reason:"budget_exceeded"}`**（`observability.py:439`）—— **阻断生效，但错误码未统一**，本轮保留现状（§9.2）。预算 `block` 是业务体拒绝，**不是 429**，不得并入 `quota_exceeded` 的 429 分类（`enterprise-readiness.md:82`）。
 4. 命中 429 的请求不写 `usage_events`（调用未发生），故不影响 `spend_cny`；`rate_hits` 与 `eval_logs` 仍留痕。
 5. `degrade` / `block` 都不改变 429 的**三维**计数逻辑；`department` 不参与计数（§2.5）。
 
 ### 4.6 默认必须是 `warn`
 
-- 种子与回退都是 `policy='warn'`、`limit_cny=50.0`（`db.py:314-316`、`observability.py:104-105`）；`put_budget()` 白名单 `("warn","block")`（`routers_evaltest.py:130`）。
+- 种子与回退都是 `policy='warn'`、`limit_cny=50.0`（`db.py:360-362`、`observability.py:111-112`）；`put_budget()` 白名单 `("warn","block")`（`routers_evaltest.py:130`）。
 - 只有 admin **显式**改成 `block`（或未来的 `degrade`）才改变行为；`warn` 超额只告警 + 留痕，`allowed=true`。
-- 目的：默认路径不拒绝任何调用，**避免打断 33 项 selftest 与 51 项 pytest**（`enterprise-readiness.md:63`）；V10 的 block 验收必须在用例内改配置并在结束时复原（现有 `test_evaltest.py:125` 已如此）。
+- 目的：默认路径不拒绝任何调用，**避免打断 33 项 selftest 与 66 项 pytest**（`enterprise-readiness.md:63`）；V10 的 block 验收必须在用例内改配置并在结束时复原（现有 `test_evaltest.py:131` 已如此）。
 - 引入 `degrade` 时须同步扩展 `put_budget()` 白名单与 `budgets.policy` 注释，且**默认种子仍为 warn**。
 
 ---
@@ -365,14 +366,14 @@ sequenceDiagram
 |---|---|---|---|---|
 | V01 | 维度清零：`webapp/` 现行口径 `tenant` 标识符残留（A6） | 0 处 | **判定依据改为 `webapp/tests/test_evaltest.py:57-60` 的 `PRAGMA table_info` 与 `eval_configs` 键断言**；辅以 `git grep`，但须注明「**排除 `_migrate_tenant_to_department` 函数体与反向断言后零命中**」，不再使用永远通不过的裸 `git grep` 零命中口径 | 列名 / 枚举 / 配置键 / 函数形参 / 响应头 / SQL / 断言等**现行口径标识符 0 残留**；`_migrate` 内 11 处迁移字面量与 `test_evaltest.py` 3 处反向断言为**必需保留项、不计入**；PLUGINS 展示文案、规则集文案、docs/ 与 CHANGELOG 历史条目归文档纠偏（§9.5） |
 | V02 | 目标表结构：`usage_events` 去 `tenant`、有 `department_id`；**`stat_date` 为只设计项、不纳入本轮通过判定** | 列集合精确匹配 | `PRAGMA table_info(usage_events);`（须在 `_migrate` 执行后的**最终态**上查；运行态库不存在时可用内存 SQLite 复现 `SCHEMA→_migrate→_seed`，不写磁盘） | 无 `tenant` 列；**存在 `department_id`**；`estimated` 默认 1、`policy` 默认 warn；`stat_date` 未落地不判失败 |
-| V03 | **复合索引存在性**（§3.2；编号统一：**V03 = 复合索引**，429 契约见 V09） | 1 条 | `SELECT name,sql FROM sqlite_master WHERE type='index' AND tbl_name='usage_events';` | `ix_usage_department` 存在；**`ix_usage_stat_dept_model(stat_date, department_id, model)` 明确标「只设计 / 不纳入本轮通过判定」**，未落地不判失败 |
+| V03 | **复合索引存在性**（§3.2；编号统一：**V03 = 复合索引**，429 契约见 V09） | 1 条 | `SELECT name,sql FROM sqlite_master WHERE type='index' AND tbl_name='usage_events';` | `ix_usage_department` 存在（由 `_migrate` 末尾 `db.py:308` 创建）；**`ix_usage_stat_dept_model(stat_date, department_id, model)` 明确标「只设计 / 不纳入本轮通过判定」**，未落地不判失败 |
 | V04 | 事件快照不回溯（A7 ③ / C27-4） | 历史行 0 变更 | `SELECT id, department_id FROM usage_events WHERE user_id='U' ORDER BY ts;` 记录转岗前 N 笔 → 转岗 → 再发 1 笔 → 重跑同一 SQL | 前 N 笔 `department_id` 逐字节不变；新事件为新部门；归档部门后历史行仍可按 `department_id` 解析（无悬空） |
 | V05 | 估算 / 真实 usage 分清（§1.2） | 每个分组可回答占比 | `SELECT SUM(estimated) AS est_rows, COUNT(*) AS calls FROM usage_events [WHERE ...];` + `GET /api/evaltest/usage?dim=department_id` | 每组返回 `estimated_rows`；任一 `estimated=0` 行可追溯到供应商 usage 来源；离线 run 的行全为 `estimated=1`；`price_note` 非空 |
 | V06 | **成本单价不得声称是供应商报价**（强制） | 0 处失真 | `git grep -n 'PRICE_NOTE' -- webapp/observability.py`；`git grep -ni -E '真实价格\|供应商报价\|real price' -- docs/ webapp/`；`GET /api/evaltest/budget`、`GET /api/evaltest/usage` 检查响应 | `PRICE_NOTE` 常量存在且文案含「非供应商报价」；两个成本响应均带 `price_note`；单价表每项 label 含「（估算）」；无任何把演示单价表述为真实报价的文案 |
 | V07 | 五维**统计**聚合正确性（M08；**统计五维 ≠ 限流三维**，两者互不相干） | 5 维均可查且与 SQL 一致 | 依次 `GET /api/evaltest/usage?dim=project\|department_id\|call_type\|model\|user_id`；与 `SELECT <dim>, SUM(cost_cny), SUM(total_tokens) FROM usage_events GROUP BY <dim>` 对拍 | 每维返回 `rows`/`totals`/`price_note`/`derivation`；分组合计 = `totals`；普通用户强制仅本人范围（`scope="仅本人调用"`）；`dim` 未命中 `DIMENSIONS` 白名单时静默回退 `project` |
-| V08 | 默认 `policy=warn` 不打断回归（§4.6） | 全绿且 `allowed=true` | `python -m pytest webapp/tests -q`；`python webapp/selftest.py`；`GET /api/evaltest/budget` | 命令全绿（新计数单独冻结）；默认 `limit_cny=50.0`、`policy=warn`；`spend>=limit` 时 `allowed` 仍为 `true`、无 `eval_rejected_budget` 日志 |
+| V08 | 默认 `policy=warn` 不打断回归（§4.6） | 全绿且 `allowed=true` | `python -m pytest webapp/tests -q`；`python webapp/selftest.py`；`GET /api/evaltest/budget` | 命令全绿（本轮冻结基线 66 passed / 33-33 DEMO_READY，新计数单独冻结）；默认 `limit_cny=50.0`、`policy=warn`；`spend>=limit` 时 `allowed` 仍为 `true`、无 `eval_rejected_budget` 日志 |
 | V09 | **429 契约与优先级**（三维配额 + 统一错误体；编号统一：**V09 = 429 契约**，复合索引见 V03） | 第 3 次即 429 | `PUT /api/evaltest/ratelimit {"rules":[{"dimension":"user","limit_count":2,"window_s":60}]}` → 连发 3 次；`SELECT dimension,key FROM rate_hits` | 第 3 次 429；**6 个响应头齐全**（`Retry-After` / `X-RateLimit-Dimension` / `X-RateLimit-Limit` / `X-RateLimit-Window` / `X-RateLimit-Code` / `X-Trace-Id`）；body 含 `code`/`kind`/`message`/`detail`/`trace_id`/`policy` 且 `dimension ∈ {user,endpoint,model}`；`rate_hits` 有命中行；**预算耗尽仍 HTTP 200 `ok=false`，不得判成 429**（§9.2）；结束后复原 1200/60 |
-| V10 | `block` 硬拦（§4.1） | 1 次拒绝 + 1 条 ERROR | `PUT /api/evaltest/budget {"limit_cny":0,"policy":"block"}` → `POST /api/evaltest/run`；查 `SELECT event FROM eval_logs WHERE level='ERROR'` | 返回 `ok=false, reason=budget_exceeded`；有 `eval_rejected_budget` ERROR 日志；**复原** `limit_cny=50, policy=warn`（现有 `test_evaltest.py:125` 已做） |
+| V10 | `block` 硬拦（§4.1） | 1 次拒绝 + 1 条 ERROR | `PUT /api/evaltest/budget {"limit_cny":0,"policy":"block"}` → `POST /api/evaltest/run`；查 `SELECT event FROM eval_logs WHERE level='ERROR'` | 返回 `ok=false, reason=budget_exceeded`；有 `eval_rejected_budget` ERROR 日志；**复原** `limit_cny=50, policy=warn`（现有 `test_evaltest.py:131` 已做） |
 | V11 | **离线 `comparable=false` 的 run 不得写入质量基线**（强制） | 0 条污染 | `SELECT run_id,mode,comparable FROM eval_runs WHERE source='webapp';`；读 `evalbench/runs/<run_id>/summary.json` 与 `config_snapshot.json`；`GET /api/evaltest/metrics`（不指定 run）；`git diff --exit-code -- eval/ demo/` | 全部 `comparable=0` 且 `mode='offline'`；两个 JSON 均 `"comparable": false` 且 note 含「不写入质量基线」；`run_metrics()` 默认**不选中**离线 run（只选 `source='evalbench' and comparable`）；`eval/` 与 `demo/` 零 diff |
 | V12 | 冻结边界与 demo 不变（C11 / A9 / A10） | 0 变更、16/16 | `git diff --exit-code -- eval/ demo/`；`python demo/selftest.py` | 零 diff；16/16 `DEMO_READY`、`run_id=RUN-095a2a4a40c6` 与 `config_snapshot` 逐字段一致；`__TBC__` / `NOT_COMPARABLE` / `real_api` 未动 |
 
@@ -412,23 +413,24 @@ sequenceDiagram
 | 5 | 按部门 / 项目预算粒度、周期重置、多币种 | 只设计；当前唯一生效 `('global','default')`、累计不重置、仅 CNY |
 | 6 | 真实供应商 usage 回传比例、压测基线 | 运行时数据，本文不编造具体条数；按 C23-7「附默认假设、不构成停工前置」 |
 | 7 | 预算并发超卖窗口（§4.3） | 当前未加锁，明确标注；生产方案为只设计，不在本期修复 |
-| 8 | 可变 / 不可变基线 | 33 selftest / 51 pytest / backend 测试计数可变（A12）；demo 16/16、`run_id`、`config_snapshot`、`eval/` 冻结对象不可变（C11） |
+| 8 | 可变 / 不可变基线 | 33 selftest / **66 pytest** / backend 测试计数可变（A12）；demo 16/16、`run_id`、`config_snapshot`、`eval/` 冻结对象不可变（C11） |
 
 ---
 
 ## 8. 交付边界
 
-- 本次规格同步**仅写入 `docs/cost-metrics-spec.md` 这一个文件**；未修改任何源码、未写迁移脚本、未改 `docs/CHANGELOG.md`。代码侧 5 处注释失真、429 新契约测试断言、`_migrate` 半迁移态由主理人另行处理（§9.4），本文只记录不改码。
+- 本次规格同步**仅写入 `docs/cost-metrics-spec.md` 这一个文件**；未修改任何源码、未写迁移脚本、未改 `docs/CHANGELOG.md`。代码侧 5 处注释失真、429 新契约测试断言、`_migrate` 半迁移态与索引移位**已由主理人处理完成**（§9.4），本文只记录不改码；少量展示文案类残留见 §9.5。
 - 未触碰 `eval/`、`demo/`、`evalbench/` 及其中冻结对象（`__TBC__` / `NOT_COMPARABLE` / `real_api`），未改 demo `run_id=RUN-095a2a4a40c6` 与 `config_snapshot`。
 - 未运行任何真实外部 LLM 调用；本文所有验证命令均为既有工具与离线路径（`run_offline_eval()` 零外部 API）。
-- 单价数字全部引自 `webapp/observability.py:27-34`（并在 §5.1 由 `docs/enterprise-readiness.md` 佐证），**均标注「演示估算、非供应商报价」**。
+- 单价数字全部引自 `webapp/observability.py:28-35`（并在 §5.1 由 `docs/enterprise-readiness.md` 佐证），**均标注「演示估算、非供应商报价」**。
 - 严格区分「已实现 / 只设计 / 未做」：不得把 `degrade` 档位、复合索引、新列、按部门预算、双轨归集说成已落地。
+- **最终回归（代码冻结后，主理人实跑）**：`python -m pytest webapp/tests -q` → **66 passed**；`python webapp/selftest.py` → **33/33 `DEMO_READY`**；`git diff --exit-code -- eval/ demo/` → **返回 0**（`eval/`、`demo/` 零改动）。以上为冻结基线，后续改动需重新核对。
 
 ---
 
 ## 9. 主理人裁定记录（#13 落地冻结后，后发裁决，优先级高于前文对应表述）
 
-> **总裁决**：独立口径对拍（#25）发现的 9 项「规格 vs 实现」差异，**全部「改规格、不改代码」** —— 代码按用户任务 3 原文（三维限流）与主理人裁定落地，是最终态；规格是编制时快照。本节记录 4 条裁定与对拍结论；代码侧改动由主理人自行处理，本文不改任何源码。
+> **总裁决**：独立口径对拍（#25）发现的 9 项「规格 vs 实现」差异，**全部「改规格、不改代码」** —— 代码按用户任务 3 原文（三维限流）与主理人裁定落地，是最终态；规格是编制时快照。本节记录 4 条裁定、迁移精确实现与对拍结论；代码侧改动由主理人自行处理，本文不改任何源码。
 
 ### 9.1 三维限流的依据与边界
 
@@ -439,8 +441,8 @@ sequenceDiagram
 
 ### 9.2 统一 429 契约本轮落地，但预算耗尽仍 HTTP 200
 
-- **已落地**：`RATE_CODES` 三维业务错误码；429 body 主干 `code/kind/message/detail/trace_id/policy`；保留原扁平字段（`dimension/key/path/limit/window_s/retry_after/current`）；`department` 归因标签；**6 个响应头** = 原 4 个 + `X-RateLimit-Code` + `X-Trace-Id`；`detail` 保持字符串以兼容前端 `app.js:56/66`。
-- **本轮保留现状**：预算耗尽仍是 **HTTP 200 + `{ok:false, reason:"budget_exceeded"}`**（`observability.py:438`）—— **阻断生效，但错误码未统一**。它是业务体拒绝，不是 429，不得并入 `quota_exceeded` 的 429 分类；§4.5 与 V09 按此最终态理解。
+- **已落地**：`RATE_CODES` 三维业务错误码；429 body 主干 `code/kind/message/detail/trace_id/policy`；保留原扁平字段（`dimension/key/path/limit/window_s/retry_after/current`）；`department` 归因标签；**6 个响应头** = 原 4 个 + `X-RateLimit-Code` + `X-Trace-Id`；`detail` 保持字符串以兼容前端 `app.js:56/79`。
+- **本轮保留现状**：预算耗尽仍是 **HTTP 200 + `{ok:false, reason:"budget_exceeded"}`**（`observability.py:439`）—— **阻断生效，但错误码未统一**。它是业务体拒绝，不是 429，不得并入 `quota_exceeded` 的 429 分类；§4.5 与 V09 按此最终态理解。
 - 由此，`degrade` / `block` 都不改变 429 的三维计数逻辑。
 
 ### 9.3 backend 骨架错误码本轮不改
@@ -448,14 +450,41 @@ sequenceDiagram
 - `backend/app/core/constants.py` 的 `ERROR_CODES` 中 `QUOTA_EXCEEDED → 413` **本轮不改 backend 生产骨架**，与 webapp 演示切片的 429 分类**留作下期对齐**。
 - 当前 webapp 的 `quota_exceeded` 语义来自 `webapp/providers.py::classify_429()`（额度耗尽、不重试），与 backend 的 413 不同源。文档**不得写成已统一**，也不得把两者混为同一条链路。
 
-### 9.4 半迁移态边界已由主理人补齐（代码侧，本文只记录）
+### 9.4 迁移函数精确实现、索引移位缺陷与半迁移态（代码侧，本文只记录）
 
-- **对拍发现**：旧库若**同时存在 `tenant` 与 `department_id` 两列**（半迁移态），原 `_migrate` 条件 `"tenant" in cols and "department_id" not in cols` 不成立 → 不 RENAME、不 DROP `ix_usage_tenant`，旧列与旧索引**静默残留**（业务按 `department_id` 工作不会立即报错）。
-- **主理人补齐方案**：「**先按旧列存在与否清理旧索引，再在 `department_id` 缺失时补列**」，避免静默残留。**代码由主理人修改**，本文 §3.1/§3.2 的目标 DDL 与索引规格不受影响；对拍时指定的「全新库 / 含 tenant 旧列的存量库」两种输入已实测幂等（§9.5）。
+> 本节按 2026-11-14 冻结后的 `webapp/db.py::_migrate_tenant_to_department()`（`:277-314`）**实读**记录，取代此前「先按旧列存在与否清理旧索引，再在 `department_id` 缺失时补列」的口头描述。`init_db()` 顺序为 `executescript(SCHEMA) → _migrate → _seed`（`db.py:321-323`）。
 
-### 9.5 对拍结论与 9 项规格同步记录
+**实际执行顺序**
+
+| 步 | 代码位置 | 动作 | 为什么 |
+|---|---|---|---|
+| 1 | `db.py:287` | `cols = {r[1] for r in conn.execute("PRAGMA table_info(usage_events)")}` | 用**位置下标 `r[1]`**，不依赖 `row_factory=sqlite3.Row`；裸 sqlite3 连接（含单测内存库）也能跑 |
+| 2 | `db.py:288-290` | 若 `"tenant" in cols`：**先** `DROP INDEX IF EXISTS ix_usage_tenant` | 否则 SQLite 因**索引依赖**拒绝后续 `DROP COLUMN` |
+| 3 | `db.py:291-292` | 若 `"department_id" not in cols` → `ALTER TABLE ... RENAME COLUMN tenant TO department_id` | 纯旧库（只有 tenant 列）走此分支，存量部门快照不丢、不回溯 |
+| 4 | `db.py:296-300` | 两列并存（**半迁移态**）→ `UPDATE usage_events SET department_id=tenant WHERE (department_id IS NULL OR department_id='' OR department_id='default') AND tenant IS NOT NULL AND tenant <> '' AND tenant <> 'default'` | 把旧列里有效的部门快照补回新列；`'default'` 是新列占位值，同样视为「尚未归因」 |
+| 5 | `db.py:301-306` | `ALTER TABLE ... DROP COLUMN tenant`，`try/except sqlite3.OperationalError` 兜底 | 更老版本 SQLite 不支持 `DROP COLUMN` 时保留旧列，但它从此不再是数据来源（`record_usage` 只写 `department_id`） |
+| 6 | `db.py:308` | `CREATE INDEX IF NOT EXISTS ix_usage_department ON usage_events(department_id)` | **见下方「更严重缺陷」**：新库与迁移后的旧库都在这里统一幂等建索引 |
+| 7 | `db.py:311-314` | `DELETE FROM rate_rules WHERE dimension IN ('tenant','department')`；`UPDATE OR IGNORE eval_configs SET key='department' WHERE key='tenant'`；`DELETE FROM eval_configs WHERE key='tenant'` | 规则收敛三维、配置键收敛 department；`UPDATE OR IGNORE` 实现「新键优先」 |
+
+**比半迁移态更严重的缺陷（本轮实测复现）**
+
+- `ix_usage_department` **不能写在 SCHEMA 里**。旧库执行 `executescript(SCHEMA)` 时 `usage_events` 尚未有 `department_id` 列，`CREATE INDEX ... ON usage_events(department_id)` 会先抛 **`no such column: department_id`**，导致整个 `executescript` 失败、`init_db()` 根本跑不到 `_migrate`（`db.py:321-323`）。
+- 落地修复：**索引从 SCHEMA 移到迁移函数末尾统一 `CREATE INDEX IF NOT EXISTS`**（`db.py:308`）；SCHEMA 现在只保留 `ix_usage_ts`（`:176`）与 `ix_usage_project`（`:177`），并在 `:178-180` 留三行注释说明原因。本文 §3.2 的索引规格不受影响（索引仍在，只是创建时机与位置变了）。
+- 半迁移态（两列并存）是第三步输入；原条件 `"tenant" in cols and "department_id" not in cols` 不成立会导致旧列与旧索引**静默残留**，本轮已按上表第 4–5 步补齐。
+
+**回归锁定**：新增 `webapp/tests/test_department_migration.py`（内存 SQLite，不写磁盘）4 项：
+
+1. `test_fresh_schema_has_department_column_and_no_tenant`（`:56`）—— 全新库：有 `department_id`、无 `tenant`、有 `ix_usage_department`，二次迁移幂等；
+2. `test_legacy_schema_does_not_break_executescript_and_keeps_data`（`:70`）—— tenant 旧库：先 `executescript(SCHEMA)` **不抛 `no such column`**，迁移后存量快照 `RD` 保留、旧索引消失、新索引存在；
+3. `test_half_migrated_state_drops_legacy_column`（`:89`）—— 半迁移态：两列并存 → 旧列真实值回填新列 → 删旧列；
+4. `test_rate_rules_collapse_to_three_dimensions`（`:108`）—— 规则收敛：`tenant`/`department` 规则行清除、`eval_configs` 键收敛为 `department`，三态幂等。
+
+- **代码由主理人修改并冻结**，本文只记录；§3.1/§3.2 的目标 DDL 与索引规格不受影响。
+
+### 9.5 对拍结论、9 项规格同步与最终回归
 
 - **独立对拍结论（#25，已采纳）**：映射表**实为 18 行**（此前称 17 行系计数差异）；**不一致 0 行**；V01 通过（`webapp/` 内 21 处 `tenant` 分为迁移逻辑必需 11、反向断言必需 3、展示/文档文案 7、应清零未清零 **0**）；全新库与存量库经 `SCHEMA→_migrate→_seed` 后**最终态完全相同**、各自二次执行幂等（`A_equals_B=True`）；`department` 未进入计数；`usage_summary(dim)` 白名单先收窄再拼 SQL，注入面关闭。
 - **编号统一**：**V03 = 复合索引存在性，V09 = 429 契约**，不得互换。
 - **9 项差异已逐条同步至本文**：① §2.2 行 6 / §2.5 / §3.4 / §4.2 / §4.5 / V07 / V09 改三维；② §2.2 行 10 改三条种子并补 DELETE 收敛；③ §2.2 行 13 / §4.4 / §4.5 / V09 补统一 429 契约与 6 头；④ §2.2 行 14 改演示占位；⑤ §2.2 行 17 改三维断言 + PRAGMA / 键断言；⑥ §2.2 行 9 / §3.4 改三维注释（代码侧注释由主理人改）；⑦ §5 V01 判定依据改 `test_evaltest.py` PRAGMA / 键断言并排除迁移函数与反向断言；⑧ §5 V02/V03 把 `stat_date` 与复合索引标「只设计 / 不纳入本轮通过判定」；⑨ §5 与本节统一 V03/V09 编号。
-- **文档纠偏范围（不纳入 #13 口径不一致判定）**：`observability.py` PLUGINS 展示文案、`routers_evaltest.py` 规则集文案、`docs/` 与 `docs/CHANGELOG.md` 历史条目；代码侧 5 处「四维」注释失真与 429 新契约测试断言由主理人处理。
+- **文档纠偏范围（不纳入 #13 口径不一致判定）**：`observability.py` PLUGINS 展示文案（`rate_limit` 名称 `:519` 仍写「用户/部门/接口/模型调用」）、`routers_evaltest.py` 规则集文案、`docs/` 与 `docs/CHANGELOG.md` 历史条目、`db.py:195` 列注释仍为四维字面；代码侧其余「四维」注释失真与 429 新契约测试断言已由主理人处理完成。
+- **最终回归（代码冻结后，主理人实跑）**：`python -m pytest webapp/tests -q` → **66 passed**（不是 62）；`python webapp/selftest.py` → **33/33 `DEMO_READY`**；`git diff --exit-code -- eval/ demo/` → **返回 0**（`eval/`、`demo/` 零改动）。以上为冻结基线，后续改动需重新核对。
