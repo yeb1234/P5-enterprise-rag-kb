@@ -38,9 +38,9 @@
 | `feat(webapp): 低思考快速档、部门统计维度与统一 429 契约` | 上一轮成果 | 阈值口径、错误契约 |
 | `docs: 企业级就绪复核、部署规范与独立面试演示页` | 上一轮文档 | 三态标注 |
 | `chore: 记录复核结论与项目硬约束` | 项目记忆 | 纪律 |
-| **本轮提交 A** | `parsing/` 子系统 + `webapp/` 接入 + 前端解析实验室 + 单测 | 解析架构主体 |
-| **本轮提交 B** | `docs/parsing/` 原理资料 + `docs/PARSING-DELIVERY.md` + `docs/HARNESS.md` | 学习资料与规约 |
-| **本轮提交 C** | `Dockerfile.parse` + compose `parser` 服务 + `.env.example` + 部署文档 | 编排与路径整理 |
+| `a3e8e5b` | `parsing/` 子系统 + `webapp/` 接入 + 前端解析实验室 + 26 项新增单测 + 两条致命缺陷修复 | 解析架构主体 |
+| `70a6977` | `docs/parsing/` 原理资料 + `docs/PARSING-DELIVERY.md` + `docs/HARNESS.md` + 并发改动收口 | 学习资料与规约 |
+| `c179f3d` | `Dockerfile.parse` + compose `parser` 服务 + `.env.example` 的 `PARSING_*` 段 | 编排与路径整理 |
 
 > 具体 hash 以 `git log --oneline -6` 为准；分支当前为 `demo/v1`，工作区干净。
 > 分支策略与提交信息规范见 `docs/git-conventions.md`；冻结区 `eval/` / `demo/` / `evalbench/` 全程零 diff。

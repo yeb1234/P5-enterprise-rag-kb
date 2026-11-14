@@ -49,6 +49,20 @@ A/B/C 三档口径与「面试场上不要把 A 档说成 C 档」的诚实边�
 - **三条已证伪的误报，别再写进交付物**：① `index.html` 的 40 个内联处理器全部有定义（`setLang` 在 `i18n.js` 挂 window）；② `backend/Dockerfile` / `frontend/Dockerfile` 都存在且 backend 装了 curl、`/health/live` 存在；③ `frontend/src/` 有 16 个文件、9 个导入全在，`npm run build` 通过。
 - 最终回归：webapp pytest **66 passed**、backend 16、eval 14、evalbench 16、demo 16/16、webapp e2e **33/33 `DEMO_READY`**、前端语法 ×3 + `npm run build`、冻结区零 diff。端到端用隔离临时库 + 离线 provider 补跑，**报告须按字节还原**。
 
+## 2026-11-14 追加：解析子系统与通用规约（改动时别破）
+
+- **`parsing/` 是独立纯函数包**（项目根），只负责「原始字节 → 结构化文本」，不碰下游 `ChunkSpec` / chunks 表 / Milvus schema / citation 契约。换 OCR / 视觉供应商只改 `parsing/strategies/` 里一个策略类。入口 `parsing/README.md`。
+- **三级策略状态**：P0 `local` 已实现（零外部依赖）；P1 `ocr_api` 只设计（适配器 + `__TBC__` 契约，`available()=False`）；P2 `multimodal` 的 `image_url` + base64 data URI 请求构造已实现，但**端点待补**，未配置时 `structured_fallback()` 只输出「图片结构事实」并明确标**非视觉理解**，绝不编造图片内容。
+- **Discovery 网关 `/models` 实查 10 个模型全部纯文本、无视觉模型**（2026-11-14）。任何「已跑通视觉理解」的表述都是失真。待补端点清单 `docs/parsing/07-api-contracts.md`，键为 `PARSING_OCR_*` / `PARSING_VISION_*`。
+- **90:10 是上限 / 熔断线，不是随机分流**：正常文档 0% 触发；质量门禁按 `QualitySignals`（零字符 / 无文本层 / 置信度 < 0.75 / 表格检查未全过）确定性升级；`VisionBudget.slots = max(1, ceil(页数 × 0.10))`；超预算显式标 `escalation_budget_exceeded` 并回退。阈值是演示经验起始值，非压测结论。
+- **降级必须保留本级正文**（`router._merge_fallback()`）；空文本页不能套用「图片结构事实」模板（`structured_fallback(is_image=False)`）。
+- **索引不能写进 `SCHEMA`**：旧库执行 `executescript(SCHEMA)` 时新列还不存在，`CREATE INDEX` 会先抛 `no such column` 导致迁移跑不到。索引一律在迁移函数末尾幂等创建。迁移函数用 `r[1]` 取 `PRAGMA table_info` 列名，不依赖 `row_factory`。
+- **短文本页 ≠ 无文本层**：`ocr_needed` 只能由「来源属性 + 零字符」判定，不能只看字符数，否则正常短文档会被整批送去最贵链路。
+- 前端「解析实验室」是第 12 个 `data-view`，C33 冻结的是 10 具名 view + 6 具名 loader 的**存在性检查**，新增视图不破坏它。静态资源当前 **`?v=13`**。
+- **Docker**：`Dockerfile.parse`（项目根 context，只 COPY parsing/）+ compose 的 `parser` 服务用 `profiles: ["parsing"]` 隔离：默认 `up` 仍 11 服务，`--profile parsing` 才 12。端口只绑 `127.0.0.1:8766`，探测接口未鉴权不得暴露公网。
+- **通用规约 `docs/HARNESS.md`（YEBSPEC@1.0，Y1–Y22）** 可复制到别的项目，含三态标注、冻结区、命名空间隔离、验证门禁、交付前闸门与本项目真实踩坑表。后续会话改任何约束性文本前先读它。
+- 本轮三次提交 `a3e8e5b`（代码）/ `70a6977`（文档）/ `c179f3d`（构建）；全量回归 **92 passed**（webapp 74 + parsing 18）+ backend 16 + eval 14 + evalbench 16 + demo 16/16 + e2e 33/33，冻结区零 diff。
+
 ## 目录入口
 - 总览与启动：`README.md`
 - 重点方案：`docs/async-upload.md`
