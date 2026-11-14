@@ -58,6 +58,19 @@ React + FastAPI + PostgreSQL + Milvus + Redis/Celery + 外部 DeepSeek 的**可�
 > 19 项离线单测在 `cache/tests/`。**真·进程重启演练**（隔离库启停两次）结论见 `docs/CACHE-DELIVERY.md` §3。
 > 检索结果缓存默认不接主问答链路；答案缓存 / 语义缓存仍未做。
 >
+> **内容安全 / PII 防护（2026-11-14 新增，面试高频）**：入口 `guardrails/README.md`，
+> 交付话术 `docs/CONTENT-SAFETY-DELIVERY.md`。**一层统一规则贯穿四个出口**：
+> 入库前（分块前脱敏，异常 fail-closed 阻断入库）、进模型前（检索用原文、送 LLM 前脱敏）、
+> 输出前（SSE 流式闸 + `done.tail` 补齐，不改包数以保住续传索引契约）、
+> 日志与导出前（`log_action` 的 target/detail + badcase 采集/列表/CSV/JSON）。
+> 检测走「格式 → 校验位 → 上下文 → 置信度」四级链：身份证过 ISO 7064 MOD 11-2、
+> 银行卡过 Luhn、中文姓名/工号/护照靠字段名词门控，**4 条防误报负向对照零命中**。
+> 命中台账 `safety_events` 只存类别与数量、不存原文。前端「内容安全 / PII」页可一键演示
+> 规则样本、四出口链路与流式跨界验证。调研与实现对照见 `docs/content-safety/01–02`；
+> 27 项包单测在 `guardrails/tests/`、11 项 API 单测在 `webapp/tests/test_safety_api.py`。
+> **边界**：规则级检测不是模型级 NER；backend 骨架未接本包；可逆 token 默认关闭；
+> 默认哈希盐是演示占位值，生产必须换密钥管理。配置一律 `GUARDRAILS_*` 前缀。
+>
 > **通用开发规约（可复制到别的项目）**：`docs/HARNESS.md`（YEBSPEC@1.0，Y1–Y22 规则 + 最小文件骨架 + 交付前闸门）。
 
 > **想直接看界面？** 另有一个「拿来即可演示」的可运行切片 `webapp/`：

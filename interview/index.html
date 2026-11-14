@@ -322,16 +322,21 @@ footer .fine{border-top:1px solid var(--border);padding-top:16px;line-height:1.8
       </div>
 
       <div class="card rise" style="--d:.13s">
-        <h3>只设计 <span class="badge a">生产骨架 · 未落地</span></h3>
-        <p>写在 <code>backend/</code> 骨架与 <code>docs/</code> 方案里，接口/表结构/契约有设计，但演示切片没有实现。</p>
+        <h3>只设计 <span class="badge a">生产基础设施 · 未接入</span></h3>
+        <p><b>要分层说，不能一句「没做」糊过去</b>：<code>backend/</code> 骨架里<b>算法与契约层有代码、有单测</b>；
+          真实 PG / Milvus / Redis / Celery 集群<b>没接、没集成测</b>。下面逐条标清测到哪一层。</p>
         <ul>
-          <li>PG 全文 + Milvus 向量 + RRF 融合 + 召回前权限双过滤</li>
-          <li>Celery + Redis broker、批次/页级 chord、SSE 权威快照</li>
-          <li>完整部门树子树可见、<code>decide()</code> 唯一权限权威</li>
-          <li>完整 ACLGrant、跨部门显式授权、逐段落/逐行 ACL</li>
-          <li>trace→span 全链路、审计留存合规、全局并发闸</li>
+          <li>混合检索：<code>rrf_fuse()</code> + <code>decide()</code> 召回前 expr / 召回后逐条复核，<b>契约层已实测</b>；
+            PG <code>tsvector</code> 全文、真实 Milvus expr 执行、端到端 MRR/NDCG <b>未测</b></li>
+          <li>进度：阶段权重单调性、体积加权、取消排除 <b>已实测（纯函数）</b>；
+            Celery 批次/页级 chord、Redis pub/sub 快照与断线重连 <b>未测</b></li>
+          <li>部门权限：<code>decide()</code> 的越权红线 8 项（显式 deny / 跨部门 / 子树 / 敏感度上限）<b>已实测</b>；
+            完整部门树拓扑 <code>visible_department_ids()</code>、逐段落/逐行 ACL <b>未落地</b></li>
+          <li>完整 ACLGrant、跨部门显式授权、trace→span 全链路、审计留存合规、全局并发闸：<b>只设计</b></li>
         </ul>
-        <div class="foot">逐段落 ACL 仅保留开关预留（默认关闭），<b>不假装已启用</b>。</div>
+        <div class="foot"><b>实测证据</b>：<code>python -m pytest -q backend/tests</code> → <b>26 passed</b>
+          （原 16 项纯函数 + 本轮新增 <code>test_retrieval_contract.py</code> 10 项「先过滤→再融合」对拍，含 A13 双向一致性）。
+          逐段落 ACL 仅保留开关预留（默认关闭），<b>不假装已启用</b>；演示切片是 SQLite + 进程内队列替身。</div>
       </div>
 
       <div class="card rise" style="--d:.21s">
@@ -426,6 +431,11 @@ footer .fine{border-top:1px solid var(--border);padding-top:16px;line-height:1.8
         <h3>重启后状态正常，有报告可查</h3>
         <p>状态分三类：限流窗口 / 轨迹 deque 可安全丢弃；队列活跃态与未完成任务从 <code>documents.status</code> 真值重建；策略、预算、用量、向量缓存必须持久化。启动跑 7 项自检：孤儿任务幂等重投、幽灵向量对账、过期缓存清理、文档指纹校验。前端可一键模拟重启并查看恢复报告。</p>
         <span class="chip">真·进程重启演练通过 · 无 500</span></div>
+
+      <div class="card rise" style="--d:.58s"><div class="n">15 / 内容安全</div>
+        <h3>PII：一层规则，四个出口</h3>
+        <p>展示层打码不算防护——原文只要进了 chunks、向量、缓存、日志或 CSV 就总能被带出去。同一套规则贯穿<b>入库前 / 进模型前 / 输出前 / 日志与导出前</b>：先按原文检索保召回，再在送 LLM 与落库前脱敏。检测走「格式 → 校验位 → 上下文 → 置信度」，身份证过 MOD 11-2、银行卡过 Luhn、姓名靠字段名词门控，4 条防误报负向对照零命中。</p>
+        <span class="chip">流式跨界不泄漏 · 台账只存统计</span></div>
     </div>
   </div>
 </section>
@@ -574,8 +584,8 @@ footer .fine{border-top:1px solid var(--border);padding-top:16px;line-height:1.8
             <td class="num">16 OK</td><td><span class="mode off">离线</span> 归一化 / 拒答 / 聚合等断言</td>
             <td class="src">enterprise-readiness.md §8 · acceptance-report.md</td></tr>
           <tr><td><b>backend 骨架单测</b><br><span class="src">cd backend &amp;&amp; python -m pytest -q tests</span></td>
-            <td class="num">16 passed</td><td><span class="mode off">离线</span></td>
-            <td class="src">evaluation-report.md §7 · org-model-change-plan.md §0.1</td></tr>
+            <td class="num">26 passed</td><td><span class="mode off">离线</span> 原 16 项纯函数 + 本轮新增 <code>test_retrieval_contract.py</code> 10 项（RRF 融合 / 召回前后双过滤 / A13 双向一致性对拍）</td>
+            <td class="src">backend/tests/ · 本页「你说只设计，到底测没测」问答</td></tr>
           <tr><td><b>前端静态语法</b><br><span class="src">node --check ×3（app.js / i18n.js / theme.js）</span></td>
             <td class="num">3 / 3 通过</td><td><span class="mode off">离线</span> 静态检查</td>
             <td class="src">enterprise-readiness.md §8 · webapp/README.md §6</td></tr>
@@ -595,7 +605,8 @@ footer .fine{border-top:1px solid var(--border);padding-top:16px;line-height:1.8
       <b>统一 429 错误契约</b>（业务错误码 + <code>code/kind/trace_id</code>，前端区分 quota / rate 两类）、
       <b>可插拔文档解析策略</b>（自研 / OCR API / 多模态兜底三级，质量门禁 + 90:10 预算闸门）、
       <b>知识治理</b>（入库新鲜度：时间衰减 + 适用性门控 + 过期三档；事实冲突检测：claim 级比对 + 冲突图按簇裁决 + 结构化证据记录，前端「知识治理」页可现场改策略看排序翻转与裁决日志）、
-      <b>缓存与重启稳定性</b>（L1 内存 LRU + L2 SQLite、13 段缓存 key 含授权快照 / 数据版本 / 策略版本、懒失效、启动 7 项自检：孤儿任务幂等重投 / 幽灵向量对账 / 策略从 <code>runtime_state</code> 恢复；隔离库真·进程重启演练 healthy=True、boot 1→2、无 500）。
+      <b>缓存与重启稳定性</b>（L1 内存 LRU + L2 SQLite、13 段缓存 key 含授权快照 / 数据版本 / 策略版本、懒失效、启动 7 项自检：孤儿任务幂等重投 / 幽灵向量对账 / 策略从 <code>runtime_state</code> 恢复；隔离库真·进程重启演练 healthy=True、boot 1→2、无 500）、
+      <b>内容安全 / PII 防护</b>（一层统一规则贯穿入库前 / 进模型前 / 输出前 / 日志与导出前四出口；分块前脱敏且异常 fail-closed，SSE 流式闸跨 chunk 扣留候选串、保持包数不变以保住续传索引契约；命中台账只存类别与数量；27 项包单测 + 11 项 API 单测，4 条防误报负向对照零命中，长文本流式 leaked=false）。
       <b>2026-11-14 实测纠正</b>：网关 <code>/models</code> 的 <code>input_modalities</code> 显示 10 个模型里 <b>6 个支持 image</b>（此前只凭模型名判断「全为纯文本」是错的）。
       P2 已接通 <code>deepseek-v4.1-flash-1017</code>：两张内容不同的图（浅蓝 73492/CODE-A、浅黄 18620/CODE-B）都被精确识别且回答不同，完整链路 <code>vision_applied / degraded=None</code>。
       P1 收费 OCR 仍未接通、字段保持 <code>__TBC__</code>；<code>PARSING_OFFLINE=1</code> 可一键全离线。这是<b>功能连通性实测，不是质量基线</b>。
@@ -798,6 +809,26 @@ footer .fine{border-top:1px solid var(--border);padding-top:16px;line-height:1.8
           <p><b>边界</b>：这是功能连通性实证，不是压测或 SLA 结论；没有持续看门狗 / 死信队列 / 心跳 lease；演示切片的 SQLite + 进程内队列不是生产 Redis/Celery。</p>
         </div>
       </details>
+
+      <details class="rise" style="--d:.53s">
+        <summary>PII 脱敏为什么不能只在展示层做？流式输出怎么防漏？</summary>
+        <div class="ans">
+          <p><b>因为原文会走别的出口</b>：chunks 是检索、向量缓存、来源卡片、<code>chat_sources</code> 的共同真值源；一旦原文进了分块，展示层打码只是自欺欺人，审计日志、badcase 的 CSV 导出、模型上下文里都还是明文。所以做成<b>一层统一规则、四个出口</b>：入库前在分块前脱敏（异常 fail-closed 阻断整份入库）、进模型前脱敏问题与片段、输出前过流式闸、日志与导出前脱敏 target/detail 与全部导出字段。次序上<b>先按原文检索</b>再脱敏，否则词法召回会被打码破坏。</p>
+          <p><b>误报比漏报更容易被追问</b>：<code>\d{17}[\dXx]</code> 会把订单号当身份证，所以必须过 ISO 7064 MOD 11-2 校验位和出生日期；<code>1[3-9]\d{9}</code> 会命中长号子串，所以加前后数字边界；16–19 位纯数字要过 Luhn 且末尾跟 X 时不判成银行卡；中文姓名/工号/护照只认带字段名词的写法。本轮实跑还抓到一个真缺陷：校验位非法的身份证前 17 位<b>恰好通过 Luhn</b>，被误报成银行卡，已修。演示样本全部换成按算法算出的合法校验位，不用随手编的号码。</p>
+          <p><b>流式是真难点</b>：SSE 逐 token 下发时，18 位身份证可能跨多个 chunk。只保留尾部 24 个字符不够——标识符起点落在可下发区、终点还在保留区时，前 10 位会先发出去，<b>发出去就撤不回来</b>。现在的做法是找出横跨下发边界的连续候选串，把边界收缩到它的起点整串扣住，等它完整进缓冲区再扫描。为了不破坏断线续传的 token 索引连续性，保持「一个原始 token 一个包」、index 用原始索引，扣住的尾部由 <code>done.tail</code> 补齐、前端在 done 时追加。</p>
+          <p><b>现场证据 + 边界</b>：「内容安全 / PII」页可一键跑 9 条合成样本、4 条负向对照、四出口链路与逐字符流式验证（<code>leaked=false</code>），台账按出口显示真实命中数且只存类别与数量。诚实标注：规则级检测不是模型级 NER；backend 骨架未接本包；可逆 token 默认关闭；默认哈希盐是演示占位值；真实断线重连时尾部可能少几个字，生产应把续传游标改成基于<b>安全输出字节偏移</b>。</p>
+        </div>
+      </details>
+
+      <details class="rise" style="--d:.56s">
+        <summary>你说这些「只设计」，那到底测没测？</summary>
+        <div class="ans">
+          <p><b>先分两层，别一句「没做」糊过去</b>：① <b>算法 / 契约层</b>——<code>backend/</code> 骨架里是有代码、有单测的；② <b>基础设施集成层</b>——真实 PG <code>tsvector</code>、Milvus 集群、Redis pub/sub、Celery broker/chord 确实没接、没集成测。演示切片是 SQLite + 进程内队列替身，<b>替身跑通不等于生产组件测过</b>。</p>
+          <p><b>实测命令与数字</b>：<code>python -m pytest -q backend/tests</code> → <b>26 passed</b>。原有 16 项覆盖 <code>rrf_fuse()</code> 双路去重与排名、<code>decide()</code> 的八条越权红线（显式 deny 优先 / 跨部门拒绝 / 部门管理员覆盖子树 / 敏感度上限 / 精细权限开关默认关）、阶段进度单调性与体积加权。本轮又补了 <code>backend/tests/test_retrieval_contract.py</code> 的 10 项离线对拍：把「召回前 expr 收窄 → 召回后逐条 <code>decide()</code> → RRF 融合」的<b>顺序纪律</b>锁住，其中 A13 双向一致性验证 expr 排除的候选不会被 <code>decide()</code> 放行，以及<b>融合不能把被过滤的片段重新带回来</b>（对照实验里不过滤时跨部门片段会排第一）。全部离线可跑、不连真库。</p>
+          <p><b>明确没测，也不假装测过</b>：真实 PG 全文/BM25 与真实 Milvus expr 执行、混合检索的 MRR/NDCG 与 P95 延迟、Redis 快照的断线重连、Celery 页级 chord 与失败重试、完整部门树拓扑 <code>visible_department_ids()</code>、逐段落/逐行 ACL、trace→span 全链路与全局并发闸。原因是这些组件在本仓<b>没有接入</b>，也没有评估集和压测环境；拿 SQLite 替身的通过结果去说「生产测过了」是失真。</p>
+          <p><b>面试标准答法</b>：先把卡片上的四项按「已实测（契约层）／未测（集成层）」拆开，报出可复跑命令和 26 passed，再主动列出没测清单和缺什么才能测（真实集群 + 评估集 + 压测），最后说明演示替身与生产实现的边界。<b>把「只设计」当挡箭牌会被追问穿，分层说清楚反而加分。</b></p>
+        </div>
+      </details>
     </div>
   </div>
 </section>
@@ -814,6 +845,10 @@ footer .fine{border-top:1px solid var(--border);padding-top:16px;line-height:1.8
       <code>docs/org-model-change-plan.md</code>
       <code>docs/acceptance-report.md</code>
       <code>docs/CHANGELOG.md</code>
+      <code>docs/CACHE-DELIVERY.md</code>
+      <code>guardrails/README.md</code>
+      <code>docs/CONTENT-SAFETY-DELIVERY.md</code>
+      <code>docs/content-safety/02-design.md</code>
     </div>
     <div class="fine">
       本页为<b>单文件、零外部依赖</b>的静态演示页，可直接双击打开、可离线投屏；未引用任何 CDN、字体、脚本或图片资源，未运行任何真实外部 LLM 调用。<br />

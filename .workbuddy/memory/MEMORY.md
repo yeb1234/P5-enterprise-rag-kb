@@ -221,3 +221,27 @@ cd backend && pytest -q tests
 cd frontend && npm run build
 # 全量导入：python -c "import app.main; print(len(app.main.app.openapi()['paths']))"
 ```
+
+## 2026-11-14 追加：内容安全 / PII 硬约束（改动时别破）
+
+- `guardrails/` 是**独立纯函数包**（不 import webapp），四出口 `ingest/context/output/audit`
+  共用 `Guardrails.protect()` 一套规则；配置一律 `GUARDRAILS_*` 前缀，别用扁平命名
+  （与 backend 的 `EMBEDDING_*` 同理，避免命名空间冲突）。
+- **先检索、后脱敏**：`rag.retrieve()` 必须用原文 question（脱敏会破坏词法召回），
+  但进 LLM、`_persist`、SSE 下发、导出前一律用脱敏文本。顺序反了会两头不讨好。
+- **SSE 包结构不能改**：C13 断言 `t3[i]["index"] == resume_from + i`。脱敏只把
+  `StreamRedactor.push()` 返回的安全片段作为当前包 `token`（可为空串），
+  `flush()` 尾部放 `done.tail`，前端在 `ev==='done'` 时追加；
+  `done.answer` 与 `chat_logs` 用完整脱敏答案。不要按安全片段重新组包。
+- **`StreamRedactor` 必须扣住跨边界候选串**：只留尾部 `HOLD=24` 不够，长文本逐字符下发
+  会把标识符前 10 位先发出去（撤不回）。下限：`push()` 找 `[A-Za-z0-9_.@+\-:]+`
+  覆盖 boundary 的串，把 boundary 收缩到其起点；无 PII 文本 roundtrip 必须逐字相同。
+- **演示样本的校验位必须按算法算**：`110101199003071938`（MOD 11-2）、
+  `6222021234567894`（Luhn）。别用随手编的号——`11010119900307193X` 非法且前 17 位
+  恰好过 Luhn，曾把负向对照误报成 BANK_CARD；`BANK_CARD` 正则保持 `(?![\dXx])`。
+- `safety_events` 台账**只存 gate/kind/数量/动作/规则版本**，不存原文、preview、可逆映射；
+  `db.log_action` 是审计出口唯一入口，脱敏异常时 fail-closed 丢字段而不是写原文。
+  `rag.analyze_document` 脱敏异常同样 fail-closed 阻断整份入库。
+- **边界别夸大**：规则级检测≠模型级 NER；`backend/app/agent/orchestrator.py` 骨架**未接本包**；
+  可逆 token 默认关闭；默认哈希盐 `demo-salt-change-me` 只是演示占位；
+  图片/表格内 PII、合规审计、SIEM、压测标定未做。
