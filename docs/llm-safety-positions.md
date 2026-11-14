@@ -167,11 +167,11 @@
 | `webapp/providers.py` | `OpenAILikeLLMProvider` 走 Discovery 网关，payload 无 thinking / reasoning 字段；`test_llm()` 已读 `usage.completion_tokens_details.reasoning_tokens` 与 `reasoning_content`，返回 `reasoning_only` 标记；`_filter_inline_think()` 可剥离内联 `<mm:think>` / ` thinking` 思考块 | **探测与剥离能力已具备**，但**没有主动控制推理强度**；且探测字段是「观测」，不是「控制」 |
 | `evalbench/core/runner.py` | `max_tokens >= 512` 的 `require_min_max_tokens_512` 适配、`_parse_answer()` 处理 `reasoning_only` | 评测侧已有 token 预算防御，可作参考 |
 
-> **关键区分**：`backend/` 的 `thinking` 字段对应**官方 DeepSeek 端点**，`webapp/` 演示切片用的是 **Intern-AI Discovery 网关**（不同供应商、不同 OpenAI 兼容实现）。**不能把 backend 里写了这个字段，说成「Discovery 网关已支持」**。
+> **2026-11-14 实测结论**：虽然 `backend/` 的 `thinking` 字段原本针对官方 DeepSeek 端点、`webapp/` 用的是 Intern-AI Discovery 网关（不同实现），但把同一字段移植到 Discovery 后**经对照实测确认生效**：`reasoning_tokens` 55 → 0、耗时 979 ms → 467 ms。此前「不能把 backend 写了字段说成 Discovery 已支持」的谨慎是对的，但结论现已由实测而非推断给出。换到其它网关时仍需重新验证，不可无条件移植。
 
-## 2.4 OpenAI 兼容网关控制推理强度：常见三类参数（通用知识，非本项目实测）
+## 2.4 OpenAI 兼容网关控制推理强度：常见三类参数（通用知识 + 本项目实测结论见 2.5）
 
-> 以下是行业里 OpenAI 兼容网关常见的三类做法，**仅作方案枚举**。取值、字段名、是否生效**因实现而异**，**本项目 Discovery 网关具体支持哪一种【尚未实测确认】**。
+> 以下是行业里 OpenAI 兼容网关常见的三类做法，**仅作方案枚举**。取值、字段名、是否生效**因实现而异**；本项目 Discovery 网关的实测结论见 §2.5：第 ③ 类私有 `thinking` 字段生效，元数据列出的布尔 `reasoning` 参数无效。
 
 | 类 | 典型写法 | 常见出处/语义 | 风险 |
 |---|---|---|---|
@@ -181,19 +181,40 @@
 
 此外还有「把思考内容放 `reasoning_content` 而非 `content`」的**响应侧差异**（`providers.py::test_llm()` 与 `evalbench/core/runner.py::_parse_answer()` 都已处理），但那是**观测适配**，不是控制开关，不能混为一谈。
 
-## 2.5 Discovery 网关：本项目具体支持哪一种「尚未实测确认」
+## 2.5 Discovery 网关：2026-11-14 参数对照实测（结论已确认）
 
-**明确结论**：`.env` 指向 `https://discovery-api.intern-ai.org.cn/v1`，模型 `deepseek-v4.1-flash-1017`。项目内**没有任何一次实测**记录过该网关对上述 ①②③ 中任一参数的接受与生效情况：
+**方法**：同一问题（球棒与球），固定 `temperature=0`、`max_tokens=256`、`stream=false`，
+只改变推理开关字段，依次为「无参数基线 / `thinking={"type":"disabled"}` /
+`reasoning=false` / `reasoning=true`」，记录墙钟耗时、正文、`reasoning_tokens`
+与是否出现 `reasoning_content`。
 
-- `evalbench/probe_models.py` 探测过 `temperature` 兼容性（6 个模型 HTTP 200）、`max_tokens=24/256` 的预算行为、延迟差异，**但没有探测任何推理强度参数**；
-- `providers.py::test_llm()` 只发 `{"model","messages","stream":false,"max_tokens":256}`，读取响应里的 `reasoning_tokens` / `reasoning_content`；
-- `docs/evaluation-report.md` 与 `.env` 记录的是延迟与冷启动观测，不是参数兼容性。
+| 组 | 耗时 | 正文 | `reasoning_tokens` | `reasoning_content` | 判定 |
+|---|---|---|---|---|---|
+| 基线（无参数） | 979 ms | `0.05` | 55 | 有 | 默认会思考 |
+| **`thinking={"type":"disabled"}`** | **467 ms** | `0.05` | **0** | **无** | **生效** |
+| `reasoning=false` | 3413 ms | `0.05` | 55 | 有 | 无效 |
+| `reasoning=true` | 945 ms | `0.05` | 55 | 有 | 无效 |
 
-**因此不得假定**：不得写「加 `reasoning_effort=low` 即可低思考」、不得写「Discovery 支持 `enable_thinking`」、不得把 `backend` 的 `thinking` 字段移植过来当已支持。**未实测就是未实测**。
+**结论**：
+1. 项目里既有的 `thinking` 对象字段在 Discovery 网关**确实生效**，把推理 token
+   从 55 降到 0、正文不再夹带思考内容，耗时约减半；这也是当前默认档的依据。
+2. `/models` 元数据把 `reasoning` 列为 `supported_parameters` 的 boolean，
+   **实测不生效**——「元数据声明支持」与「实际生效」不是一回事，这个反例本身就是
+   面试里能讲清楚的工程判断。
+3. 延迟只能作辅助证据：冷启动抖动大，单次对比无统计意义；主判据是
+   `reasoning_tokens=0` 与 `reasoning_content` 消失。
+
+**同日另一项实测（与本节独立）**：网关 `/models` 的 `input_modalities` 显示
+10 个模型里 6 个支持 `image`，`deepseek-v4.1-flash-1017` 双图对照传图实测通过，
+详见 `docs/parsing/07-api-contracts.md`。此前「全为纯文本、无视觉模型」的判断是
+只读模型名造成的误判，已全面纠正。
+
+**仍然成立的限制**：这是参数/能力的**功能连通性实测**，不是质量基线；
+未做真实语料集评测、未做压测、单价与配额仍 `__TBC__`；换到其它网关必须重新验证。
 
 ## 2.6 工程方案：「参数可配置 + 探测回退」
 
-> 本节是**设计方案**，本轮不落地代码、不发任何请求。落地时应与 `webapp/settings.py` 现有白名单机制对齐（键一律 `WEBAPP_` 前缀，因 backend 骨架有同名配置命名空间）。
+> 参数可配置部分**已落地**：`WEBAPP_LLM_THINKING` 白名单 + `settings.thinking_disabled()` + `providers.thinking_fields()`，三条请求路径共用；键一律 `WEBAPP_` 前缀以避开 backend 同名命名空间。探测回退部分保留为设计，因为本轮已用对照实测直接确认生效，无需再引入运行时自动探测。
 
 **A. 参数可配置（不硬编码某一种）**
 - 在 `settings.DEFAULTS` / `ALLOWED` / `ENUMS` 增加一个白名单键（例如 `WEBAPP_LLM_REASONING_MODE`），枚举收敛为 `off`（不发送任何推理字段，保持现状）/ `low`（发送候选参数）/ `auto`（探测驱动）。落 `app_settings`，沿用「每请求读取、即时生效、未知键拒绝」。
@@ -214,10 +235,10 @@
 
 ## 2.7 「低思考快速档」完整判定口径
 
-**默认档位（本轮拍板的默认假设，不甩回用户）**：
-- 运行时默认 **`auto`**：不假定网关支持，先探测、再决定是否下发参数；探测不可用或额度不足时保持 **`off`** 并如实标注。
-- 面试/演示讲解口径可固定为 **`low`**（用户诉求「低思维快速为主」），但**必须在讲解里说明它是否已实测生效**；未实测前只说「配置就绪、待探测确认」，不说「已启用」。
-- 无论哪档，**首次生效验证完成前，演示一律以现有 `deepseek-v4.1-flash-1017` 链路为准**，不得把「计划中的档位」当既成事实写进报告。
+**默认档位（用户「低思维快速为主」的诉求，2026-11-14 实测后定稿）**：
+- 运行时默认 **`disabled`（低思考 / 快速）**：`WEBAPP_LLM_THINKING=disabled` 注入 `thinking={"type":"disabled"}`，设置页可切 `enabled`（完整推理）。
+- **已实测生效**，不再用 `auto` 探测档：同题固定 `temperature=0`，基线 979 ms / `reasoning_tokens=55`；`thinking=disabled` 467 ms / 0；`reasoning=false` 3413 ms / 55；`reasoning=true` 945 ms / 55。元数据里的布尔 `reasoning` 参数**无效**，不要改用它。
+- 判定边界：这是参数生效的对照实测，不是质量基线；冷启动抖动大（既有实测 0.6 / 9.6 / 58 s），单次延迟对比无统计意义，结论主要依据 `reasoning_tokens` 与 `reasoning_content` 是否消失。
 
 **怎么验证生效（三个观测点，缺一不可）**：
 
@@ -225,7 +246,7 @@
 |---|---|---|---|
 | ① 首 token 延迟（TTFT） | `providers.py::test_llm()` 只有整请求 `latency_ms`；SSE 链路无逐 token 计时 | 同模型、同 prompt、同网络条件下，低思考档首 token 明显早于基线（`off`） | **⚠️ 当前无流式 TTFT 埋点**（对应缺口 G9），需先补埋点；补之前只能用 `latency_ms` 作近似，且必须标注「墙钟时间，非首 token」 |
 | ② `reasoning_content` 是否为空 | `test_llm()` 已计算 `reasoning_only`；`evalbench/core/runner.py::_parse_answer()` 处理回退 | 非流式探测返回 `content` 有正文、`reasoning_content` 为空或显著变短 | ✅ 已有 |
-| ③ `usage.completion_tokens_details.reasoning_tokens` | `test_llm()` 已读取并返回 `reasoning_tokens` | 与 `off` 基线对照，该值下降或为 0/不存在 | ✅ 已有（**但网关是否上报该字段【尚未实测确认】**；不上报时不得据此断言生效，只能标「不可测」） |
+| ③ `usage.completion_tokens_details.reasoning_tokens` | `test_llm()` 已读取并返回 `reasoning_tokens` | 与 `off` 基线对照，该值下降或为 0/不存在 | ✅ **已实测**：网关确实上报，基线 55 → `thinking=disabled` 时 0，且 `reasoning_content` 消失 |
 
 **判定纪律**：三个观测点里 ②③ 可先做、① 需补埋点；**任一项显示「无变化」即判未生效并回退**，不得用「延迟这次碰巧快了」当生效证据（冷启动抖动 0.6/9.6/58 s 已被实测记录，单次对比无统计意义，需多次采样）。
 
@@ -249,12 +270,12 @@
 
 | 不做什么 | 为什么 |
 |---|---|
-| 不写「Discovery 网关支持 `reasoning_effort` / `enable_thinking` / `thinking`」 | 项目内零实测记录；`probe_models.py` 只探过 `temperature` 与 `max_tokens` |
-| 不把 `backend/app/integrations/llm.py` 的 `thinking` 字段说成已在 webapp / Discovery 生效 | 该字段针对官方 DeepSeek 端点，且本项目无「字段生效」的实测证据 |
+| 不写「Discovery 网关支持 `reasoning_effort` / `enable_thinking`」 | 这两类参数从未在本网关实测；只有 `thinking` 对象字段经 §2.5 对照实测生效 |
+| 不写「元数据里列了布尔 `reasoning` 参数所以它可用」 | 实测 `reasoning=false/true` 都是 `reasoning_tokens=55`，不生效；这个反面例子本身就是面试可讲的点 |
 | 不把「零正文」断言为推理模型专属 | `evalbench/probe_models.py::DIFFERENCES` 明确修正为**网关侧 token 预算共性**（6 模型含非推理型全部空） |
 | 不把「代码里写了」写成「已启用」 | 配置/字段存在 ≠ 参数被接受 ≠ 观测到生效 |
 | 不编造价格、配额、模型能力或延迟数字 | 本文所有数字均引自 `docs/evaluation-report.md`、`.env`、`evalbench/probe_models.py` 的既有实测，未新增测量 |
-| 本轮不执行任何真实外部 LLM 调用 | 用户上次流量耗尽；连接测试会消耗真实额度（2.6 D 已声明），需额度恢复后单独授权执行 |
+| 不把「参数生效」写成「质量或成本结论」 | §2.5 是 4 次轻量对照调用，未做语料集评测、未做压测、单价与配额仍 `__TBC__` |
 
 ---
 
@@ -270,6 +291,8 @@
 | 配置与命名空间 | `webapp/settings.py`（`DEFAULTS`/`ALLOWED`/`ENUMS`/`effective_embedding()`）、`.env`（`WEBAPP_` 前缀约定、`DISCOVERY_*`） |
 | 既有实测与降级矩阵 | `docs/evaluation-report.md` §1 / §5 / §6 / §9 / §10；`docs/enterprise-readiness.md` §4 / §5 / §6 / §10；`docs/kb-capability-checklist.md` F5；`docs/CHANGELOG.md:88/90` |
 | 推理预算与延迟实测 | `evalbench/probe_models.py::DIFFERENCES`（`max_tokens` 与归因修正）、`evalbench/core/runner.py`（`>=512` 适配、`_parse_answer()`） |
+| 推理开关参数对照（2026-11-14） | 本文件 §2.5；基线 / `thinking=disabled` / `reasoning=false` / `reasoning=true` 四组同题对照 |
+| 网关视觉能力（2026-11-14） | `parsing/vision_probe.py`、`docs/parsing/07-api-contracts.md` §1–§2：10 个模型中 6 个支持 image，双图对照传图实测通过 |
 
 ## 附录 B · 与本文档相关的其他在办任务（不越界，仅标注）
 

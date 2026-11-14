@@ -12,9 +12,21 @@
 |---|---|---|---|
 | P0 自研 `local` | `strategies/local.py` + `tables.py` + `images.py` | **已实现，零外部依赖可跑** | 0 |
 | P1 收费 OCR `ocr_api` | `strategies/ocr_api.py` | **只设计**（适配器 + `__TBC__` 契约），未接任何服务 | `__TBC__` |
-| P2 多模态 `multimodal` | `strategies/multimodal.py` | **传图请求构造已实现**；网关实查无视觉模型，端点待补，走结构化降级 | `__TBC__` |
+| P2 多模态 `multimodal` | `strategies/multimodal.py` | **已接通并实测跑通**：复用 Discovery 网关的 `deepseek-v4.1-flash-1017`，双图对照传图精确命中数字/背景色/标签；失败或离线时才结构化降级 | 按网关 token 计费，单价 `__TBC__` |
 
-> 已实查：Intern-AI Discovery 网关 `/models` 返回 10 个模型，**全部纯文本，没有视觉模型**；硅基流动侧只有 `BAAI/bge-m3` 嵌入与 `BAAI/bge-reranker-v2-m3` 重排。所以 P2 现在是「请求构造 + 未配置时优雅降级留痕」，**不宣称已跑通视觉理解**。
+> **2026-11-14 实测纠正**：此前只凭模型名判断「10 个模型全为纯文本」是**错的**。
+> 网关 `/models` 的 `input_modalities` 显示 10 个模型里 **6 个支持 `image` 输入**
+> （`Agents-A1` / `Sage-A1.5` / `deepseek-v4.1-flash-1017` / `intern-s2` /
+> `kimi-k3.1-pro` / `qwen3.8-27b`），目标模型还支持 `url` 与 `base64` 两种图片来源。
+> 用 `python -m parsing.vision_probe` 可重新核对这份清单（只读元数据，不发图片）。
+>
+> 双图对照实测：图 A（浅蓝底/深蓝字 `73492`/`CODE-A`）→ 答 "73492 on a light blue
+> background with the label CODE-A below."（1406 ms）；图 B（浅黄底/红字 `18620`/
+> `CODE-B`）→ 答 "The image shows the number 18620 in dark red on a pale yellow
+> background, with the label CODE-B below it."（2463 ms）。两次回答不同且都精确命中
+> → 真·视觉理解，不是占位。端到端链路复跑得到 `reason=vision_applied / degraded=None`。
+>
+> **这是功能连通性实测，不是质量基线**：未做真实语料集评测、未做压测、P1 收费 OCR 仍未接通。
 
 ## 目录地图（每个文件一句话）
 
@@ -24,6 +36,8 @@ parsing/
 ├── __init__.py        包导出（ParseRouter / VisionBudget / 契约）
 ├── contracts.py       数据契约：QualitySignals / ParseResult / ParseTrace / 策略常量
 ├── config.py          运行时开关与阈值（PARSING_ 前缀，与其它命名空间隔离）
+├── envfile.py         独立 .env 加载器（不依赖 webapp，供 config/探针复用）
+├── vision_probe.py    只读探测网关视觉能力：python -m parsing.vision_probe
 ├── images.py          图片容器头解析（PNG/JPEG/GIF/WebP/BMP）+ 字节熵 + 传图请求构造
 ├── tables.py          表格结构语义（cells 带行列坐标/类型/单位）+ 5 项稳定性检查
 ├── router.py          ★ 质量门禁 + 确定性升级 + 90:10 预算闸门 + 逐页轨迹
@@ -53,7 +67,11 @@ parsing/
 
 为什么不是 80:20：P2 是最慢最贵的一层，20% 的页走它，尾延迟和成本都会翻倍；10% 足够覆盖扫描件疑难页、复杂表格、纯图片这些长尾。阈值是演示默认经验起始值，需用真实语料校准，不是压测结论。
 
-## 三条命令跑起来（零外部依赖）
+## 三条命令跑起来
+
+> P2 已接通，所以 `auto` 命中疑难页时会真实调用视觉端点。要全程零外部请求
+> （流量不足、CI、纯离线演示）就在命令前加 `PARSING_OFFLINE=1`，轨迹会显示
+> `vision_skipped / 结构化降级`，其余逻辑完全一致。
 
 ```bash
 # 1) 纯 Python 自检（不启服务、不发任何网络请求）
@@ -76,7 +94,7 @@ curl http://127.0.0.1:8766/health/live
 | `auto` | 默认。质量门禁逐级升级，演示推荐 |
 | `local_only` | 强制只用 P0，用于展示「自研层能做到哪」 |
 | `ocr_api` | 强制先走 P1；未配置时标 `ocr_api_unavailable` 并回退 P0 |
-| `multimodal` | 强制先走 P2；当前无视觉端点，展示结构化降级与预算拦截 |
+| `multimodal` | 强制先走 P2；会**真实调用视觉端点**（消耗流量与预算名额），可用 `PARSING_OFFLINE=1` 关掉做对照 |
 | `off` | 只登记不解析，用于对照 |
 
 「解析实验室」把**同一文件在不同策略下的轨迹差异**并排展示，这是把技术深度讲清楚的关键：每一页用了哪级、置信度多少、耗时多少、为什么升级、有没有被预算拦下、降级原因是什么，全部可见。
@@ -90,7 +108,9 @@ curl http://127.0.0.1:8766/health/live
 
 - P0 的表格是**规则级**结构还原，处理 Markdown 管道表 / CSV / TSV；不等于工业级无边框表格识别。
 - P1 未接入任何收费服务，所有接口字段 `__TBC__`，`available()` 返回 `False` 时路由器降级留痕。
-- P2 的 `vision_message()` 能构造标准 OpenAI 兼容 `image_url` + base64 data URI 请求，但**当前没有端点可发**；`structured_fallback()` 输出的是「图片结构事实」，明确标注**非视觉理解**，不编造图片内容。
+- P2 的 `vision_message()` 构造标准 OpenAI 兼容 `image_url` + base64 data URI 请求，**已真实发送并跑通**；`upstream` 会回传模型名、token 用量与 `reasoning_tokens`，轨迹里可核账。低思考档注入 `thinking={"type":"disabled"}`，实测把 `reasoning_tokens` 从 55 降到 0、耗时 979 ms → 467 ms（元数据里的布尔 `reasoning` 参数实测无效）。
+- `structured_fallback()` 只在 `PARSING_OFFLINE=1` 或视觉调用失败时启用，输出「图片结构事实」并明确标**非视觉理解**，不编造图片内容。单测通过 `PARSING_OFFLINE=1` 保证零模型流量。
+- 视觉回答适合版面与图表语义；**图片里的精确数字与文字仍应以 P1 OCR 结果为准**，不要让视觉模型复述关键数值。
 - 阈值不是实测基线；真实压测、监控告警 SLO、按部门公平调度的工程实现都留在本期之外。
 
 ## 原理资料索引
@@ -102,7 +122,7 @@ curl http://127.0.0.1:8766/health/live
 | 01 | 架构总览与面试讲法（含三态图例对照） |
 | 02 | PDF 文本层 / 扫描件 / OCR 原理 |
 | 03 | 表格结构语义与稳定性 |
-| 04 | 图片与多模态（含无视觉端点时怎么诚实降级） |
+| 04 | 图片与多模态（含实测记录与离线/失败时怎么诚实降级） |
 | 05 | 升级决策与 90:10 预算闸门 |
 | 06 | 多部门 worker 队列与排队机制 |
 | 07 | 收费 API 契约槽位（全部 `__TBC__`） |

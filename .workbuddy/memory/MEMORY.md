@@ -41,7 +41,7 @@ A/B/C 三档口径与「面试场上不要把 A 档说成 C 档」的诚实边�
 ## 2026-11-14 本轮新增硬约束（改动时别破）
 
 - **组织口径（用户新指令，覆盖历史表述）**：单组织 + 多用户多部门，**暂不实现多租户，多租户仅作为未来研发方向写入文档**。本轮只把 `webapp/` 的**成本 / 限流统计维度**从 `tenant` 对齐为 `department`（物理列名 `department_id`、维度名 `department`、`?dim=department_id`）；**不给 webapp 增加部门级权限**。`backend/` 的 `tenant_id` / `TenantRepository` 保留为历史命名技术债，`docs/org-model-change-plan.md` 的 13 步仍是「方案已定、代码尚未改造」。
-- **LLM 低思考 / 快速档**：`.env` 本来就是 `discovery:deepseek-v4.1-flash-1017`。新增 `WEBAPP_LLM_THINKING=disabled|enabled`（`WEBAPP_` 前缀隔离），沿用 backend 既有 `thinking: {"type":"disabled"}` 字段，**不另造 `reasoning_effort`**。`settings.thinking_disabled()` 管「是否低思考」、`providers.thinking_fields(disabled=...)` 管「发什么字段」，三条请求路径共用。`get_model_label()` **不改**（有测试断言），档位用 `get_thinking_mode()`。**网关是否识别该字段未实测**，代码只报告「请求带了什么」与 `low_thinking_evidence`，不宣称生效。
+- **LLM 低思考 / 快速档**：`.env` 本来就是 `discovery:deepseek-v4.1-flash-1017`。新增 `WEBAPP_LLM_THINKING=disabled|enabled`（`WEBAPP_` 前缀隔离），沿用 backend 既有 `thinking: {"type":"disabled"}` 字段，**不另造 `reasoning_effort`**。`settings.thinking_disabled()` 管「是否低思考」、`providers.thinking_fields(disabled=...)` 管「发什么字段」，三条请求路径共用。`get_model_label()` **不改**（有测试断言），档位用 `get_thinking_mode()`。**2026-11-14 参数对照实测确认生效**：基线 979ms/`reasoning_tokens=55`，`thinking=disabled` 467ms/0，而元数据里的布尔 `reasoning` 参数（false/true）实测均无效。换其它网关必须重新验证。
 - **限流三维**：`RATE_DIMENSIONS = ("user","endpoint","model")`，`rate_check(..., department=...)` 的 department **不参与计数**、不产生按部门 429。统一 429 契约在 `webapp/main.py`（`RATE_CODES` + `code/kind/message/trace_id/policy` + `X-RateLimit-Code` / `X-Trace-Id`），前端 `app.js api()` 有独立 429 分支区分 quota / rate。预算耗尽仍是 HTTP 200 + `{ok:false}`；`backend` 的 `QUOTA_EXCEEDED→413` 本轮不动。
 - **`usage_events.department_id` 的索引绝对不能写进 `SCHEMA`**（本轮实测复现）：旧库执行 `executescript(SCHEMA)` 时还没有该列，`CREATE INDEX ... (department_id)` 会先抛 `no such column`，导致整个脚本失败、迁移跑不到。索引由 `_migrate_tenant_to_department()` 末尾幂等创建；该函数用 `r[1]` 取 `PRAGMA table_info` 列名，不依赖 `row_factory`。三态（全新库 / tenant 旧库 / 半迁移态）由 `webapp/tests/test_department_migration.py` 锁定。
 - 静态资源版本已升 **`?v=12`**（`index.html` 四处）；`i18n.js` 仍按「中文原文即 key」成对同步中文 key 与英文值、删旧 key，工作区**依然没有 `gen_dict.py`**。
@@ -52,8 +52,8 @@ A/B/C 三档口径与「面试场上不要把 A 档说成 C 档」的诚实边�
 ## 2026-11-14 追加：解析子系统与通用规约（改动时别破）
 
 - **`parsing/` 是独立纯函数包**（项目根），只负责「原始字节 → 结构化文本」，不碰下游 `ChunkSpec` / chunks 表 / Milvus schema / citation 契约。换 OCR / 视觉供应商只改 `parsing/strategies/` 里一个策略类。入口 `parsing/README.md`。
-- **三级策略状态**：P0 `local` 已实现（零外部依赖）；P1 `ocr_api` 只设计（适配器 + `__TBC__` 契约，`available()=False`）；P2 `multimodal` 的 `image_url` + base64 data URI 请求构造已实现，但**端点待补**，未配置时 `structured_fallback()` 只输出「图片结构事实」并明确标**非视觉理解**，绝不编造图片内容。
-- **Discovery 网关 `/models` 实查 10 个模型全部纯文本、无视觉模型**（2026-11-14）。任何「已跑通视觉理解」的表述都是失真。待补端点清单 `docs/parsing/07-api-contracts.md`，键为 `PARSING_OCR_*` / `PARSING_VISION_*`。
+- **三级策略状态（2026-11-14 实测后）**：P0 `local` 已实现（零外部依赖）；P1 `ocr_api` 只设计（适配器 + `__TBC__` 契约，`available()=False`）；**P2 `multimodal` 已接通并实测跑通**，默认回退 `DISCOVERY_*` 网关的 `deepseek-v4.1-flash-1017`。`structured_fallback()` 只在 `PARSING_OFFLINE=1` 或调用失败时启用，输出「图片结构事实」并标**非视觉理解**，绝不编造图片内容。单测通过 `PARSING_OFFLINE=1` 保证零模型流量。
+- **重要纠错**：此前「Discovery 网关 10 个模型全为纯文本、无视觉模型」是**错的**，只看了模型名没读 `input_modalities`。实查 10 个模型里 **6 个支持 image**（Agents-A1 / Sage-A1.5 / deepseek-v4.1-flash-1017 / intern-s2 / kimi-k3.1-pro / qwen3.8-27b）；双图对照传图实测精确命中数字/背景色/标签，完整解析链路 `vision_applied / degraded=None`。**能力判定必须用结构化元数据 + 实测，不能用命名启发式**（已写入 HARNESS Y16/Y20）。复跑 `python -m parsing.vision_probe`。
 - **90:10 是上限 / 熔断线，不是随机分流**：正常文档 0% 触发；质量门禁按 `QualitySignals`（零字符 / 无文本层 / 置信度 < 0.75 / 表格检查未全过）确定性升级；`VisionBudget.slots = max(1, ceil(页数 × 0.10))`；超预算显式标 `escalation_budget_exceeded` 并回退。阈值是演示经验起始值，非压测结论。
 - **降级必须保留本级正文**（`router._merge_fallback()`）；空文本页不能套用「图片结构事实」模板（`structured_fallback(is_image=False)`）。
 - **索引不能写进 `SCHEMA`**：旧库执行 `executescript(SCHEMA)` 时新列还不存在，`CREATE INDEX` 会先抛 `no such column` 导致迁移跑不到。索引一律在迁移函数末尾幂等创建。迁移函数用 `r[1]` 取 `PRAGMA table_info` 列名，不依赖 `row_factory`。

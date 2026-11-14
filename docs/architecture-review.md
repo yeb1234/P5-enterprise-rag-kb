@@ -181,7 +181,7 @@ flowchart TB
 | 项 | 范围 | 状态 |
 |---|---|---|
 | A：成本 / 限流统计维度 `tenant → department` | `webapp/observability.py`、`webapp/main.py`、`webapp/db.py`、`webapp/routers_evaltest.py`、`webapp/tests/`、前端展示文案 | **已实现**（最终回填；含幂等迁移与三态回归；限流按三维收敛） |
-| B：LLM「低思考 / 快速」档 | `webapp/settings.py`、`webapp/providers.py`、设置页、`.env.example`；默认 `deepseek-v4.1-flash-1017`（Discovery 网关） | **已实现**（最终回填；11 项单测锁定；网关是否识别 `thinking` 字段未实测，如实标注） |
+| B：LLM「低思考 / 快速」档 | `webapp/settings.py`、`webapp/providers.py`、设置页、`.env.example`；默认 `deepseek-v4.1-flash-1017`（Discovery 网关） | **已实现**（最终回填；11 项单测锁定；2026-11-14 网关参数对照实测确认 `thinking=disabled` 生效，`reasoning` 布尔参数无效） |
 | 两份交付文档 | `docs/architecture-review.md`、`docs/change-manifest.md` | 已实现（本轮新增） |
 | 并行产出文档 | 见 `docs/change-manifest.md` §7 | **已实现**：11 份 Markdown 全部落盘 + `interview/index.html` 独立演示页（主理人接管了其中两份的落盘） |
 | 明确不动 | `eval/`、`demo/`、`evalbench/`、`docs/CHANGELOG.md`、`docs/evaluation-plan.md` 的 `__TBC__` 行、backend 的 `tenant_id` 数据模型与 `0001_initial.py` | 已实现（现状保留）/ 明确不动，本轮零 diff |

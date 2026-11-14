@@ -15,7 +15,7 @@
 | `parsing/contracts.py` | 数据契约：`QualitySignals` / `ParseResult` / `ParseTrace` | 「怎么保证换供应商不改下游？」 |
 | `parsing/strategies/` | 三个策略实现，`base.py` 是抽象，`local.py` 能跑，`ocr_api.py` / `multimodal.py` 是契约+降级 | 「自研版具体做了什么？」 |
 | `parsing/tables.py` | 表格结构语义：cells 带行列坐标/类型/单位 + 5 项稳定性检查 | 「表格为什么会读错？」 |
-| `parsing/images.py` | 图片容器头 + 字节熵 + OpenAI 兼容传图请求构造 | 「没有视觉模型时怎么办？」 |
+| `parsing/images.py` | 图片容器头 + 字节熵 + 已实测跑通的 OpenAI 兼容传图请求构造 | 「多模态这层怎么证明是真的？」 |
 | `parsing/config.py` | `PARSING_` 前缀开关与阈值，含命名空间隔离说明 | 「阈值怎么调？」 |
 | `parsing/server.py` + `Dockerfile.parse` | 独立可运行的解析服务镜像 | 「怎么单独扩容这一层？」 |
 | `parsing/tests/` | 18 项离线单测，零外部调用 | 「怎么证明不是嘴上说？」 |
@@ -58,7 +58,7 @@
 > 主链路是纯标准库自研：PDF 文本层逐页提取、图片容器头与字节熵、表格还原成带行列坐标和单位的结构化 cells，还带 5 项稳定性检查。每一页产出可复算的质量信号，只有判到「零字符 / 无文本层 / 置信度不足 / 表格结构不自洽」才逐级升级。最贵的多模态层有 10% 的页数熔断线——注意这是**上限**不是随机分流，正常文档 0% 触发，超了就显式留痕并回退，不静默失败。下游 `ChunkSpec` 契约完全不动，换任何一家供应商只改一个策略类。
 
 **诚实边界（30 秒）**
-> 当前手上只有纯文本 LLM：网关 `/models` 实查 10 个模型全部没有视觉能力，也没接收费 OCR。所以后两层是**契约已就绪、端点待补**，传图请求构造是真实代码但一次都没发出去过；未接通时会输出「图片结构事实」并明确标注不是视觉理解。我不把设计说成落地——降级路径本身就是可讲的技术深度。要补的端点清单在 `docs/parsing/07-api-contracts.md`。
+> 网关 `/models` 的 `input_modalities` 显示 10 个模型里 **6 个支持 image**，我用双图对照实测跑通了 P2：浅蓝 `73492`/`CODE-A` 与浅黄 `18620`/`CODE-B` 两张图都被精确识别、两次回答不同，完整解析链路得到 `vision_applied / degraded=None`。P1 收费 OCR 仍未接通、字段保持 `__TBC__`；`PARSING_OFFLINE=1` 可一键全离线，此时只输出「图片结构事实」并明确标注不是视觉理解。这是**功能连通性实测，不是质量基线**——不把能连通说成具备生产级视觉质量。详见 `docs/parsing/07-api-contracts.md`。
 
 ---
 
@@ -87,12 +87,13 @@ curl http://127.0.0.1:8766/health/live
 
 | 优先级 | 缺什么 | 补了之后 |
 |---|---|---|
-| 1 | 一个支持 `image_url` 的**视觉模型端点**（base_url / key / model） | P2 从「结构化降级」变成真·传图兜底 |
-| 2 | 一个 **OCR / 版面解析服务**（base_url / key / 可选 model） | 无字 PDF / 扫描件 / 复杂表格链路闭环 |
-| 3 | 上述服务的**配额与价格说明** | 把 90:10 从经验起始值校准成有依据的阈值 |
-| 4 | 真实语料（扫描 PDF、合并单元格表、纯图页各 5–10 份） | 阈值可复现、轨迹有说服力 |
+| — | ~~支持 `image_url` 的视觉端点~~ | **已不需要**：P2 复用现有 `DISCOVERY_*` 网关，双图对照实测跑通 |
+| 1 | 一个 **OCR / 版面解析服务**（base_url / key / 可选 model） | 无字 PDF / 扫描件 / 复杂表格链路闭环 |
+| 2 | 上述服务的**配额与价格说明** | 把 90:10 从经验起始值校准成有依据的阈值 |
+| 3 | 真实语料（扫描 PDF、合并单元格表、纯图页各 5–10 份） | 阈值可复现、轨迹有说服力 |
+| 4 | 视觉端**质量评测集**（版式、手写、低分辨率） | 把「能连通」升级为「准确率有数据」 |
 
-填入 `.env` 的 `PARSING_*` 键即可点亮，接口字段保持 `__TBC__` 直到拿到可核实的契约文档。
+P2 已无需额外凭证；`PARSING_VISION_*` 留空即走回退。P1 接口字段保持 `__TBC__`，填入 `.env` 的 `PARSING_OCR_*` 后按 `docs/parsing/07-api-contracts.md` §6 接入。流量不足时用 `PARSING_OFFLINE=1` 一键全离线。
 
 ---
 
@@ -100,7 +101,7 @@ curl http://127.0.0.1:8766/health/live
 
 | 项 | 结果 |
 |---|---|
-| `pytest webapp/tests parsing/tests` | **92 passed**（webapp 74 + parsing 18，含解析 API 8 项） |
+| `pytest webapp/tests parsing/tests` | **96 passed**（webapp 74 + parsing 22，含解析 API 8 项；P2 接通后新增 4 项） |
 | `backend / eval / evalbench / demo` | 16 passed / 14 OK / 16 OK / 16 与 16（run_id 未变） |
 | `python webapp/selftest.py` | 33/33 `DEMO_READY`（隔离库 + 离线 provider 补跑，原报告按字节还原） |
 | `node --check` ×3 + `npm run build` | 通过 |

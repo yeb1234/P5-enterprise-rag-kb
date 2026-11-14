@@ -405,7 +405,7 @@ footer .fine{border-top:1px solid var(--border);padding-top:16px;line-height:1.8
       <div class="card rise" style="--d:.38s"><div class="n">10 / 轨迹</div>
         <h3>90:10 是熔断线，不是随机分流</h3>
         <p>最贵链路最多占 10% 的页，正常文档 <b>0% 触发</b>；超预算显式标 <code>escalation_budget_exceeded</code> 并回退。每页轨迹给出级别、置信度、耗时、升级原因、预算拦截与降级标记——把黑盒决策变成能指给人看的表。</p>
-        <span class="chip">P1/P2 契约已就绪 · 端点待补</span></div>
+        <span class="chip">P2 已实测跑通 · P1 待接通</span></div>
     </div>
   </div>
 </section>
@@ -574,8 +574,9 @@ footer .fine{border-top:1px solid var(--border);padding-top:16px;line-height:1.8
       <b>2026-11-14 本轮新增能力</b>：DeepSeek V4.1 Flash <b>低思考 / 快速档</b>（设置页可切）、成本与限流统计维度 <code>tenant → department</code>、
       <b>统一 429 错误契约</b>（业务错误码 + <code>code/kind/trace_id</code>，前端区分 quota / rate 两类）、
       <b>可插拔文档解析策略</b>（自研 / OCR API / 多模态兜底三级，质量门禁 + 90:10 预算闸门）。
-      当前网关 <code>/models</code> 实查 10 个模型<b>全部为纯文本、没有视觉模型</b>，多模态兜底是「传图请求构造 + 未配置时结构化降级留痕」，
-      <b>不宣称已跑通视觉理解</b>；待补一个视觉端点即可启用，接口细节保持 <code>__TBC__</code>。
+      <b>2026-11-14 实测纠正</b>：网关 <code>/models</code> 的 <code>input_modalities</code> 显示 10 个模型里 <b>6 个支持 image</b>（此前只凭模型名判断「全为纯文本」是错的）。
+      P2 已接通 <code>deepseek-v4.1-flash-1017</code>：两张内容不同的图（浅蓝 73492/CODE-A、浅黄 18620/CODE-B）都被精确识别且回答不同，完整链路 <code>vision_applied / degraded=None</code>。
+      P1 收费 OCR 仍未接通、字段保持 <code>__TBC__</code>；<code>PARSING_OFFLINE=1</code> 可一键全离线。这是<b>功能连通性实测，不是质量基线</b>。
     </p>
 
     <div class="tbl-wrap rise" style="--d:.12s;margin-top:16px">
@@ -726,11 +727,12 @@ footer .fine{border-top:1px solid var(--border);padding-top:16px;line-height:1.8
       </details>
 
       <details class="rise" style="--d:.38s">
-        <summary>文档解析为什么分三层？90:10 是怎么定的？没有视觉模型怎么办？</summary>
+        <summary>文档解析为什么分三层？90:10 是怎么定的？多模态这层怎么证明是真的？</summary>
         <div class="ans">
           <p><b>三层</b>：P0 自研（纯标准库 + 可选 pypdf/Pillow）处理有文本层 PDF、纯文本、图片容器头与表格结构；P1 收费 OCR / 版面解析处理扫描件与复杂表；P2 多模态 LLM 传图处理疑难页。三者实现同一个 <code>ParseStrategy</code> 接口，下游 <code>ChunkSpec(page_no, section_path, block_type, confidence, source_level)</code> 契约完全不动——换供应商只改一个策略类，不用动 chunks 表、Milvus schema 和引用契约。</p>
           <p><b>90:10 不是随机分流</b>。固定比例随机抽样既不能保证疑难页被送到最贵链路，又会让能自研解决的页白付钱。这里的 0.10 是<b>上限 / 熔断线</b>：质量门禁只在本页「零字符 / 无文本层 / 置信度低于 0.75 / 表格检查未全过」时才升级；<code>VisionBudget.slots = max(1, ceil(页数 × 0.10))</code>，20 页就是 2 个名额，用完显式标 <code>escalation_budget_exceeded</code> 并回退上一级结果。正常文档应该是 <b>0% 触发</b>。选 10% 而不是 20% 是因为 P2 最慢最贵，10% 足够覆盖长尾疑难页；阈值是演示默认经验起始值，需用真实语料校准，不是压测结论。</p>
-          <p><b>没有视觉模型怎么办</b>：网关 <code>/models</code> 实查 10 个模型<b>全部纯文本</b>，所以 P2 现在是「OpenAI 兼容 <code>image_url</code> + base64 data URI 请求构造已就绪、端点待补」。未接通时 <code>structured_fallback()</code> 只输出可测事实（格式、尺寸、字节熵、色彩模式），并明确写「<b>非视觉理解、内容未识别</b>」，绝不编造图片内容。降级时还会把 P0 已解析出的正文拼回去，不整页丢掉。</p>
+          <p><b>怎么证明多模态是真的</b>：先读 <code>/models</code> 的 <code>input_modalities</code>（10 个模型里 6 个支持 image），再用 <b>双图对照</b>排除「靠猜或复述提示词」：图 A（浅蓝底/深蓝字 <code>73492</code>/<code>CODE-A</code>）答 "73492 on a light blue background..."，图 B（浅黄底/红字 <code>18620</code>/<code>CODE-B</code>）答 "The image shows the number 18620 in dark red..."，两次回答不同且都精确命中数字、背景色、标签。完整解析链路复跑得到 <code>reason=vision_applied / degraded=None</code>，<code>upstream</code> 里能核对模型名与 token 用量。低思考档 <code>thinking={"type":"disabled"}</code> 也做了参数对照：推理 token 55 → 0、耗时 979 ms → 467 ms，而元数据里的布尔 <code>reasoning</code> 参数实测无效。</p>
+          <p><b>边界</b>：这是功能连通性实测，不是准确率结论；P1 收费 OCR 仍未接通；<code>PARSING_OFFLINE=1</code> 或调用失败时 <code>structured_fallback()</code> 只输出可测事实并明确标「非视觉理解」，绝不编造图片内容，降级时还会把 P0 正文拼回去不整页丢掉。图片里的精确数字仍应以 OCR 结果为准。</p>
           <p><b>现场怎么看</b>：侧栏「解析实验室」上传同一份文件、切换 <code>auto / local_only / multimodal / off</code>，逐页轨迹表会并排显示级别、置信度、耗时、升级自、预算拦截与原因。这是把技术深度讲清楚的关键证据。待补端点清单在 <code>docs/parsing/07-api-contracts.md</code>。</p>
         </div>
       </details>

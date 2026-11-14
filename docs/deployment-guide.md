@@ -516,13 +516,13 @@ curl http://127.0.0.1:8766/health/live
 | 资源 | `mem_limit: 512m` / `cpus: 0.5` | 与既有 `x-logging` 锚点、restart 策略一致 |
 | 配置 | `PARSING_*` 从 `.env` 注入 | 密钥不进源码、不进镜像、不下发前端 |
 
-### 8.2 未接通的两层与上线前置
+### 8.2 P1 未接通 / P2 已接通与上线前置
 
-`parser` 服务**当前不会发起任何外部请求**：P1 收费 OCR 与 P2 多模态端点的 `PARSING_OCR_*` / `PARSING_VISION_*` 在 `.env.example` 里全部留空，`available()` 返回 `False`，路由器降级并标 `degraded`。契约槽位全为 `__TBC__`，见 `docs/parsing/07-api-contracts.md`。
+`parser` 服务的 **P2 会真实发起视觉调用**：2026-11-14 实测网关 `/models` 的 `input_modalities` 显示 10 个模型中 6 个支持 image，P2 默认回退到 `DISCOVERY_*`（compose 已注入），双图对照传图实测通过。**P1 收费 OCR 仍未接通**，`PARSING_OCR_*` 留空时 `available()` 返回 `False` 并降级留痕，契约槽位保持 `__TBC__`。`PARSING_OFFLINE=1` 可让两层全部跳过、零外部请求（单测即如此）。见 `docs/parsing/07-api-contracts.md`。
 
-补端点后上线前必须补的四件事（当前**未做**，不要写成已完成）：
+P2 虽已接通，但**上线前仍必须补**以下四件事（当前未做，不要写成已完成）：
 1. 给 `/parse/*` 加鉴权与速率限制（现在只绑本地回环，靠网络边界保护）；
-2. 确认外部服务的配额、超时与重试语义，接入 `VisionBudget` 的真实成本口径；
+2. 确认视觉与 OCR 服务的配额、超时与重试语义，把 `VisionBudget` 从页数上限升级为真实成本口径；
 3. 把 8 MiB 探测上限换成流式落盘 + 按页范围处理（与 `backend/app/tasks/ingest.py` 对齐）；
 4. 补 TLS 终止与反向代理配置；若要从其它主机访问，改端口绑定前先做鉴权。
 

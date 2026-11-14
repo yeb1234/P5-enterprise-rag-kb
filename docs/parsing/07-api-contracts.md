@@ -1,43 +1,75 @@
-# 07 · 收费 API 契约槽位与待补端点清单
+# 07 · 外部服务契约、实测记录与仍需补齐的清单
 
-> **本文件不填写任何真实接口地址、鉴权方式、请求/响应结构、配额、错误码、模型版本或价格。**
-> 这些字段一律 `__TBC__`，不得推断填写——这是项目既有纪律（`eval/` 冻结对象的 `__TBC__` / `NOT_COMPARABLE` / `real_api` 阻断口径不变）。
-> 当前状态：**未接入任何收费 OCR 或视觉服务**，`OcrApiStrategy.available()` / `MultimodalStrategy.available()` 均返回 `False`。
-
----
-
-## 1. 为什么先把契约空着
-
-没有凭证时，写一个「看起来能跑」的假成功返回，会污染两件事：
-
-1. **质量结论**：解析轨迹里会出现「P1 已处理」但实际是占位文本，后续任何检索/评估结论都建立在假数据上。
-2. **面试可信度**：考官一问「这家 API 的限流是多少、返回坐标是什么格式」，编造的字段立刻站不住。
-
-所以适配器的正确形态是：**接口形状固定 → 可用性检查诚实 → 未配置时降级留痕 → 接入时只改一个 `_call()`**。
+> **不编造原则**：真实接口地址、鉴权值、请求/响应结构、配额、错误码、价格一律
+> 以实测或官方契约为准；未核实的字段保持 `__TBC__`。`eval/` 冻结对象的
+> `__TBC__` / `NOT_COMPARABLE` / `real_api` 阻断口径不变、不绕过。
+>
+> **2026-11-14 状态**：P2 多模态**已接通并实测跑通**（复用现有 Discovery 网关）；
+> P1 收费 OCR **仍未接通**，契约字段全部 `__TBC__`。
 
 ---
 
-## 2. 能力类别（公开能力划分，不涉及具体厂商接口）
+## 1. 一次误判的纠正（留痕，别再凭名字下结论）
 
-| 类别 | 解决什么 | 本系统对应层级 | 典型输出 |
-|---|---|---|---|
-| 通用文字 OCR | 扫描件 / 图片里的印刷体文字 | P1 | 文本 + 文本框坐标 + 置信度 |
-| 版面解析 / 文档结构化 | 阅读顺序、标题层级、栏布局、图表区域 | P1 | 区块树 + 坐标 + 阅读顺序 |
-| 表格还原 | 无边框表、合并单元格、跨页表 | P1（也可能由 P2 承担） | 行列结构 + 单元格坐标 |
-| 公式 / 手写 / 票据专项 | 公式、手写体、固定版式单据 | P1 专项 | 领域结构化结果 |
-| 多模态视觉理解 | 图表语义、流程图、图片内容描述 | P2 | 受提示词约束的自然语言 + 结构化字段 |
+此前我只取了 `/models` 返回里的 `id`（模型名），看到没有 `vl` / `vision` 字样就判定
+「10 个模型全为纯文本、没有视觉模型」。**这是错的**：每个模型对象其实带
+`input_modalities` 字段。完整读取后：
 
-选型时要问的四个问题（不写具体厂商结论，避免过时）：
-1. 是否支持**批量 / 异步**回调，还是只能单页同步？（影响大文件排队设计）
-2. 是否返回**坐标**？坐标是像素、归一化还是页面点？（影响引用回溯）
-3. 是否给**置信度**？能否按页/按块？（直接决定质量门禁能不能接）
-4. 计费单位是页、字符还是调用次数？是否区分表格/公式？（决定 90:10 是否够用）
+| 输入能力 | 模型 |
+|---|---|
+| 支持 `image`（6 个） | `Agents-A1`、`Sage-A1.5`、`deepseek-v4.1-flash-1017`、`intern-s2`、`kimi-k3.1-pro`、`qwen3.8-27b` |
+| 仅 `text`（4 个） | `Atria-Dawn`、`Atria-Dawn-Preview`、`Sage-A1.5-Taiyi`、`glm-5.3` |
+
+目标模型 `deepseek-v4.1-flash-1017` 的 image 项写明
+`supported_inputs.sources.values = ["url", "base64"]`，`is_ready: true`、`status: active`；
+输出模态 `text` 的 `supported_parameters` 里列了 `max_tokens` / `temperature` /
+`reasoning` / `tools` / `stop` / `structured_outputs` / `top_p`。
+
+复跑命令（只读元数据，不发图片、不消耗生成 token）：
+
+```bash
+python -m parsing.vision_probe
+```
+
+**教训已写进 `docs/HARNESS.md`（Y16 / Y20）**：报「有问题」或「全绿」之前先证伪自己；
+能力判定要用结构化元数据与实测，不能用命名启发式。
 
 ---
 
-## 3. 契约槽位（全部 `__TBC__`）
+## 2. P2 多模态：已核实的契约（不再是 `__TBC__`）
 
-### 3.1 P1 OCR / 版面解析
+| 字段 | 值 | 依据 |
+|---|---|---|
+| 端点 | `DISCOVERY_BASE_URL` 的 `/chat/completions`（值在 `.env`，不落代码） | 2026-11-14 实测 HTTP 200 |
+| 鉴权 | `Bearer DISCOVERY_API_KEY`（值在 `.env`，不下发前端） | 同上 |
+| 请求结构 | OpenAI 兼容 `messages[].content` = `text` + `image_url`，图片用 `data:image/png;base64,...` | 实测通过 |
+| 图片来源 | `url` / `base64` | `/models` 的 `input_modalities` |
+| 模型 | `deepseek-v4.1-flash-1017` | `/models` 实查 `active` |
+| 响应结构 | `choices[0].message.content` + `usage`（含 `completion_tokens_details.reasoning_tokens`） | 实测解析成功 |
+| 低思考 | `thinking={"type":"disabled"}` | 实测 `reasoning_tokens` 55 → 0、耗时 979 ms → 467 ms |
+| 无效参数 | 布尔 `reasoning`（元数据里列为 `boolean`） | 实测 `reasoning=false` 仍 `reasoning_tokens=55`（3413 ms），`reasoning=true` 同基线 |
+| 配额 / 错误码 / 价格 | `__TBC__` | 未核实，不推断 |
+
+### 2.1 双图对照实测（排除「靠猜 / 复述提示词」）
+
+固定 `temperature=0`、`max_tokens=256`，同一提问、两张内容不同的图：
+
+| 图 | 实际内容 | 模型回答 | 耗时 | token |
+|---|---|---|---|---|
+| A | 浅蓝底 / 深蓝字 `73492` / 标签 `CODE-A` | "73492 on a light blue background with the label 'CODE-A' below." | 1406 ms | 357 |
+| B | 浅黄底 / 红字 `18620` / 标签 `CODE-B` | "The image shows the number 18620 in dark red on a pale yellow background, with the label 'CODE-B' below it." | 2463 ms | 433 |
+
+两次回答不同且都精确命中数字、背景色、标签 → 真·视觉理解。
+再用 `ParseRouter.parse_document()` 走完整链路：
+`reason=vision_applied`、`degraded=None`、1403 ms，回答含 `73492` 与颜色判断。
+
+**判定边界**：这是**功能连通性实测，不是质量基线**。未做真实语料集评测、
+未测分辨率/版式鲁棒性、未做成本压测；视觉回答适合版面与图表语义，
+**图片里的精确数字与文字仍应以 P1 OCR 结果为准**，不要让视觉模型复述关键数值。
+
+---
+
+## 3. P1 收费 OCR / 版面解析：契约仍全部 `__TBC__`
 
 | 字段 | 值 |
 |---|---|
@@ -51,73 +83,67 @@
 | 模型 / 能力版本号 | `__TBC__` |
 | 价格与计费单位 | `__TBC__` |
 
-代码落点：`parsing/strategies/ocr_api.py` 的 `contract()` 返回同样的槽位；`_call()` 是唯一的真实调用点，当前**故意抛 `StrategyUnavailable`**。
+代码落点 `parsing/strategies/ocr_api.py`：`contract()` 返回同样槽位，
+`_call()` 是当前唯一真实调用点，**故意抛 `StrategyUnavailable`**——
+没有凭证就写一个假成功返回，会污染解析轨迹与后续所有检索结论。
 
-### 3.2 P2 多模态 LLM
-
-| 字段 | 值 |
-|---|---|
-| 接口地址 / endpoint | `__TBC__` |
-| 鉴权方式 | `__TBC__` |
-| 请求结构 | **已确定**：OpenAI 兼容 `messages[].content`，`type=text` + `type=image_url`（`data:<mime>;base64,<b64>`） |
-| 响应结构 / 字段映射 | `__TBC__` |
-| 配额 / 限流 / 图片分辨率与 token 约束 | `__TBC__` |
-| 错误码与重试语义 | `__TBC__` |
-| 模型名 / 版本 | `__TBC__` |
-| 价格 | `__TBC__` |
-
-请求构造已经是**真实代码**：`parsing/images.py::vision_message()` 与 `MultimodalStrategy.build_request()`；`MultimodalStrategy.parse()` 里也写好了标准库 `urllib` 的 POST 骨架。补端点后只需确认响应字段映射，不用改路由器。
+能力类别（公开划分，不涉及具体厂商接口）：通用文字 OCR / 版面解析 /
+表格还原 / 公式与手写专项。选型时要问清四件事：是否支持批量异步、
+是否返回坐标及坐标格式、是否给逐块置信度、计费单位是什么。
 
 ---
 
-## 4. 需要补什么（给项目所有者的一页清单）
+## 4. 现在还需要补什么
 
-按优先级，补齐即可逐层点亮：
-
-| # | 需要的东西 | 用途 | 点亮后能演示什么 |
+| # | 需要的东西 | 用途 | 状态 |
 |---|---|---|---|
-| 1 | 一个**支持 `image_url` 的视觉模型端点**（base_url / api_key / model） | P2 多模态兜底 | 真·传图解析、图表语义、疑难页兜底成功 |
-| 2 | 一个**OCR / 版面解析服务**（base_url / api_key / 可选 model） | P1 | 无字 PDF / 扫描件出正文、表格结构还原 |
-| 3 | 上述服务的**配额与价格说明** | 校准 90:10 与预算闸门 | 把「经验起始值」变成有依据的阈值 |
-| 4 | 一批**真实语料**（扫描 PDF、含合并单元格的表、纯图页各 5–10 份） | 质量门禁校准 | 把阈值从演示值调成可复现基线 |
+| — | 支持 `image_url` 的视觉端点 | P2 多模态兜底 | **不再需要**：已复用现有网关并实测跑通 |
+| 1 | 一个 **OCR / 版面解析服务**（base_url / key / 可选 model） | 无字 PDF、扫描件、复杂表格出正文与坐标 | 待补 |
+| 2 | 上述服务的**配额与价格说明** | 校准 90:10 与预算闸门 | 待补 |
+| 3 | **真实语料**（扫描 PDF、含合并单元格的表、纯图页各 5–10 份） | 质量门禁阈值从演示值调成可复现基线 | 待补 |
+| 4 | 视觉端的**质量评测集**（版式、手写、低分辨率） | 把「能连通」升级为「准确率有数据」 | 未做，属 A/B 档 |
 
-当前手上已有的能力（实查）：
-- `deepseek-v4.1-flash-1017`（Discovery 网关，纯文本，低思考快速档已配好）；
-- `BAAI/bge-m3` 嵌入、`BAAI/bge-reranker-v2-m3` 重排（硅基流动）；
-- Discovery `/models` 实查 10 个模型，**全部纯文本，无视觉模型**。
-
-所以：只补 **#1** 就能让 P2 从「结构化降级」变成「真·视觉兜底」；只补 **#2** 就能让扫描件链路闭环；两者都没有也不影响演示——降级路径本身就是可讲的技术深度。
+当前已有能力：`deepseek-v4.1-flash-1017`（纯文本 + 图像输入，低思考档已配）、
+`BAAI/bge-m3` 嵌入、`BAAI/bge-reranker-v2-m3` 重排。
 
 ---
 
-## 5. 环境变量（`.env.example` 已有占位，全部留空）
+## 5. 环境变量（`.env.example` 有完整注释）
 
 ```
-PARSING_OCR_BASE_URL=
-PARSING_OCR_API_KEY=
-PARSING_OCR_MODEL=
+# P2：留空即回退到 DISCOVERY_*，无需额外凭证
 PARSING_VISION_BASE_URL=
 PARSING_VISION_API_KEY=
 PARSING_VISION_MODEL=
-PARSING_DISCOVERY_AS_VISION=false
+PARSING_VISION_ENABLED=1
+PARSING_VISION_LOW_THINKING=1
+PARSING_VISION_TIMEOUT_S=60
+# 一键全离线：P1/P2 全部跳过、零外部请求
+PARSING_OFFLINE=0
+# P1：仍未接通
+PARSING_OCR_BASE_URL=
+PARSING_OCR_API_KEY=
+PARSING_OCR_MODEL=
 ```
 
-密钥只进 `.env`（已 gitignore），不进源码、不进镜像、不下发前端。compose 的 `parser` 服务通过 `environment` 注入，未配置时自动判定不可用。
+密钥只进 `.env`（已 gitignore），不进源码、不进镜像、不下发前端。
+compose 的 `parser` 服务通过 `environment` 注入 `DISCOVERY_*` 与 `PARSING_*`。
 
 ---
 
-## 6. 接入顺序（补到端点后）
+## 6. 补 P1 端点时的接入顺序
 
-1. 在 `.env` 填对应键 → `available()` 变 `True`，前端三级可用性卡立刻从「未接通」变「可用」。
-2. 按真实响应实现 `OcrApiStrategy._call()` / 确认 `MultimodalStrategy.parse()` 的字段映射。
-3. 补一份**带脱敏响应样本**的契约文档，把本文对应的 `__TBC__` 槽位替换掉（**只改本文，不回改 `eval/` 冻结对象**）。
-4. 用真实语料跑一遍解析轨迹，按命中率调整 `PARSING_CONFIDENCE_MIN` / `PARSING_OCR_TEXT_CHARS_MIN` / `PARSING_VISION_ESCALATION_RATIO`，把调整前后对照写进 `docs/CHANGELOG.md` 新增条目。
-5. 补单测：mock 外部响应，断言 `available=True` 时轨迹里 `level=ocr_api` 或 `multimodal` 且 `degraded=None`。
+1. 在 `.env` 填 `PARSING_OCR_*` → `available()` 变 `True`，前端三级可用性卡从「未接通」变「可用」。
+2. 按真实响应实现 `OcrApiStrategy._call()`，把文本 / 坐标 / 置信度映射成统一的 `ParseResult`。
+3. 补一份**带脱敏响应样本**的契约文档，替换本文 §3 对应的 `__TBC__` 槽位（只改本文，不回改 `eval/` 冻结对象）。
+4. 用真实语料跑解析轨迹，按命中率调整 `PARSING_CONFIDENCE_MIN` / `PARSING_OCR_TEXT_CHARS_MIN` / `PARSING_VISION_ESCALATION_RATIO`，把调整前后对照写进 `docs/CHANGELOG.md` 新增条目。
+5. 补单测：mock 外部响应，断言 `level=ocr_api` 且 `degraded=None`；`PARSING_OFFLINE=1` 时断言零请求。
 
 ---
 
 ## 7. 诚实边界
 
-- 本文件**不是**厂商调研报告，不含推荐排名、不含价格、不含接口 URL；这些信息会过时，且当前无凭证无法核实。
-- 「请求结构已确定」仅指 OpenAI 兼容的 `image_url` 消息形状是本项目自己代码里写死的，不代表任何具体网关已确认支持。
-- 未接通前，解析轨迹里出现的 `ocr_api` / `multimodal` 级别一律伴随 `degraded` 标记，不得对外表述为「已跑通 OCR / 视觉理解」。
+- P2 的实测只覆盖**两张自造的清晰图片**，不是准确率结论；未做真实语料评测、未做压测、未测失败与限流语义。
+- 「请求结构已确定」指项目代码里写死的 OpenAI 兼容形状在本网关实测通过，不代表任意第三方网关都支持；换端点时请用 `PARSING_VISION_LOW_THINKING=0` 去掉私有的 `thinking` 字段再验证。
+- P1 没有任何凭证，全部字段 `__TBC__`；解析轨迹里出现 `ocr_api` 级别时必然伴随 `degraded` 标记，不得对外表述为「已跑通 OCR」。
+- 收费与配额数字一律不推断填写；`eval/` 冻结对象的阻断口径不受本文件影响。

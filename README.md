@@ -37,8 +37,9 @@ React + FastAPI + PostgreSQL + Milvus + Redis/Celery + 外部 DeepSeek 的**可�
 > 质量门禁决定逐页升级、预算闸门把最贵链路限制在 10% 的页（上限/熔断线，非随机分流），
 > 每页留下可核对的解析轨迹。原理资料 `docs/parsing/01–07`，交付话术 `docs/PARSING-DELIVERY.md`，
 > 待补 API 清单 `docs/parsing/07-api-contracts.md`。
-> **已实查：Discovery 网关 10 个模型全为纯文本、没有视觉模型**；P1/P2 当前是「契约已就绪、端点待补」，
-> 未接通时优雅降级并标 `degraded`，不宣称已跑通 OCR 或视觉理解。
+> **2026-11-14 实测纠正**：网关 `/models` 的 `input_modalities` 显示 10 个模型中 **6 个支持 image**，
+> P2 多模态已接通 `deepseek-v4.1-flash-1017` 并经双图对照实测跑通；P1 收费 OCR 仍未接通、字段保持 `__TBC__`。
+> `PARSING_OFFLINE=1` 可一键全离线，未接通或失败时优雅降级并标 `degraded`。见 `docs/parsing/07-api-contracts.md`。
 > 独立解析服务：`docker compose --profile parsing up -d --build parser`（默认 11 服务不受影响）。
 >
 > **通用开发规约（可复制到别的项目）**：`docs/HARNESS.md`（YEBSPEC@1.0，Y1–Y22 规则 + 最小文件骨架 + 交付前闸门）。
