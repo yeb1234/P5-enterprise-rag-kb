@@ -74,6 +74,17 @@ A/B/C 三档口径与「面试场上不要把 A 档说成 C 档」的诚实边�
 - 内置合成场景 `DEMO-FRESHNESS-CONFLICT-001`（`knowledge/samples.py`）：6 文档 / 2 冲突簇（`freshness` 需复核、`authority` 不复核）/ 3 负向对照，不写业务库、零外部调用。前端「知识治理」是第 13 个 `data-view`，C33 冻结的仍是 10 具名 view + 6 具名 loader 存在性检查。静态资源当前 **`?v=14`**。
 - 调研/候选/面试/设计见 `docs/knowledge/01–04`，交付话术 `docs/KNOWLEDGE-DELIVERY.md`。本轮提交 `84da4ab`（代码）/ `446d676`（文档）；全量回归 **128 passed** + 33/33 e2e，冻结区零 diff。
 
+## 2026-11-14 追加：缓存与重启稳定性硬约束（改动时别破）
+
+- **`cache/` 是独立纯函数包**：L1 进程内 `OrderedDict` LRU（重启必然清空，属可安全丢弃）+ L2 SQLite `cache_entries` / `runtime_state`（持久化，重启可恢复）。入口 `cache/README.md`。L2 落在与业务库同一个 SQLite 文件，是演示替身，生产对应 PG 真值 + Redis。
+- **缓存 key 13 段**：schema / org / kind / query / embedding / model / top_k / retrieval_mode / rerank / freshness / **authz** / **data_version** / **policy_version**。缺 embedding 模型名 → 余弦静默归零；缺 authz → 跨用户串权限；缺 data_version → 旧答案。`authz_snapshot = sha256(org, role, department_id, sorted(visible_department_ids), grant_version)`。
+- **TTL 不是权限控制**：调用方必须**先按权限过滤再写**；命中后仍用 `key_matches()` 复核三重版本字段。`rag.retrieve()` 主链路**默认不接检索结果缓存**；检索结果缓存只在 `/api/runtime/cache-demo` 演示级使用（避免打断 33 项 e2e）。**答案缓存 / 语义缓存未做**。
+- **懒失效**：文档/授权/策略变化只递增版本（`VersionController.bump_data_version/grant_version/sync_policy_version`），旧 key 自然不命中，不批量删；TTL 到期由 `purge_expired()` 回收。`invalidate_all()` 只用于演练。
+- **重启状态三分类**：可安全丢弃（限流窗口 `_WINDOWS` / 轨迹 deque / SSE 连接）；可从真值重建（`queue._active/_queued`、`documents.status IN ('queued','analyzing')` 幂等重投）；必须持久化（策略、预算、用量、文档、`chunk_embeddings`、`cache_entries`、`runtime_state`）。**真值层先行**：强停（SIGKILL）不执行 lifespan `finally`，`last_shutdown_at` 可能缺失，已在真实重启演练中实证。
+- `webapp/main.py` lifespan 调 `recovery.startup()`（7 项启动自检）与 `shutdown()`。`webapp/recovery.py` 持久化新鲜度 / 解析 / 缓存三套策略到 `runtime_state`，启动恢复。`webapp/routers_docs.py` 上传/删除递增 data_version，且**删文档前先删 `chunk_embeddings`**（源头治理幽灵向量），启动再对账兜底。
+- 前端「缓存与恢复」是第 14 个 `data-view`，C33 冻结的仍是 10 具名 view + 6 具名 loader 存在性检查。静态资源当前 **`?v=15`**。
+- 调研/设计 `docs/cache-recovery/01–02`，交付话术 `docs/CACHE-DELIVERY.md`。本轮真·进程重启演练：隔离库启停两次，healthy=True、boot 1→2、requeued=1、ghost=1、策略 45/0.5 恢复、L2 条目仍在、无 500。全量回归 **154 passed**（webapp 90 + parsing 22 + knowledge 23 + cache 19）。
+
 ## 目录入口
 - 总览与启动：`README.md`
 - 重点方案：`docs/async-upload.md`

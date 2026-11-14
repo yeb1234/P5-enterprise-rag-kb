@@ -416,6 +416,16 @@ footer .fine{border-top:1px solid var(--border);padding-top:16px;line-height:1.8
         <h3>事实冲突：不让模型自己挑</h3>
         <p>片段抽成 claim（保留原文与坐标），按 key 分组、主题门控防误报，冲突图求连通分量后<b>按簇独立裁决</b>：业务权威度 → 生效期（强制需复核）→ 并列转人工。<code>EvidenceRecord.conflict_signal</code> 作为正式状态传给生成层，被淘汰的断言留痕不删除。</p>
         <span class="chip">两份文档打架信谁？标准答法</span></div>
+
+      <div class="card rise" style="--d:.50s"><div class="n">13 / 缓存</div>
+        <h3>双层缓存 + 版本感知失效</h3>
+        <p>L1 内存 LRU（重启清空）+ L2 SQLite（重启可恢复）。缓存 key 有 13 段：查询、模型、embedding、top_k、rerank、<b>授权快照</b>、数据版本、策略版本等；缺哪段就对应一类事故（串权限、串模型、旧答案）。文档 / 授权 / 策略变化只递增版本让旧 key 自然不命中（懒失效），命中时仍复核三重版本字段。</p>
+        <span class="chip">TTL 不是权限控制 · 先过滤后写</span></div>
+
+      <div class="card rise" style="--d:.54s"><div class="n">14 / 重启</div>
+        <h3>重启后状态正常，有报告可查</h3>
+        <p>状态分三类：限流窗口 / 轨迹 deque 可安全丢弃；队列活跃态与未完成任务从 <code>documents.status</code> 真值重建；策略、预算、用量、向量缓存必须持久化。启动跑 7 项自检：孤儿任务幂等重投、幽灵向量对账、过期缓存清理、文档指纹校验。前端可一键模拟重启并查看恢复报告。</p>
+        <span class="chip">真·进程重启演练通过 · 无 500</span></div>
     </div>
   </div>
 </section>
@@ -584,7 +594,8 @@ footer .fine{border-top:1px solid var(--border);padding-top:16px;line-height:1.8
       <b>2026-11-14 本轮新增能力</b>：DeepSeek V4.1 Flash <b>低思考 / 快速档</b>（设置页可切）、成本与限流统计维度 <code>tenant → department</code>、
       <b>统一 429 错误契约</b>（业务错误码 + <code>code/kind/trace_id</code>，前端区分 quota / rate 两类）、
       <b>可插拔文档解析策略</b>（自研 / OCR API / 多模态兜底三级，质量门禁 + 90:10 预算闸门）、
-      <b>知识治理</b>（入库新鲜度：时间衰减 + 适用性门控 + 过期三档；事实冲突检测：claim 级比对 + 冲突图按簇裁决 + 结构化证据记录，前端「知识治理」页可现场改策略看排序翻转与裁决日志）。
+      <b>知识治理</b>（入库新鲜度：时间衰减 + 适用性门控 + 过期三档；事实冲突检测：claim 级比对 + 冲突图按簇裁决 + 结构化证据记录，前端「知识治理」页可现场改策略看排序翻转与裁决日志）、
+      <b>缓存与重启稳定性</b>（L1 内存 LRU + L2 SQLite、13 段缓存 key 含授权快照 / 数据版本 / 策略版本、懒失效、启动 7 项自检：孤儿任务幂等重投 / 幽灵向量对账 / 策略从 <code>runtime_state</code> 恢复；隔离库真·进程重启演练 healthy=True、boot 1→2、无 500）。
       <b>2026-11-14 实测纠正</b>：网关 <code>/models</code> 的 <code>input_modalities</code> 显示 10 个模型里 <b>6 个支持 image</b>（此前只凭模型名判断「全为纯文本」是错的）。
       P2 已接通 <code>deepseek-v4.1-flash-1017</code>：两张内容不同的图（浅蓝 73492/CODE-A、浅黄 18620/CODE-B）都被精确识别且回答不同，完整链路 <code>vision_applied / degraded=None</code>。
       P1 收费 OCR 仍未接通、字段保持 <code>__TBC__</code>；<code>PARSING_OFFLINE=1</code> 可一键全离线。这是<b>功能连通性实测，不是质量基线</b>。
@@ -765,6 +776,26 @@ footer .fine{border-top:1px solid var(--border);padding-top:16px;line-height:1.8
           <p><b>最新 ≠ 适用</b>：年龄优先用 <code>last_verified_at</code>（人工复核）而不是入库时间；<code>valid_from</code> 在未来的文档标「未生效」并排除（不是判过期）；<code>expires_at</code> 已过按 demote / exclude / warn 三档处置；地区、套餐、产品版本放 <code>scope</code>，不同 scope 取值不同是适用性差异、不是冲突。适用性门控是硬约束，<b>不受新鲜度开关影响</b>——开关只关时间衰减。</p>
           <p><b>现场证据</b>：开启新鲜度排序 <code>D2→D4→D3→D1→D6</code>，仅关衰减恢复 <code>D1→D2→D3→D4→D6</code>；D5 未生效被排除，D6 已过期降权但仍在报告里。把过期处置从 demote 改成 exclude，D6 会从候选消失。</p>
           <p><b>边界</b>：真实检索链的重排默认关闭、只在 <code>top_k</code> 内生效，生产应在 SQL / Milvus expr 阶段先做召回前硬过滤；幽灵向量、CDC 近实时增量、跨缓存版本感知失效、金标/金丝雀回归集均未做。</p>
+        </div>
+      </details>
+
+      <details class="rise" style="--d:.47s">
+        <summary>缓存 key 怎么设计？文档更新后旧答案怎么办？</summary>
+        <div class="ans">
+          <p><b>key 的每一段对应一类事故</b>：查询哈希、org 命名空间、缓存类型、embedding 模型、生成模型、top_k、检索模式、rerank、新鲜度开关、<b>授权快照</b>、数据版本、策略版本、schema 版本。缺 embedding 模型名会复用旧向量（维度不一致时余弦静默归零），缺授权快照会跨用户串权限，缺数据版本会在文档删除后继续返回旧片段。</p>
+          <p><b>失效不是只靠 TTL</b>：文档增删改 → 递增 <code>data_version</code>；转岗 / 角色 / ACLGrant 变更 → 递增 <code>grant_version</code>；策略变更 → 更新 <code>policy_version</code>。做法是<b>懒失效</b>：只递增版本，旧 key 自然不命中，不做批量删除；TTL 到期再回收空间。每次命中仍比对三重版本字段——<b>TTL 不是权限控制</b>，写缓存前也必须先把越权片段过滤掉。</p>
+          <p><b>现场证据</b>：「缓存与恢复」页能看到 key 的 13 段拆解、命中率与失效原因分布；点「运行缓存演示」会看到首次 miss → 权限过滤前后条数 → 清 L1 后从 L2 命中 → 数据版本变化后新 key 未命中。</p>
+          <p><b>边界</b>：答案缓存 / 语义缓存未做，检索结果缓存默认不接主问答链路；SQLite 单文件不是生产 Redis，阈值是演示经验起始值。</p>
+        </div>
+      </details>
+
+      <details class="rise" style="--d:.50s">
+        <summary>服务器重启会丢什么？怎么证明重启后状态正常？</summary>
+        <div class="ans">
+          <p><b>先分三类</b>：① <b>可安全丢弃</b>——限流滑动窗口、解析轨迹 deque、SSE 连接，丢了只是窗口重置，不产生错误数据；② <b>可从真值重建</b>——队列活跃/排队态、进度快照，靠 <code>documents.status</code> 扫描并幂等重投；③ <b>必须持久化</b>——配置与策略、预算、用量台账、文档与 <code>chunk_embeddings</code>、会话，落 SQLite 与 <code>runtime_state</code>。真值层先行，所以连 SIGKILL 都不怕。</p>
+          <p><b>启动 7 项自检</b>：schema 就绪、易失状态声明、孤儿任务重投、幽灵向量对账（<code>chunk_embeddings</code> 中已无对应分块的行删掉）、文档指纹校验（变化则递增数据版本）、策略恢复、过期缓存与容量清理。本报告 <code>healthy=True</code> 且逐项给分类与结论；本轮还修了「删文档只删 chunks 不删向量」这个真实幽灵向量缺陷，属于源头治理。</p>
+          <p><b>怎么证明</b>：隔离库做两次真实进程启停——先改策略（半衰期 45 / blend 0.5）、写 1 条缓存、埋 1 个 <code>analyzing</code> 孤儿任务和 1 条幽灵向量；强停后重启：<code>boot_count 1→2</code>、重投 1、清理 1、策略 45/0.5 完整恢复、L2 条目仍在、无 500。强停时 <code>last_shutdown_at</code> 没写入，正好反证「关闭钩子不可靠，必须靠真值层」。现场可在「缓存与恢复」页点「模拟重启」复现。</p>
+          <p><b>边界</b>：这是功能连通性实证，不是压测或 SLA 结论；没有持续看门狗 / 死信队列 / 心跳 lease；演示切片的 SQLite + 进程内队列不是生产 Redis/Celery。</p>
         </div>
       </details>
     </div>
