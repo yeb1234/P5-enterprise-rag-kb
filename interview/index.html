@@ -406,6 +406,16 @@ footer .fine{border-top:1px solid var(--border);padding-top:16px;line-height:1.8
         <h3>90:10 是熔断线，不是随机分流</h3>
         <p>最贵链路最多占 10% 的页，正常文档 <b>0% 触发</b>；超预算显式标 <code>escalation_budget_exceeded</code> 并回退。每页轨迹给出级别、置信度、耗时、升级原因、预算拦截与降级标记——把黑盒决策变成能指给人看的表。</p>
         <span class="chip">P2 已实测跑通 · P1 待接通</span></div>
+
+      <div class="card rise" style="--d:.42s"><div class="n">11 / 新鲜度</div>
+        <h3>入库新鲜度：最新 ≠ 适用</h3>
+        <p>有效分 = 相关分 × (1 − blend + blend × 0.5^(年龄/半衰期))，可手算复核。<code>valid_from</code> 在未来的文档标「未生效」并排除，已过期按 demote / exclude / warn 三档处置；地区、套餐、版本等 <code>scope</code> 不同不算冲突。前端可开关策略，直观看排序翻转。</p>
+        <span class="chip">排序前后对照 · 逐文档判定依据</span></div>
+
+      <div class="card rise" style="--d:.46s"><div class="n">12 / 冲突</div>
+        <h3>事实冲突：不让模型自己挑</h3>
+        <p>片段抽成 claim（保留原文与坐标），按 key 分组、主题门控防误报，冲突图求连通分量后<b>按簇独立裁决</b>：业务权威度 → 生效期（强制需复核）→ 并列转人工。<code>EvidenceRecord.conflict_signal</code> 作为正式状态传给生成层，被淘汰的断言留痕不删除。</p>
+        <span class="chip">两份文档打架信谁？标准答法</span></div>
     </div>
   </div>
 </section>
@@ -573,7 +583,8 @@ footer .fine{border-top:1px solid var(--border);padding-top:16px;line-height:1.8
       不同日期的快照<b>不可混用</b>；用例总数属<b>可变基线</b>，判定标准是「命令全绿 + 新计数单独冻结」，不要求仍等于 51/33/16。<br />
       <b>2026-11-14 本轮新增能力</b>：DeepSeek V4.1 Flash <b>低思考 / 快速档</b>（设置页可切）、成本与限流统计维度 <code>tenant → department</code>、
       <b>统一 429 错误契约</b>（业务错误码 + <code>code/kind/trace_id</code>，前端区分 quota / rate 两类）、
-      <b>可插拔文档解析策略</b>（自研 / OCR API / 多模态兜底三级，质量门禁 + 90:10 预算闸门）。
+      <b>可插拔文档解析策略</b>（自研 / OCR API / 多模态兜底三级，质量门禁 + 90:10 预算闸门）、
+      <b>知识治理</b>（入库新鲜度：时间衰减 + 适用性门控 + 过期三档；事实冲突检测：claim 级比对 + 冲突图按簇裁决 + 结构化证据记录，前端「知识治理」页可现场改策略看排序翻转与裁决日志）。
       <b>2026-11-14 实测纠正</b>：网关 <code>/models</code> 的 <code>input_modalities</code> 显示 10 个模型里 <b>6 个支持 image</b>（此前只凭模型名判断「全为纯文本」是错的）。
       P2 已接通 <code>deepseek-v4.1-flash-1017</code>：两张内容不同的图（浅蓝 73492/CODE-A、浅黄 18620/CODE-B）都被精确识别且回答不同，完整链路 <code>vision_applied / degraded=None</code>。
       P1 收费 OCR 仍未接通、字段保持 <code>__TBC__</code>；<code>PARSING_OFFLINE=1</code> 可一键全离线。这是<b>功能连通性实测，不是质量基线</b>。
@@ -734,6 +745,26 @@ footer .fine{border-top:1px solid var(--border);padding-top:16px;line-height:1.8
           <p><b>怎么证明多模态是真的</b>：先读 <code>/models</code> 的 <code>input_modalities</code>（10 个模型里 6 个支持 image），再用 <b>双图对照</b>排除「靠猜或复述提示词」：图 A（浅蓝底/深蓝字 <code>73492</code>/<code>CODE-A</code>）答 "73492 on a light blue background..."，图 B（浅黄底/红字 <code>18620</code>/<code>CODE-B</code>）答 "The image shows the number 18620 in dark red..."，两次回答不同且都精确命中数字、背景色、标签。完整解析链路复跑得到 <code>reason=vision_applied / degraded=None</code>，<code>upstream</code> 里能核对模型名与 token 用量。低思考档 <code>thinking={"type":"disabled"}</code> 也做了参数对照：推理 token 55 → 0、耗时 979 ms → 467 ms，而元数据里的布尔 <code>reasoning</code> 参数实测无效。</p>
           <p><b>边界</b>：这是功能连通性实测，不是准确率结论；P1 收费 OCR 仍未接通；<code>PARSING_OFFLINE=1</code> 或调用失败时 <code>structured_fallback()</code> 只输出可测事实并明确标「非视觉理解」，绝不编造图片内容，降级时还会把 P0 正文拼回去不整页丢掉。图片里的精确数字仍应以 OCR 结果为准。</p>
           <p><b>现场怎么看</b>：侧栏「解析实验室」上传同一份文件、切换 <code>auto / local_only / multimodal / off</code>，逐页轨迹表会并排显示级别、置信度、耗时、升级自、预算拦截与原因。这是把技术深度讲清楚的关键证据。待补端点清单在 <code>docs/parsing/07-api-contracts.md</code>。</p>
+        </div>
+      </details>
+
+      <details class="rise" style="--d:.41s">
+        <summary>知识库两份文档互相打架，RAG 信谁？「信相似度最高的」错在哪？</summary>
+        <div class="ans">
+          <p><b>错在哪</b>：向量相似度里没有来源权威度、生效期、适用范围。模型挑来源时还会受位置偏差（靠前的注意力更高）、语气强弱（「revenue of $4.2M」比「following restatement… is $6.8M」更像事实）、词法重合影响。一份群聊截图不该因为分数高就覆盖公司制度。</p>
+          <p><b>正确分层</b>：① 检索前用元数据硬过滤（权限 / 地区 / 版本 / 已过期 / 未生效）；② 检索后把片段抽成 claim，按「主体 | 属性 | scope」分组，只有归一化取值互斥或肯定/否定相反才报冲突；③ 冲突图求连通分量，<b>每簇独立裁决</b>——先业务权威注册表，再生效期但强制 <code>needs_review</code>，都不行就并列两个版本 + 原文 + 转人工，<b>不发明 tie-breaking 规则</b>；④ 生成层收到 <code>EvidenceRecord.conflict_signal</code>，必须显式披露分歧，不能把互斥片段无序塞进上下文。</p>
+          <p><b>现场证据</b>：「知识治理」页能看到婚假 10 天 vs 15 天走 <code>trust_newer_with_review / 需复核</code>，报销上限 5000 vs 8000 元走 <code>trust_higher_authority</code>；负向对照里 GB 地区不算冲突、接口超时同值不算冲突。展开 <code>resolution_log</code> 能看到被淘汰断言仍留痕。</p>
+          <p><b>边界</b>：这是规则级实现，不是 NLI 模型级识别；权威注册表的业务审批流未做；合成场景不是质量基线。</p>
+        </div>
+      </details>
+
+      <details class="rise" style="--d:.44s">
+        <summary>怎么防止 AI 拿过期政策回答？新鲜度会不会把老文档全干掉？</summary>
+        <div class="ans">
+          <p><b>不会</b>：有效分 = <code>相关分 × (1 − blend + blend × decay)</code>，<code>decay = max(floor, 0.5^(年龄/半衰期))</code>。默认 blend=0.65、floor=0.10，一篇高度相关的老文档仍会保留，只是排序下降；每个数都能在前端表里手算。</p>
+          <p><b>最新 ≠ 适用</b>：年龄优先用 <code>last_verified_at</code>（人工复核）而不是入库时间；<code>valid_from</code> 在未来的文档标「未生效」并排除（不是判过期）；<code>expires_at</code> 已过按 demote / exclude / warn 三档处置；地区、套餐、产品版本放 <code>scope</code>，不同 scope 取值不同是适用性差异、不是冲突。适用性门控是硬约束，<b>不受新鲜度开关影响</b>——开关只关时间衰减。</p>
+          <p><b>现场证据</b>：开启新鲜度排序 <code>D2→D4→D3→D1→D6</code>，仅关衰减恢复 <code>D1→D2→D3→D4→D6</code>；D5 未生效被排除，D6 已过期降权但仍在报告里。把过期处置从 demote 改成 exclude，D6 会从候选消失。</p>
+          <p><b>边界</b>：真实检索链的重排默认关闭、只在 <code>top_k</code> 内生效，生产应在 SQL / Milvus expr 阶段先做召回前硬过滤；幽灵向量、CDC 近实时增量、跨缓存版本感知失效、金标/金丝雀回归集均未做。</p>
         </div>
       </details>
     </div>

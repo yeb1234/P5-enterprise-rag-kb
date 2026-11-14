@@ -458,6 +458,26 @@ N1–N10  见 3.3（按各专项用例命令）
 
 ---
 
+### 5.4 知识治理专项回填（2026-11-14 20:00 实跑）
+
+本轮新增 `knowledge/` 包（入库新鲜度 + 事实冲突检测）与 `webapp/` 接入层，按 `docs/knowledge/04-design.md` §5 的 A01–A16 验收：
+
+| 验收组 | 命令 / 断言 | 实测 | 判定 |
+|---|---|---|---|
+| 算法层离线单测 | `python -m pytest knowledge/tests -q` | **23 passed**（零外部调用） | **PASS** |
+| 接入层 API 与迁移 | `python -m pytest webapp/tests/test_knowledge_api.py -q` | **9 passed**（含旧库幂等迁移、策略非法值 400、开关默认关闭、负向对照） | **PASS** |
+| 全量单测合计 | `python -m pytest webapp/tests parsing/tests knowledge/tests -q` | **128 passed** | **PASS** |
+| 时间衰减与 floor | `test_decay_is_half_life_and_floored` | 半衰期折半、9999 天不归零 | **PASS** |
+| 适用性门控不受开关影响 | `test_rerank_keeps_before_after_evidence` | 关衰减后未来生效文档仍被排除 | **PASS** |
+| 两类裁决各有样本 | `test_authority_wins_without_review` / `test_recency_wins_but_requires_review` / `test_equal_authority_escalates_without_inventing_tiebreak` | 权威 / 需复核 / 并列转人工均命中 | **PASS** |
+| 负向对照不误报 | `test_different_scope_is_not_conflict` / `test_same_value_is_corroboration_not_conflict` / `test_scenario_negative_controls_hold` | GB scope、同值断言均未报冲突 | **PASS** |
+| 排序前后可对照 | `/api/knowledge/scenario` | 开 `D2→D4→D3→D1→D6`；仅关衰减 `D1→D2→D3→D4→D6` | **PASS** |
+| 冻结区 | `git diff --exit-code -- eval/ demo/` | 返回 0 | **PASS** |
+
+**诚实边界**：合成样本是功能可演示证明，不是质量基线；阈值是演示经验起始值；真实检索链的新鲜度重排默认关闭且只在 `top_k` 内生效；生成层注入 `EvidenceRecord` 与逐句 grounding 仍为只设计；规则级冲突检测不等于 NLI 模型级识别。详见 `docs/KNOWLEDGE-DELIVERY.md` §7。
+
+---
+
 ## 6. 演示 GIF 可行性与替代方案
 
 ### 6.1 本机工具实测（本轮实查，非推测）

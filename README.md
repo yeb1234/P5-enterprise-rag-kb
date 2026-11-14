@@ -42,6 +42,14 @@ React + FastAPI + PostgreSQL + Milvus + Redis/Celery + 外部 DeepSeek 的**可�
 > `PARSING_OFFLINE=1` 可一键全离线，未接通或失败时优雅降级并标 `degraded`。见 `docs/parsing/07-api-contracts.md`。
 > 独立解析服务：`docker compose --profile parsing up -d --build parser`（默认 11 服务不受影响）。
 >
+> **知识治理（2026-11-14 新增，面试高频）**：入口 `knowledge/README.md`，交付话术 `docs/KNOWLEDGE-DELIVERY.md`。
+> 两块能力：**入库新鲜度**（时间衰减 `0.5^(年龄/半衰期)` + `valid_from` / `expires_at` / `scope` 适用性门控 +
+> 过期三档处置 + 排序前后对照）与**事实冲突检测**（claim 级规则抽取、防误报、冲突图按簇裁决、
+> `EvidenceRecord` 结构化证据）。前端「知识治理」视图可改策略并看到排序翻转与裁决日志；
+> 内置合成场景 `DEMO-FRESHNESS-CONFLICT-001` 不写业务库、零外部调用。
+> 调研 / 候选功能 / 面试问答 / 设计取舍见 `docs/knowledge/01–04`；23 项离线单测在 `knowledge/tests/`。
+> 真实检索链的新鲜度重排**默认关闭**（`WEBAPP_FRESHNESS_ENABLED=1` 开启），生成层注入证据记录仍为只设计。
+>
 > **通用开发规约（可复制到别的项目）**：`docs/HARNESS.md`（YEBSPEC@1.0，Y1–Y22 规则 + 最小文件骨架 + 交付前闸门）。
 
 > **想直接看界面？** 另有一个「拿来即可演示」的可运行切片 `webapp/`：
