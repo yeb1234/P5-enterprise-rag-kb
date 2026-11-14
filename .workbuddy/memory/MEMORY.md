@@ -13,12 +13,30 @@ A/B/C 三档口径与「面试场上不要把 A 档说成 C 档」的诚实边�
 - 重点功能：大文件与多文档批量上传的异步处理及进度反馈。
 
 ## 关键设计约束（改动时别破）
-1. `tenant_id` 只由依赖注入产生，所有查询走 `TenantRepository`。
-2. 权限判定收敛到 `app/services/permission.py::decide()` 一个纯函数。
-3. **先按权限过滤，再重排、再进模型**：Milvus expr + `filter_candidates` 双重过滤。
-4. PG 是状态真值，Redis 只是实时通道；先写 PG 文本再写 Milvus 向量；删除走软删 + 异步清理 + 每日对账。
-5. 缓存/进度/对象 key 一律带 tenant 前缀。
-6. 基线迁移 `0001` 用 `metadata.create_all`；从 `0002` 起必须写显式迁移。
+
+> **2026-11-13 需求变更**：用户明确「不再做多租户架构，改为多用户多部门」。完整调整方案见
+> `docs/org-model-change-plan.md`（专家团八位成员产出 + 主理人裁决 C1–C35）。
+> **重要状态：方案已定，代码尚未改造**。下列第 1、5 条是改造前的现状描述，改造后目标口径以方案
+> §3.3 / §5 为准；在代码改造完成前，不要按新口径改坏现有可运行代码，也不要把目标态说成已实现。
+
+1. 【现状】`tenant_id` 只由依赖注入产生，所有查询走 `TenantRepository`。
+   【目标】删 `tenants` 表与所有 `tenant_id` 列；`Subject` 一律服务端从 DB 构造（JWT 只带 `sub`）；
+   请求体 `department_id` 只作筛选 / 授权目标且须经 `decide()` 复核；查询走 `ScopedRepository`。
+2. 权限判定收敛到 `app/services/permission.py::decide()` 一个纯函数 —— **不变，并强化为最终且唯一权威**；
+   新增单一 `visible_department_ids()`（纯部门树拓扑查询，只缩候选、不产出 allow/deny）。
+3. **先按权限过滤，再重排、再进模型** —— 不变；Milvus expr + `filter_candidates` 双重过滤保留，
+   **并新增列表侧逐条 `decide()` 复核**（本次最关键的越权缺口，A13 双向一致性对拍为第一验收项）。
+4. PG 是状态真值，Redis 只是实时通道；先写 PG 文本再写 Milvus 向量；删除走软删 + 异步清理 + 每日对账 —— 不变。
+5. 【现状】缓存 / 进度 / 对象 key 一律带 tenant 前缀。
+   【目标】静态 `ORG_NAMESPACE` 命名空间；成本 / 用量按 `department_id` **事件快照、不回溯**；
+   检索缓存**先按 `decide()` 过滤再写**且 key 携带 principal 授权快照；进度 key 只含 `ORG_NAMESPACE + batch_id`
+   （不按部门分片，否则转岗后 SSE 断连空白）。**禁止把 `tenant_id` 机械全局替换成 `department_id`**。
+6. 基线迁移 `0001` 用 `metadata.create_all`；从 `0002` 起必须写显式迁移 —— 不变，`0001` 冻结不动，
+   新增 `0002_single_org_departments.py`（downgrade 结构可逆、数据语义不可逆）。
+
+> C33 实测口径（`webapp/selftest.py:369-377`）：冻结的是 **10 个具名 view + 6 个具名 loader 的存在性检查**
+> （`nav_ok==10 && loaders_ok==6`），不是侧栏总数；实际侧栏 11 个 `data-view`、`VIEW_META` 11 键、
+> `LOADERS` 9 键、`ADMIN_VIEWS` 3 个。新增第 12 个视图不破坏 C33、不需改断言数字。
 
 ## 目录入口
 - 总览与启动：`README.md`
@@ -124,6 +142,10 @@ A/B/C 三档口径与「面试场上不要把 A 档说成 C 档」的诚实边�
   value（否则翻译会改 badcase 判定提交值）；动态生成的界面文案加 `data-i18n="中文原文"` 才能
   在语言切换时可逆重设。`selftest` C01 要求 HTML 保留「企业级知识库」，C33 要求 10 个 view
   与 6 个 `function loadXxx` 名不变（新增 view 不能删/改这些）。
+- **工作区没有 `gen_dict.py`（实查）**：`i18n.js` 是 944 行手写 `(function(){ var EN = { '中文原文': 'English' } })()`，
+  全仓 `gen_dict.py` / `KB_DICT` / md5 生成器零命中。改文案必须「改中文原文源 → 同步改 EN 字典里
+  成对的中文 key 与英文值并删旧 key → `node --check` + 切回中文逐字回原文 → 升 `index.html` 四处 `?v=`」，
+  **不存在跑生成器重算 md5 这一步**；只改英文显示值会让切回中文跳回旧文案。
 - 新增治理层：`observability.py`（成本/预算/限流/用量/插件注册表）、`routers_evaltest.py`
   （12 个 `/api/evaltest/*`）、`main.py` 限流中间件。默认限流阈值必须宽松，否则会打断
   33 项 selftest；预算默认 `policy=warn`（`block` 才硬拦）。单价是**演示估算**，非供应商报价。
