@@ -19,7 +19,7 @@
 | 运行环境 | 本轮复查 8765 端口无响应，演示服务进程已退出，属**运行状态**而非代码缺陷，可随时用 `python -m uvicorn webapp.main:app --port 8765` 拉起 |
 | 残留底数 | 当前仓库执行 `git grep -n -i -E 'tenant|multi.?tenant|租户|多租户'` 命中 **615 行**（口径见 §5.11） |
 
-**本轮追加的离线复核（用户提示「上次大模型跑完流量了」，全程未触发任何真实模型调用）**：`pytest webapp/tests` **51 passed**、`backend pytest` **16 passed**、`eval` unittest **14 OK**、`evalbench` unittest **16 OK**、`demo/selftest.py` **16/16**（`run_id=RUN-095a2a4a40c6` 未变）；`git diff --exit-code -- eval/ demo/` 返回 0（冻结区零改动）；复核时 `git status` 三项未提交（`MEMORY.md` 修改、`2026-11-13.md` 与本方案新增），本轮已一并入库；8765 端口仍无响应，属服务进程未拉起，非代码缺陷（`python -m uvicorn webapp.main:app --port 8765` 可拉起）。本轮据实查结果修正方案内 4 处事实偏差（详见 §10.2），并把 i18n 生成链、Q-NEW3/4、R-NEW1 全部收口为不留待确认的口径。
+**本轮追加的离线复核（用户提示「上次大模型跑完流量了」，全程未触发任何真实模型调用）**：`pytest webapp/tests` **51 passed**、`backend pytest` **16 passed**、`eval` unittest **14 OK**、`evalbench` unittest **16 OK**、`demo/selftest.py` **16/16**（`run_id=RUN-095a2a4a40c6` 未变）、`webapp/selftest.py` **33/33 `DEMO_READY`**——最后一项以 `WEBAPP_DB_PATH` 指向隔离临时库、三个 provider 环境变量强制 `offline` / `off` 拉起临时 8765 服务补跑，跑完按字节还原原有 `webapp/out/selftest_report.json`、停服并清理临时库，因此**原报告仍是真实外部模型配置下的事实源**；`git diff --exit-code -- eval/ demo/` 返回 0（冻结区零改动）；复核时 `git status` 三项未提交（`MEMORY.md` 修改、`2026-11-13.md` 与本方案新增），本轮已一并入库；8765 端口仍无响应，属服务进程未拉起，非代码缺陷（`python -m uvicorn webapp.main:app --port 8765` 可拉起）。本轮据实查结果修正方案内 4 处事实偏差（详见 §10.2），并把 i18n 生成链、Q-NEW3/4、R-NEW1 全部收口为不留待确认的口径。
 
 ### 0.2 尚未完成事项清单（三份事实源）
 
