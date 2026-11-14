@@ -181,6 +181,7 @@ const VIEW_META = {
   audit:  ['审计日志', '质量与治理 / 审计日志（仅 admin）'],
   settings: ['模型设置', '系统 / 模型设置（仅 admin）'],
   system: ['系统设置与边界', '系统 / 设置与边界'],
+  runtime: ['缓存与恢复', '系统 / 缓存与恢复（重启稳定性）'],
 };
 const ADMIN_VIEWS = ['admin', 'audit', 'settings'];
 const VIEWS = Object.keys(VIEW_META);
@@ -189,6 +190,7 @@ const LOADERS = {
   home: loadOverview, docs: refreshDocs, tasks: loadTasks, eval: loadEval,
   admin: loadAdmin, audit: loadAudit, settings: loadSettings, system: loadSystem,
   evaltest: loadEvalTest, parsing: loadParsing, knowledge: loadKnowledge,
+  runtime: loadRuntime,
 };
 function switchView(view) {
   if (ADMIN_VIEWS.includes(view) && (!S.user || S.user.role !== 'admin')) {
@@ -1496,6 +1498,99 @@ async function saveKnowledgePolicy() {
     await api('/api/knowledge/policy', { method: 'PUT', body: JSON.stringify(patch) });
     toast(t('设置已保存，已即时生效'), 'ok');
     await loadKnowledge();
+  } catch (e) { safeToast(e); }
+}
+
+/* ================= 缓存与恢复（运行时状态） ================= */
+let RT_DATA = null;
+
+async function loadRuntime() {
+  try {
+    const r = await api('/api/runtime/status');
+    RT_DATA = r;
+    const p = r.cache_policy, st = r.stats, v = r.versions;
+    $('rt-l1').value = p.l1_capacity; $('rt-l2').value = p.l2_capacity;
+    $('rt-ttl').value = p.ttl_seconds;
+    $('rt-policy').innerHTML =
+      `<div class="kv-line"><span>L1 / L2 容量</span><b>${p.l1_capacity} / ${p.l2_capacity}</b></div>` +
+      `<div class="kv-line"><span>正常 TTL / 负缓存 TTL</span><b>${p.ttl_seconds}s / ${p.negative_ttl_seconds}s</b></div>` +
+      `<div class="kv-line"><span>命中 / 未命中 / 命中率</span><b>${st.hits} / ${st.misses} / ${(st.hit_rate * 100).toFixed(1)}%</b></div>` +
+      `<div class="kv-line"><span>L1 / L2 命中</span><b>${st.l1_hits} / ${st.l2_hits}</b></div>` +
+      `<div class="kv-line"><span>写入 / 淘汰 / 过期清理</span><b>${st.writes} / ${st.evictions} / ${st.expired_purged}</b></div>` +
+      `<div class="kv-line"><span>版本 data / grant / policy</span><b>${esc(v.data_version)} / ${esc(v.grant_version)} / ${esc(v.policy_version)}</b></div>` +
+      `<div class="kv-line"><span>L2 持久化条目</span><b>${r.l2_entries}</b></div>` +
+      `<p class="muted small" style="margin:8px 0 0">${esc(p.note)}</p>` +
+      `<p class="muted small" style="margin:6px 0 0">失效原因分布：${esc(JSON.stringify(st.invalidations))}</p>`;
+
+    const ke = r.key_example;
+    $('rt-key').innerHTML =
+      `<div class="kv-line"><span>key</span><b class="small">${esc(ke.key)}</b></div>` +
+      `<table class="table" style="margin-top:8px"><thead><tr><th>段</th><th>取值</th></tr></thead><tbody>` +
+      Object.entries(ke.parts).map(([k, val]) => `<tr><td class="small">${esc(k)}</td><td class="small">${esc(String(val))}</td></tr>`).join('') +
+      `</tbody></table><p class="muted small" style="margin:8px 0 0">${esc(ke.note)}</p>`;
+
+    const rep = r.recovery_report;
+    if (rep) {
+      const CAT = { discardable: '可安全丢弃', rebuildable: '可从真值重建', must_persist: '必须持久化' };
+      $('rt-recovery').innerHTML =
+        `<div class="kv-line"><span>启动健康 / 启动次数</span><b style="color:var(${rep.healthy ? '--success' : '--danger'})">${rep.healthy ? '正常' : '异常'} · ${rep.boot_count}</b></div>` +
+        `<div class="kv-line"><span>孤儿任务重投 / 幽灵向量清理</span><b>${rep.requeued} / ${rep.ghost_vectors}</b></div>` +
+        `<div class="kv-line"><span>过期缓存清理 / 容量淘汰</span><b>${rep.expired_cache_purged} / ${rep.capacity_evicted}</b></div>` +
+        `<div class="kv-line"><span>上次优雅关闭</span><b>${rep.graceful_last_shutdown ? '是' : '否（强停不写标记，真值层仍完好）'}</b></div>` +
+        `<div class="kv-line"><span>恢复的策略</span><b>${esc((rep.restored_policies || []).join(', ') || '无（使用默认值）')}</b></div>` +
+        `<table class="table" style="margin-top:8px"><thead><tr><th>检查项</th><th>分类</th><th>结论</th></tr></thead><tbody>` +
+        (rep.checks || []).map(c => `<tr><td class="small">${esc(c.name)}</td><td class="small">${esc(CAT[c.category] || c.category)}</td><td class="small">${c.passed ? '✓' : '✗'} ${esc(c.detail)}</td></tr>`).join('') +
+        `</tbody></table>`;
+    } else {
+      $('rt-recovery').textContent = '尚未启动自检';
+    }
+  } catch (e) { safeToast(e); }
+}
+
+async function runCacheDemo() {
+  const q = $('rt-query').value.trim() || '配网';
+  try {
+    const d = await api('/api/runtime/cache-demo?question=' + encodeURIComponent(q));
+    $('rt-demo').innerHTML =
+      `<div class="kv-line"><span>首次查询</span><b>${esc(d.first_lookup)}</b></div>` +
+      `<div class="kv-line"><span>先过滤后写</span><b>${d.permission_filter.before} → ${d.permission_filter.after} 条可见</b></div>` +
+      `<div class="kv-line"><span>清 L1 后（模拟重启）</span><b style="color:var(${d.after_l1_cleared.hit ? '--success' : '--danger'})">${d.after_l1_cleared.hit ? 'L2 命中，缓存可恢复' : '未命中'}</b></div>` +
+      `<div class="kv-line"><span>data_version 变化后新 key</span><b>${d.after_version_change.hit ? '命中（异常）' : '未命中（懒失效生效）'}</b></div>` +
+      `<p class="muted small" style="margin:8px 0 0">key: ${esc(d.key)}</p>` +
+      `<pre class="small" style="white-space:pre-wrap;max-height:180px;overflow:auto;margin:8px 0 0">${esc(JSON.stringify(d.parts, null, 2))}</pre>`;
+    await loadRuntime();
+  } catch (e) { safeToast(e); }
+}
+
+async function simulateRuntimeRestart() {
+  try {
+    const d = await api('/api/runtime/simulate-restart', { method: 'POST' });
+    $('rt-demo').innerHTML =
+      `<div class="kv-line"><span>L1 已清空</span><b>${d.l1_cleared}</b></div>` +
+      `<div class="kv-line"><span>L2 条目 / 自检健康</span><b>${d.l2_entries} / ${d.healthy}</b></div>` +
+      `<p class="muted small" style="margin:8px 0 0">${esc(d.note)}</p>`;
+    await loadRuntime();
+  } catch (e) { safeToast(e); }
+}
+
+async function invalidateRuntime() {
+  try {
+    const d = await api('/api/runtime/invalidate', { method: 'POST' });
+    $('rt-msg').textContent = `已主动清空 ${d.purged} 条缓存（${d.reason}）`;
+    await loadRuntime();
+  } catch (e) { safeToast(e); }
+}
+
+async function saveRuntimePolicy() {
+  const patch = {
+    l1_capacity: Number($('rt-l1').value), l2_capacity: Number($('rt-l2').value),
+    ttl_seconds: Number($('rt-ttl').value),
+  };
+  try {
+    await api('/api/runtime/cache-policy', { method: 'PUT', body: JSON.stringify(patch) });
+    $('rt-msg').textContent = '缓存策略已保存并落 runtime_state，重启后可恢复';
+    toast(t('设置已保存，已即时生效'), 'ok');
+    await loadRuntime();
   } catch (e) { safeToast(e); }
 }
 

@@ -49,6 +49,13 @@ def put_strategy(body: StrategyPatch, user: dict = Depends(require_admin)):
         raise HTTPException(status_code=400, detail=str(e))
     db.log_action(user["username"], user["role"], "parsing", "strategy",
                   f"strategy={value}")
+    # 落 runtime_state，重启后恢复（原实现只写 os.environ，重启回默认）
+    try:
+        from webapp import recovery
+        recovery.store().state_set("parsing_strategy", value)
+        recovery.persist_policy("parsing_policy", {"strategy": value})
+    except Exception:
+        pass
     return {"strategy": value, "allowed": list(STRATEGIES),
             "effective": "本进程即时生效；生产需落配置中心并多进程同步"}
 

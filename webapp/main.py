@@ -17,6 +17,7 @@ from webapp.routers_chat import router as chat_router
 from webapp.routers_docs import router as docs_router
 from webapp.routers_evaltest import router as evaltest_router
 from webapp.routers_knowledge import router as knowledge_router
+from webapp.routers_runtime import router as runtime_router
 from webapp.routers_ops import router as ops_router
 from webapp.routers_parse import router as parse_router
 from webapp.routers_settings import router as settings_router
@@ -35,7 +36,14 @@ RATE_CODES = {
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     db.init_db()  # 幂等建表 + 种入 admin 账号与评估任务
-    yield
+    # 启动自检：缓存表 → 恢复策略 → 孤儿任务重投 → 幽灵向量对账 → 缓存清理
+    from webapp import recovery
+    app.state.recovery_report = recovery.startup()
+    try:
+        yield
+    finally:
+        # 优雅关闭标记；SIGKILL 不会走到这里，因此真值层必须先落盘
+        recovery.shutdown()
 
 
 def create_app() -> FastAPI:
@@ -117,6 +125,7 @@ def create_app() -> FastAPI:
     app.include_router(evaltest_router)
     app.include_router(parse_router)
     app.include_router(knowledge_router)
+    app.include_router(runtime_router)
 
     # 无构建静态前端（同源托管，免去 dev server）
     STATIC_DIR.mkdir(exist_ok=True)

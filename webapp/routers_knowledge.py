@@ -47,6 +47,16 @@ def _current() -> FreshnessPolicy:
         return _POLICY
 
 
+def restore_policy(saved: dict) -> FreshnessPolicy:
+    """启动时从 runtime_state 恢复策略（只接受 dataclass 里存在的字段）。"""
+    global _POLICY
+    allowed = FreshnessPolicy.__dataclass_fields__
+    d = {k: v for k, v in (saved or {}).items() if k in allowed}
+    with _lock:
+        _POLICY = FreshnessPolicy(**d)
+        return _POLICY
+
+
 def _apply(patch: PolicyPatch) -> FreshnessPolicy:
     global _POLICY
     with _lock:
@@ -67,6 +77,12 @@ def _apply(patch: PolicyPatch) -> FreshnessPolicy:
         if d["expired_action"] not in ("demote", "exclude", "warn"):
             raise ValueError("expired_action 必须是 demote / exclude / warn")
         _POLICY = FreshnessPolicy(**d)
+        # 落 runtime_state：重启后可恢复，并让旧缓存 key 因 policy_version 变化而失效
+        try:
+            from webapp import recovery
+            recovery.persist_policy("knowledge_policy", _POLICY.as_dict())
+        except Exception:
+            pass  # 持久化失败不影响本次策略生效，但会在恢复报告里体现
         return _POLICY
 
 
