@@ -38,6 +38,17 @@ A/B/C 三档口径与「面试场上不要把 A 档说成 C 档」的诚实边�
 > （`nav_ok==10 && loaders_ok==6`），不是侧栏总数；实际侧栏 11 个 `data-view`、`VIEW_META` 11 键、
 > `LOADERS` 9 键、`ADMIN_VIEWS` 3 个。新增第 12 个视图不破坏 C33、不需改断言数字。
 
+## 2026-11-14 本轮新增硬约束（改动时别破）
+
+- **组织口径（用户新指令，覆盖历史表述）**：单组织 + 多用户多部门，**暂不实现多租户，多租户仅作为未来研发方向写入文档**。本轮只把 `webapp/` 的**成本 / 限流统计维度**从 `tenant` 对齐为 `department`（物理列名 `department_id`、维度名 `department`、`?dim=department_id`）；**不给 webapp 增加部门级权限**。`backend/` 的 `tenant_id` / `TenantRepository` 保留为历史命名技术债，`docs/org-model-change-plan.md` 的 13 步仍是「方案已定、代码尚未改造」。
+- **LLM 低思考 / 快速档**：`.env` 本来就是 `discovery:deepseek-v4.1-flash-1017`。新增 `WEBAPP_LLM_THINKING=disabled|enabled`（`WEBAPP_` 前缀隔离），沿用 backend 既有 `thinking: {"type":"disabled"}` 字段，**不另造 `reasoning_effort`**。`settings.thinking_disabled()` 管「是否低思考」、`providers.thinking_fields(disabled=...)` 管「发什么字段」，三条请求路径共用。`get_model_label()` **不改**（有测试断言），档位用 `get_thinking_mode()`。**网关是否识别该字段未实测**，代码只报告「请求带了什么」与 `low_thinking_evidence`，不宣称生效。
+- **限流三维**：`RATE_DIMENSIONS = ("user","endpoint","model")`，`rate_check(..., department=...)` 的 department **不参与计数**、不产生按部门 429。统一 429 契约在 `webapp/main.py`（`RATE_CODES` + `code/kind/message/trace_id/policy` + `X-RateLimit-Code` / `X-Trace-Id`），前端 `app.js api()` 有独立 429 分支区分 quota / rate。预算耗尽仍是 HTTP 200 + `{ok:false}`；`backend` 的 `QUOTA_EXCEEDED→413` 本轮不动。
+- **`usage_events.department_id` 的索引绝对不能写进 `SCHEMA`**（本轮实测复现）：旧库执行 `executescript(SCHEMA)` 时还没有该列，`CREATE INDEX ... (department_id)` 会先抛 `no such column`，导致整个脚本失败、迁移跑不到。索引由 `_migrate_tenant_to_department()` 末尾幂等创建；该函数用 `r[1]` 取 `PRAGMA table_info` 列名，不依赖 `row_factory`。三态（全新库 / tenant 旧库 / 半迁移态）由 `webapp/tests/test_department_migration.py` 锁定。
+- 静态资源版本已升 **`?v=12`**（`index.html` 四处）；`i18n.js` 仍按「中文原文即 key」成对同步中文 key 与英文值、删旧 key，工作区**依然没有 `gen_dict.py`**。
+- 本轮新增 11 份 `docs/*.md`（改动总纲 / 架构 / 限流安全 / 成本指标 / 插件选型 / 能力优先级 / 前端检查 / 验收报告 / 部署 / Git 规范 / 安全前中后置），独立演示页 `interview/index.html`。`docs/change-manifest.md` §0.0 与各文档的「主理人最终回填」是最终状态，早于它的「进行中 / 待回填」是编制时快照。
+- **三条已证伪的误报，别再写进交付物**：① `index.html` 的 40 个内联处理器全部有定义（`setLang` 在 `i18n.js` 挂 window）；② `backend/Dockerfile` / `frontend/Dockerfile` 都存在且 backend 装了 curl、`/health/live` 存在；③ `frontend/src/` 有 16 个文件、9 个导入全在，`npm run build` 通过。
+- 最终回归：webapp pytest **66 passed**、backend 16、eval 14、evalbench 16、demo 16/16、webapp e2e **33/33 `DEMO_READY`**、前端语法 ×3 + `npm run build`、冻结区零 diff。端到端用隔离临时库 + 离线 provider 补跑，**报告须按字节还原**。
+
 ## 目录入口
 - 总览与启动：`README.md`
 - 重点方案：`docs/async-upload.md`
