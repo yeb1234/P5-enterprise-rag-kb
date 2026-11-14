@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>企业级知识库 · 面试演示</title>
+<style>
+  :root{
+    --bg:#f6f8fc; --surface:#ffffff; --surface-2:#f0f3fa;
+    --text:#0f172a; --muted:#5b6780; --line:#e2e8f2;
+    --indigo:#4f46e5; --indigo-soft:#eef0ff;
+    --teal:#0f9b8e; --teal-soft:#e6f7f4;
+    --amber:#c2790b; --amber-soft:#fff5e2;
+    --rose:#d8456b; --rose-soft:#ffedf2;
+    --shadow:0 1px 2px rgba(16,24,40,.04),0 8px 28px rgba(16,24,40,.06);
+    --radius:16px;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0;background:var(--bg);color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    line-height:1.7;-webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1120px;margin:0 auto;padding:0 24px}
+  a{color:var(--indigo);text-decoration:none}
+  code{font-family:var(--mono);font-size:.9em;background:var(--surface-2);padding:2px 6px;border-radius:5px;color:#3730a3}
+
+  /* ---------- hero ---------- */
+  .hero{
+    background:radial-gradient(1000px 460px at 15% -10%,#e0e7ff 0%,transparent 62%),
+               radial-gradient(760px 380px at 92% 6%,#d9f5f0 0%,transparent 60%),
+               var(--surface);
+    border-bottom:1px solid var(--line);
+  }
+  .hero-inner{padding:64px 0 48px}
+  .eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:600;
+    color:var(--indigo);background:var(--indigo-soft);border:1px solid #dcd9ff;
+    padding:6px 14px;border-radius:999px;letter-spacing:.02em}
+  .eyebrow i{width:7px;height:7px;border-radius:50%;background:var(--indigo);display:block}
+  h1{font-size:clamp(30px,5vw,50px);line-height:1.2;letter-spacing:-.02em;margin:20px 0 14px;font-weight:800}
+  h1 .grad{background:linear-gradient(92deg,var(--indigo),var(--teal));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .lead{font-size:17px;color:var(--muted);max-width:780px;margin:0 0 24px}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:26px}
+  .chip{font-family:var(--mono);font-size:12px;background:var(--surface);border:1px solid var(--line);
+    color:var(--muted);padding:5px 11px;border-radius:8px}
+  .hero-stats{display:flex;flex-wrap:wrap;gap:12px}
+  .hstat{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 18px;min-width:132px;box-shadow:var(--shadow)}
+  .hstat b{display:block;font-size:22px;line-height:1.2;color:var(--indigo)}
+  .hstat span{font-size:12px;color:var(--muted)}
+
+  /* ---------- nav ---------- */
+  .nav{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.9);backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--line)}
+  .nav .wrap{display:flex;gap:4px;overflow-x:auto;padding-top:8px;padding-bottom:8px}
+  .nav a{font-size:13px;font-weight:600;color:var(--muted);padding:7px 13px;border-radius:8px;white-space:nowrap}
+  .nav a:hover{background:var(--indigo-soft);color:var(--indigo)}
+
+  /* ---------- sections ---------- */
+  section{padding:56px 0 8px}
+  .kicker{font-family:var(--mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--teal);font-weight:700}
+  h2{font-size:clamp(23px,3vw,31px);margin:8px 0 10px;letter-spacing:-.01em}
+  .sub{color:var(--muted);max-width:820px;margin:0 0 26px;font-size:15px}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:22px;box-shadow:var(--shadow)}
+  .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+  .grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+
+  /* ---------- three states ---------- */
+  .state{border-top:4px solid var(--line)}
+  .state.ok{border-top-color:var(--teal)} .state.design{border-top-color:var(--amber)} .state.no{border-top-color:var(--rose)}
+  .state .tag{display:inline-block;font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;margin-bottom:10px}
+  .state.ok .tag{background:var(--teal-soft);color:var(--teal)}
+  .state.design .tag{background:var(--amber-soft);color:var(--amber)}
+  .state.no .tag{background:var(--rose-soft);color:var(--rose)}
+  .state h3{margin:0 0 8px;font-size:17px}
+  .state ul{margin:0;padding-left:18px;color:var(--muted);font-size:14px}
+  .state li{margin:5px 0}
+
+  /* ---------- highlights ---------- */
+  .hl{transition:transform .2s ease,box-shadow .2s ease}
+  .hl:hover{transform:translateY(-3px);box-shadow:0 12px 34px rgba(16,24,40,.10)}
+  .hl .ico{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;font-size:19px;margin-bottom:12px}
+  .hl h3{margin:0 0 6px;font-size:15px}
+  .hl p{margin:0;color:var(--muted);font-size:13px;line-height:1.65}
+  .hl .meta{margin-top:10px;font-family:var(--mono);font-size:11px;color:var(--indigo);word-break:break-all}
+
+  /* ---------- data flow ---------- */
+  .flow{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:26px 22px;box-shadow:var(--shadow);overflow-x:auto}
+  .flow-row{display:flex;align-items:stretch;gap:0;min-width:960px}
+  .node{flex:1;min-width:104px;background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:12px 10px;text-align:center;position:relative}
+  .node .n{font-family:var(--mono);font-size:10px;color:var(--teal);font-weight:700}
+  .node b{display:block;font-size:13px;margin:5px 0 3px}
+  .node small{display:block;font-size:11px;color:var(--muted);line-height:1.45}
+  .node.hot{background:var(--indigo-soft);border-color:#cbc7ff}
+  .node.hot b{color:#3730a3}
+  .arrow{width:26px;flex:0 0 26px;display:grid;place-items:center;position:relative}
+  .arrow::before{content:"";position:absolute;left:0;right:0;top:50%;height:2px;
+    background:repeating-linear-gradient(90deg,var(--indigo) 0 6px,transparent 6px 11px);
+    background-size:11px 2px;animation:flow 1.1s linear infinite}
+  .arrow::after{content:"";position:absolute;right:1px;top:calc(50% - 4px);border-left:6px solid var(--indigo);
+    border-top:4px solid transparent;border-bottom:4px solid transparent}
+  @keyframes flow{to{background-position:11px 0}}
+  .flow-notes{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:22px;min-width:960px}
+  .fnote{background:var(--surface-2);border-left:3px solid var(--teal);border-radius:0 10px 10px 0;padding:10px 14px;font-size:12.5px;color:var(--muted)}
+  .fnote b{color:var(--text);display:block;margin-bottom:3px;font-size:13px}
+
+  /* ---------- layers ---------- */
+  .layer{display:grid;grid-template-columns:150px 1fr;gap:16px;align-items:start;
+    border:1px solid var(--line);border-radius:12px;padding:16px;background:var(--surface);margin-bottom:10px}
+  .layer .lname{font-weight:700;font-size:14px;color:var(--indigo)}
+  .layer .lname small{display:block;font-weight:400;color:var(--muted);font-size:11.5px;margin-top:3px}
+  .layer .ldesc{font-size:13.5px;color:var(--muted)}
+  .layer .ldesc code{margin:0 2px}
+  .pill{display:inline-block;font-size:11px;font-weight:600;padding:2px 9px;border-radius:999px;margin-right:6px}
+  .pill.run{background:var(--teal-soft);color:var(--teal)}
+  .pill.design{background:var(--amber-soft);color:var(--amber)}
+  .pill.stub{background:var(--surface-2);color:var(--muted)}
+
+  /* ---------- metrics ---------- */
+  .metric{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;text-align:center}
+  .metric b{display:block;font-size:26px;color:var(--indigo);line-height:1.2}
+  .metric span{font-size:12px;color:var(--muted)}
+  .metric em{display:block;font-style:normal;font-size:11px;color:var(--teal);margin-top:5px}
+
+  /* ---------- QA ---------- */
+  .qa{background:var(--surface);border:1px solid var(--line);border-radius:12px;margin-bottom:10px;overflow:hidden}
+  .qa summary{cursor:pointer;padding:15px 18px;font-weight:650;font-size:14.5px;list-style:none;display:flex;align-items:center;gap:10px}
+  .qa summary::-webkit-details-marker{display:none}
+  .qa summary::before{content:"Q";font-family:var(--mono);font-size:11px;font-weight:800;color:#fff;background:var(--indigo);
+    width:22px;height:22px;border-radius:6px;display:grid;place-items:center;flex:0 0 22px}
+  .qa summary::after{content:"+";margin-left:auto;color:var(--muted);font-size:18px;font-weight:400}
+  .qa[open] summary::after{content:"−"}
+  .qa[open] summary{background:var(--indigo-soft);color:#312e81}
+  .qa .ans{padding:16px 18px 18px 50px;font-size:14px;color:var(--muted);border-top:1px solid var(--line)}
+  .qa .ans strong{color:var(--text)}
+  .qa .ans p{margin:0 0 9px}
+
+  .callout{background:linear-gradient(100deg,var(--indigo-soft),var(--teal-soft));
+    border:1px solid #d9d5ff;border-radius:14px;padding:20px 22px;margin:20px 0 8px}
+  .callout b{color:#312e81}
+  .callout p{margin:6px 0 0;font-size:14px;color:#37356b}
+
+  footer{margin-top:56px;border-top:1px solid var(--line);padding:26px 0 40px;color:var(--muted);font-size:12.5px}
+  footer code{font-size:11px}
+
+  .reveal{opacity:0;transform:translateY(14px);transition:opacity .5s ease,transform .5s ease}
+  .reveal.in{opacity:1;transform:none}
+
+  @media(max-width:900px){
+    .grid-4,.grid-3,.grid-2{grid-template-columns:repeat(2,1fr)}
+    .layer{grid-template-columns:1fr}
+    .hero-inner{padding:44px 0 34px}
+  }
+  @media(max-width:600px){
+    .grid-4,.grid-3,.grid-2{grid-template-columns:1fr}
+    .flow-notes{grid-template-columns:1fr}
+  }
+  @media(prefers-reduced-motion:reduce){
+    *{animation:none!important;transition:none!important;scroll-behavior:auto!important}
+    .reveal{opacity:1;transform:none}
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap hero-inner">
+    <span class="eyebrow"><i></i> 面向中小企业 AI Agent / FDE 岗位 · 可运行、可讲解</span>
+    <h1>从文档到答案，<br><span class="grad">再到评测闭环</span></h1>
+    <p class="lead">
+      一个<strong>企业内部知识库</strong>的开发框架骨架：FastAPI + React + PostgreSQL + Milvus + Redis/Celery，
+      外部接 DeepSeek V4.1 Flash、bge-m3 嵌入与 bge-reranker-v2-m3 重排。
+      它同时提供一个<strong>零依赖、拿来即跑</strong>的演示切片，用于把 RAG 全链路讲清楚。
+    </p>
+    <div class="chips">
+      <span class="chip">FastAPI</span><span class="chip">React 18</span><span class="chip">PostgreSQL</span>
+      <span class="chip">Milvus</span><span class="chip">Redis + Celery</span><span class="chip">SSE</span>
+      <span class="chip">deepseek-v4.1-flash-1017</span><span class="chip">BAAI/bge-m3</span>
+      <span class="chip">bge-reranker-v2-m3</span>
+    </div>
+    <div class="hero-stats">
+      <div class="hstat"><b>62 / 62</b><span>webapp 单测（本轮）</span></div>
+      <div class="hstat"><b>33 / 33</b><span>端到端 DEMO_READY</span></div>
+      <div class="hstat"><b>16 / 16</b><span>backend 单测</span></div>
+      <div class="hstat"><b>30 / 30</b><span>eval + evalbench 单测</span></div>
+      <div class="hstat"><b>11</b><span>侧栏视图</span></div>
+    </div>
+  </div>
+</header>
+
+<nav class="nav"><div class="wrap">
+  <a href="#boundary">诚实边界</a><a href="#highlights">核心亮点</a><a href="#flow">数据流</a>
+  <a href="#layers">架构分层</a><a href="#metrics">验证快照</a><a href="#qa">面试常问</a>
+</div></nav>
+
+<main class="wrap">
+
+<section id="boundary" class="reveal">
+  <div class="kicker">01 / Honest boundary</div>
+  <h2>先把「没做到的」说在前面</h2>
+  <p class="sub">这是学习 + 面试用的开发框架骨架，不是上线交付版。按 A / B / C 三档口径，每个能力都标清是「真跑通了」还是「只画了图」——面试场上不把 A 档说成 C 档。</p>
+  <div class="grid-3">
+    <div class="card state ok"><span class="tag">已实现 · 有代码/自测</span><h3>演示切片全链路</h3>
+      <ul><li>注册登录（pbkdf2 + HMAC JWT）、admin/user 分级</li><li>批量上传、异步排队、繁忙提示、降级留痕</li><li>SSE 逐 token 问答 + 断线续传 + 来源追溯</li><li>badcase 采集 → 筛选 → 导出 → 完成度</li><li>评估测试子页、成本/预算、三维限流</li><li>中英切换 × 6 主题色 × 明暗模式</li></ul></div>
+    <div class="card state design"><span class="tag">只设计 · 架构预留</span><h3>生产骨架的接口与规则</h3>
+      <ul><li>逐行 / 逐段落精细 ACL（开关保留，逻辑未落）</li><li>Agent 内部编排、LangGraph / 多 Agent / MCP</li><li>高可用：PG 流复制、Redis Sentinel、Milvus 集群</li><li>全局并发闸、监控告警 SLO、灰度回滚</li><li>SSO/OIDC、PII 脱敏、审计留存合规</li></ul></div>
+    <div class="card state no"><span class="tag">未做 · 明确不做</span><h3>上线级与真实条件</h3>
+      <ul><li>真实压测 / 容灾演练 / 质量基线冻结</li><li>真实供应商账单校准（单价是演示估算）</li><li>屏幕阅读器实测、自动化视觉回归</li><li>逐句 grounding 高亮、真实 Milvus 集群</li><li><strong>多租户隔离：仅作为未来研发方向</strong></li></ul></div>
+  </div>
+  <div class="callout">
+    <b>当前组织口径：单组织 + 多用户多部门，暂不实现多租户。</b>
+    <p>backend 的 <code>tenant_id</code> / <code>TenantRepository</code> 是历史命名技术债，不代表已实现多租户隔离；
+    部门树（物化路径 <code>path</code>）、<code>User.department_id</code>、<code>ACLGrant</code> 与 <code>decide()</code> 已在 backend 实现，
+    webapp 演示切片本轮只把成本 / 限流的<strong>统计维度</strong>对齐为部门，没有新增部门级权限。多租户的完整 13 步清理方案另见 <code>docs/org-model-change-plan.md</code>。</p>
+  </div>
+</section>
+
+<section id="highlights" class="reveal">
+  <div class="kicker">02 / Highlights</div>
+  <h2>八个能拿出来讲的核心亮点</h2>
+  <p class="sub">每条都对应仓库里可指认的文件，不是概念图。</p>
+  <div class="grid-4">
+    <div class="card hl"><div class="ico" style="background:var(--indigo-soft)">🧠</div><h3>三组件全走真实外部 API</h3><p>LLM 走 Discovery 网关的 DeepSeek V4.1 Flash，嵌入 / 重排走硅基流动 bge-m3 与 bge-reranker-v2-m3；可切本地 LM Studio 或全离线。</p><div class="meta">webapp/providers.py · settings.py</div></div>
+    <div class="card hl"><div class="ico" style="background:var(--teal-soft)">🔎</div><h3>Hybrid 检索 + 可称重排</h3><p>词法门禁（中文相邻二元组 + 英文整词）先缩候选，再按向量余弦排序，最后可选 LLM 打分或 cross-encoder 精排；不可用时优雅跳过并留痕，不假装用了。</p><div class="meta">webapp/rag.py · providers.py</div></div>
+    <div class="card hl"><div class="ico" style="background:var(--amber-soft)">⚡</div><h3>流式问答与断线恢复</h3><p>SSE 逐 token 输出，<code>resume_from</code> 续传且索引连续；检索为空主动拒答不编造；模型零正文、中断、限流各有独立降级标记。</p><div class="meta">webapp/routers_chat.py · selftest C11–C13</div></div>
+    <div class="card hl"><div class="ico" style="background:var(--rose-soft)">📌</div><h3>回答来源可追溯</h3><p><code>chat_sources</code> 把 answer → citation → chunk → 原文串起来，meta / done 事件带 sources，来源卡片可点开原文。</p><div class="meta">webapp/db.py · routers_chat.py</div></div>
+    <div class="card hl"><div class="ico" style="background:var(--indigo-soft)">🧪</div><h3>两套评估体系互不污染</h3><p><code>eval/</code> 是冻结占位（<code>__TBC__</code>、<code>comparable=false</code>、real_api 阻断）；<code>evalbench/</code> 是平行真实 API 工作台，四轮迭代收敛到 v2_grounded + 参数 B。</p><div class="meta">eval/ · evalbench/ · docs/evaluation-report.md</div></div>
+    <div class="card hl"><div class="ico" style="background:var(--teal-soft)">💰</div><h3>成本 / 预算 / 限流治理</h3><p>逐调用 token 台账按项目 / 部门 / 调用类型 / 模型聚合，预算 warn 告警、block 才硬拦；限流三维配额 + 统一 429 错误码与 <code>Retry-After</code>。</p><div class="meta">webapp/observability.py · main.py</div></div>
+    <div class="card hl"><div class="ico" style="background:var(--amber-soft)">🛡️</div><h3>安全前 / 中 / 后置三段</h3><p>前置注入拦截与权限裁剪、中置候选集逐条 <code>decide()</code>、后置 PII 复述扫描与审计留痕；规则级拦截不是模型级安全，边界如实写清。</p><div class="meta">backend/app/agent/orchestrator.py</div></div>
+    <div class="card hl"><div class="ico" style="background:var(--rose-soft)">🎨</div><h3>前端体验与可追溯版本</h3><p>中文原文即 key 的手写字典 + MutationObserver 可逆切换；6 主题色 × 明暗正交、三份独立 localStorage；11 个视图、静态资源统一版本。</p><div class="meta">webapp/static/ · docs/frontend-audit.md</div></div>
+  </div>
+</section>
+
+<section id="flow" class="reveal">
+  <div class="kicker">03 / Data flow</div>
+  <h2>一次提问是怎么走完全链路的</h2>
+  <p class="sub">上半行是写入侧（文档入库），下半行是查询侧（问答生成）。关键顺序：<strong>先按权限过滤候选，再重排，再进模型</strong>。</p>
+  <div class="flow">
+    <div style="font-size:12px;font-weight:700;color:var(--teal);margin-bottom:12px">写入侧 · Ingest</div>
+    <div class="flow-row">
+      <div class="node"><div class="n">01</div><b>上传</b><small>批量 / 大文件<br>分片续传</small></div><div class="arrow"></div>
+      <div class="node"><div class="n">02</div><b>异步队列</b><small>Celery 双队列<br>进度 SSE 回推</small></div><div class="arrow"></div>
+      <div class="node"><div class="n">03</div><b>解析分块</b><small>纯文本提取<br>失败降级留痕</small></div><div class="arrow"></div>
+      <div class="node"><div class="n">04</div><b>PG 落文本</b><small>状态真值<br>软删 + 对账</small></div><div class="arrow"></div>
+      <div class="node"><div class="n">05</div><b>嵌入</b><small>bge-m3<br>1024 维</small></div><div class="arrow"></div>
+      <div class="node hot"><div class="n">06</div><b>Milvus / 向量缓存</b><small>先 PG 后向量<br>缓存带模型名</small></div>
+    </div>
+    <div style="height:22px"></div>
+    <div style="font-size:12px;font-weight:700;color:var(--indigo);margin-bottom:12px">查询侧 · Retrieve &amp; Generate</div>
+    <div class="flow-row">
+      <div class="node"><div class="n">01</div><b>提问</b><small>JWT 鉴权<br>三维限流</small></div><div class="arrow"></div>
+      <div class="node"><div class="n">02</div><b>词法门禁</b><small>中文二元组<br>缩小候选</small></div><div class="arrow"></div>
+      <div class="node"><div class="n">03</div><b>向量召回</b><small>Milvus expr<br>+ 二次校验</small></div><div class="arrow"></div>
+      <div class="node hot"><div class="n">04</div><b>权限过滤</b><small>逐条 decide()<br>先过滤后重排</small></div><div class="arrow"></div>
+      <div class="node"><div class="n">05</div><b>Rerank</b><small>cross-encoder<br>或 LLM 打分</small></div><div class="arrow"></div>
+      <div class="node"><div class="n">06</div><b>组装上下文</b><small>top_k 片段<br>防注入拼装</small></div><div class="arrow"></div>
+      <div class="node hot"><div class="n">07</div><b>LLM 生成</b><small>V4.1 Flash<br>低思考快速档</small></div><div class="arrow"></div>
+      <div class="node"><div class="n">08</div><b>SSE + 来源卡片</b><small>逐 token<br>断线续传</small></div>
+    </div>
+    <div class="flow-notes">
+      <div class="fnote"><b>PG 是状态真值，Redis 只是实时通道</b>进度快照可从 PG 重建；Redis 三分库且 <code>noeviction</code>，严禁 FLUSHALL。</div>
+      <div class="fnote"><b>向量缓存 key 必须带 provider + 模型名</b>否则切模型会复用旧向量，维度不一致时余弦静默归零，检索看似正常实则全错。</div>
+      <div class="fnote"><b>429 分两类，不能一视同仁</b><code>rate_limit_exceeded</code> 指数退避 + 抖动 + 尊重 Retry-After；<code>quota_exceeded</code> 不重试，直接提示换模型。</div>
+    </div>
+  </div>
+</section>
+
+<section id="layers" class="reveal">
+  <div class="kicker">04 / Architecture</div>
+  <h2>分 layer 看：哪些真跑，哪些是替身</h2>
+  <p class="sub">同一个项目里并存四种不同完成度的东西，面试时最容易讲混，所以显式分层。</p>
+  <div class="layer"><div class="lname">backend/ <small>生产骨架</small></div><div class="ldesc">
+    <span class="pill design">设计 + 可跑单测</span>FastAPI + SQLAlchemy + PG + Milvus + Redis/Celery + MinIO，
+    已实现部门树、<code>decide()</code> 纯函数授权、Agent 七节点编排、上传流水线。
+    <code>tenant_id</code> 为历史命名，完整清理见迁移方案。<strong>16 项单测通过</strong>。</div></div>
+  <div class="layer"><div class="lname">webapp/ <small>演示切片</small></div><div class="ldesc">
+    <span class="pill run">真跑 · 拿来即用</span>零外部依赖即可启动：FastAPI + SQLite + 无构建静态前端，
+    <strong>SQLite 是 PG 的替身、进程内队列是 Celery 的替身</strong>，但业务链路是真的，33 项端到端自测全绿。
+    外部三段模型可一键切换，也支持全离线。</div></div>
+  <div class="layer"><div class="lname">frontend/ <small>React 骨架</small></div><div class="ldesc">
+    <span class="pill run">可构建</span>React 18 + Vite 6 + antd，`npm run build` 通过（3505 modules / 6.83s）。
+    依赖 backend API，不是演示切片的界面。构建产物里 antd chunk 偏大（875 KB），已记入前端检查清单。</div></div>
+  <div class="layer"><div class="lname">eval/ + evalbench/ <small>评估双轨</small></div><div class="ldesc">
+    <span class="pill stub">冻结 / 平行</span><code>eval/</code> 的 14 个版本化对象与 <code>__TBC__</code> 契约槽位<strong>绝对不动</strong>；
+    <code>evalbench/</code> 用自建 12 条中文样本做真实 API 评估，样本是依据 RGB / SQuAD 2.0 口径自建，
+    <strong>不是官方数据抽样</strong>，不得说成「在 RGB 上的分数」。</div></div>
+  <div class="layer"><div class="lname">demo/ + docs/ <small>物料与文档</small></div><div class="ldesc">
+    <span class="pill stub">事实源</span><code>demo/scenario.json</code> 是场景唯一事实源，
+    <code>run_id=RUN-095a2a4a40c6</code> 冻结；改动任一对象都要重跑 <code>demo/selftest.py</code> 并同步哈希。
+    文档区分「已实现 / 只设计 / 未做」。</div></div>
+</section>
+
+<section id="metrics" class="reveal">
+  <div class="kicker">05 / Verification</div>
+  <h2>可复跑的验证快照</h2>
+  <p class="sub">左边是本轮离线实跑（不消耗任何模型流量），右边是此前在真实外部模型配置下采到的数据，两者口径分开写。</p>
+  <div class="grid-2">
+    <div class="card">
+      <div style="font-size:13px;font-weight:700;color:var(--teal);margin-bottom:14px">本轮离线回归 · 2026-11-14</div>
+      <div class="grid-2" style="gap:10px">
+        <div class="metric"><b>62</b><span>webapp pytest</span><em>含 11 项新增</em></div>
+        <div class="metric"><b>16</b><span>backend pytest</span></div>
+        <div class="metric"><b>14 + 16</b><span>eval / evalbench unittest</span></div>
+        <div class="metric"><b>16/16</b><span>demo selftest</span><em>run_id 未变</em></div>
+        <div class="metric"><b>33/33</b><span>webapp 端到端</span><em>DEMO_READY</em></div>
+        <div class="metric"><b>0</b><span>冻结区 diff</span><em>eval/ + demo/</em></div>
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin:14px 0 0">
+        端到端自测用隔离临时库 + 三个 provider 强制 offline 补跑，跑完按字节还原原报告、停服并清理临时库，
+        所以 <code>webapp/out/selftest_report.json</code> 仍是真实配置下的事实源。</p>
+    </div>
+    <div class="card">
+      <div style="font-size:13px;font-weight:700;color:var(--indigo);margin-bottom:14px">真实外部配置 · 历史采集（详见评估报告）</div>
+      <div class="grid-2" style="gap:10px">
+        <div class="metric"><b>1024</b><span>bge-m3 嵌入维度</span><em>约 435 ms</em></div>
+        <div class="metric"><b>205 ms</b><span>bge-reranker-v2-m3</span></div>
+        <div class="metric"><b>0.9686</b><span>真相关 rerank 分数</span><em>干扰 0.0168</em></div>
+        <div class="metric"><b>3</b><span>回答引用来源条数</span></div>
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin:14px 0 0">
+        同一问题端到端 59.7s / 70 chunks 是<strong>推理模型冷启动 + reasoning</strong> 的结果，所以本轮把
+        V4.1 Flash 默认改为<strong>低思考快速档</strong>（请求体 <code>thinking=disabled</code>），
+        并明确标注「网关是否识别该字段尚未实测」——只报告请求里带了什么，不假装已确认生效。
+        该结果是单次演示采样，<strong>不是质量基线</strong>。</p>
+    </div>
+  </div>
+</section>
+
+<section id="qa" class="reveal">
+  <div class="kicker">06 / Interview Q&amp;A</div>
+  <h2>面试常问，逐条给答法</h2>
+  <p class="sub">点击展开。每条都留了「能讲」与「不能讲」的边界，避免把设计说成落地。</p>
+
+  <details class="qa" open><summary>为什么这个项目不做多租户？</summary><div class="ans">
+    <p><strong>能讲：</strong>定位是单组织内部知识库，边界应该是「部门树」而不是「租户」；引入租户会同时带来隔离、计费、配额、迁移四组约束，超出「把 RAG 链路讲通」的目标。当前 backend 已有 <code>Department</code>（物化路径 path）、<code>User.department_id</code>、<code>ACLGrant</code> 与 <code>decide()</code>，webapp 本轮把成本 / 限流的统计维度从 tenant 对齐为 department。</p>
+    <p><strong>不能讲：</strong>不说「已实现多租户隔离」，也不说「已实现完整多部门权限」。backend 的 <code>tenant_id</code> / <code>TenantRepository</code> 是历史命名技术债，webapp 演示切片没有部门表、没有行级 ACL。完整 13 步清理方案已写好但<strong>代码尚未改造</strong>。</p></div></details>
+
+  <details class="qa"><summary>去掉 tenant 之后，隔离强度是不是下降了？怎么解释？</summary><div class="ans">
+    <p><strong>能讲：</strong>主动承认下降，并给正确因果。<code>is_partition_key=True</code> 本来只是按值散列到固定 32 个分区的<strong>查询路由 / 性能机制</strong>，从来不是「一租户一分区」的硬隔离；原隔离落在 <code>build_permission_expr()</code> 里显式写死的 <code>tenant_id == "..."</code> 应用层表达式。真实变化是 <strong>expr 首条件从「静态、互斥、全库唯一的 tenant_id」变成「动态、层级、由部门拓扑算出的 id 列表」</strong>——候选集成了超集，算错或算空的影响面从跨组织扩大到跨部门乃至全库。</p>
+    <p><strong>所以怎么补：</strong>权限判定收敛到 <code>decide()</code> 唯一权威、列表侧逐条复核、检索侧 <code>filter_candidates()</code> 二次校验，并用「列表与检索的一致性对拍」证明没漏。<strong>不能讲</strong>「只是换个字段名，隔离没变」。</p></div></details>
+
+  <details class="qa"><summary>429 限流怎么处理？两类有什么区别？</summary><div class="ans">
+    <p><strong>能讲：</strong><code>rate_limit_exceeded</code>（频率超限）走 1/2/4s 指数退避 + 抖动，尊重 <code>Retry-After</code>（上限 30s，最多 3 次）；<code>quota_exceeded</code>（额度 / 墨点耗尽）<strong>不重试</strong>，直接提示换模型或供应商。流式一旦开始吐字就不再重试，避免重复内容。前端本轮也补齐了区分两类、展示业务错误码与等待秒数。</p>
+    <p><strong>边界：</strong>限流是<strong>进程内滑动窗口，单实例有效</strong>；生产要换 Redis 令牌桶 + 网关层 + 全局并发闸，当前没有做压测与 RPM/TPM 全局闸。</p></div></details>
+
+  <details class="qa"><summary>为什么向量缓存的 key 一定要带模型名？</summary><div class="ans">
+    <p><strong>能讲：</strong>向量按 <code>(chunk_id, model)</code> 缓存在 <code>chunk_embeddings</code>。切模型后若沿用同一个 model 字符串，就会复用旧模型向量；维度不一致时 <code>_cosine</code> 会<strong>静默返回 0</strong>——检索看起来正常运行，实际全错，属于最难发现的假阴性。所以 <code>settings.effective_embedding()</code> 是端点 / 模型 / key / 缓存命名空间的唯一事实源，<code>cache_key</code> 含 provider + 模型名，并有单测锁定。</p></div></details>
+
+  <details class="qa"><summary>先按权限过滤还是先检索？为什么？</summary><div class="ans">
+    <p><strong>能讲：</strong>先过滤、再重排、再进模型。把越权内容送进上下文，即使最后不展示，也已经泄漏给模型并可能出现在输出里；而且重排与生成的算力会浪费在无权文档上。生产骨架用 Milvus expr 先缩候选，再用 <code>filter_candidates()</code> 逐条 <code>decide()</code> 二次校验（因为 expr 里的标量有限，需要从 PG 回查 <code>owner_id</code> / <code>visibility</code> / <code>acl</code>）。列表接口也必须逐条复核，<strong>分页在过滤之后</strong>。</p>
+    <p><strong>不能讲：</strong>webapp 演示切片目前只有 admin 门禁 + owner 过滤，没有接入 <code>decide()</code>；这部分是 backend 已实现、演示切片未实现。</p></div></details>
+
+  <details class="qa"><summary>怎么证明答案不是模型编的？</summary><div class="ans">
+    <p><strong>能讲：</strong>三层。① 提示词要求只依据参考片段、无答案时明确说「知识库中未找到相关内容」；② <code>chat_sources</code> 把回答关联到 citation → chunk → 原文，SSE 的 meta / done 事件带 sources，前端来源卡片可点开原文；③ 检索为空时主动拒答并标 <code>retrieval_empty</code>，不拼接兜底文案。</p>
+    <p><strong>边界：</strong>目前只到<strong>分块级引用</strong>，逐句 grounding 高亮与自动事实核验没做。评估里的拒答判定也是规则级组合判定，不是模型级事实验证。</p></div></details>
+
+  <details class="qa"><summary>大文件 / 批量上传怎么保证进度不丢？</summary><div class="ans">
+    <p><strong>能讲：</strong>上传入异步队列（生产是 Celery 双队列 + RabbitMQ/Redis 分层，演示切片是进程内队列），SSE 回推进度与繁忙队列位置；<strong>PG 是状态真值、Redis 只是实时通道</strong>，Redis 失效可以从 PG 重建快照；删除走软删 + 异步清理 + 每日对账；对象 key 与进度 key 分治，进度 key 不含身份、按全局 batch_id 分片，所以转岗后 SSE 重连也能命中。</p></div></details>
+
+  <details class="qa"><summary>V4.1 Flash 是推理模型，为什么默认关掉思考？</summary><div class="ans">
+    <p><strong>能讲：</strong>检索问答要的是首 token 延迟，不是长链推理。V4 系列默认先吐 reasoning，实测冷启动 + reasoning 会让端到端到 59.7s；<code>max_tokens</code> 给小还会把预算全花在思考上、正文为空。所以默认注入 <code>thinking={"type":"disabled"}</code>（沿用 backend 骨架同名字段），并保留「完整推理」档可切；零正文、已出正文后中断、内联 <code>&lt;think&gt;</code> 各有独立降级标记。</p>
+    <p><strong>必须诚实：</strong>Discovery 网关是否识别该字段<strong>尚未实测</strong>。代码只报告「请求里带了什么」和「usage 里有没有观察到 reasoning_tokens」，<strong>不宣称已确认生效</strong>；不识别时由前端过滤内联思考块兜底。</p></div></details>
+
+  <details class="qa"><summary>评估体系为什么分成 eval/ 和 evalbench/ 两套？</summary><div class="ans">
+    <p><strong>能讲：</strong><code>eval/</code> 是契约未定时的<strong>冻结占位</strong>：14 个版本化对象、<code>__TBC__</code> 槽位、<code>comparable=false</code>、<code>real_api</code> 档被契约门禁阻断，绝不拿它出质量结论。等真实 API 细节明确后，另起 <code>evalbench/</code> 做平行工作台：自建 12 条中文样本、提示词 v1→v2→v3、参数 A/B/C、多模型对比，每轮独立 Git 分支并回写 config_snapshot 的 branch/commit。</p>
+    <p><strong>边界：</strong>样本是<strong>自建</strong>的（参考 RGB / SQuAD 2.0 的任务与指标口径），不是官方数据抽样；<code>comparable=false</code> 的离线 run 不进任何质量结论，质量基线仍未冻结。</p></div></details>
+
+  <details class="qa"><summary>SQLite + 进程内队列能叫生产实现吗？</summary><div class="ans">
+    <p><strong>能讲：</strong>明确说「这是演示替身」。<code>webapp/</code> 的价值是零依赖把链路跑通、可复现、可讲解；生产骨架在 <code>backend/</code>，用 PG / Milvus / Redis + Celery / MinIO，并有 Docker Compose 编排。面试时把两者分开介绍，反而能体现清楚「什么跑通了、什么是替身」。</p>
+    <p><strong>不能讲：</strong>把演示切片的性能数字当生产指标，或说「已经具备高可用」。</p></div></details>
+
+  <details class="qa"><summary>A / B / C 三档交付怎么界定？</summary><div class="ans">
+    <p><strong>能讲：</strong>A 档是「设计 + 规则文档 + 架构预留」，B 档是「可运行演示切片 + 单测」，C 档是「生产加固 + 真实压测 / 账单 / SLO / 灰度」。当前项目定位在 <strong>B 档 + 一部分 A 档预留</strong>；C 档的监控告警、容灾演练、SSO、真实供应商账单校准、屏幕阅读器实测都明确列在「未做」清单里。</p>
+    <p><strong>这句话是面试里的护城河：</strong>「列出尚未完成」不等于「本次要补完」，把上线级事项拉进本期既做不完，也必然把「只设计」说成「已落地」。</p></div></details>
+
+  <details class="qa"><summary>如果继续往下做，下一步优先补什么？</summary><div class="ans">
+    <p><strong>能讲：</strong>按 <code>docs/capability-priority.md</code> 的高优先级：① 把 backend 已实现的部门树与 <code>decide()</code> 下沉到演示切片并补 A13 一致性对拍（当前最大的越权缺口在<strong>列表侧</strong>缺逐条复核）；② Redis 令牌桶替换进程内滑动窗口；③ trace→span 结构化观测；④ 评测 CI 闸门与质量基线。</p>
+    <p>已定方案、代码尚未实施的 13 步改造顺序见 <code>docs/org-model-change-plan.md</code> §5.11，六个一票否决项见 §8.5。</p></div></details>
+
+  <div class="callout" style="margin-top:26px">
+    <b>一句话收尾：</b>
+    <p>这不是一个「把多租户改成多部门」的项目，而是一个把 RAG 全链路真跑通、把每一层的完成度如实标清、
+    并且能用数字和命令复现的项目。面试官追问到哪里，就能指到哪个文件。</p>
+  </div>
+</section>
+
+</main>
+
+<footer><div class="wrap">
+  事实源：<code>README.md</code> · <code>docs/enterprise-readiness.md</code> · <code>docs/evaluation-report.md</code> ·
+  <code>docs/org-model-change-plan.md</code> · <code>docs/acceptance-report.md</code> · <code>webapp/out/eval_report.json</code>。
+  本页不写入质量基线，所有数字均可由仓库内命令复跑核对。<br>
+  单文件、零外部依赖，可直接双击打开或投屏展示。
+</div></footer>
+
+<script>
+(function(){
+  var els = document.querySelectorAll('.reveal');
+  if (!('IntersectionObserver' in window)) {
+    els.forEach(function(el){ el.classList.add('in'); });
+    return;
+  }
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+    });
+  }, { threshold: 0.08 });
+  els.forEach(function(el){ io.observe(el); });
+})();
+</script>
+</body>
+</html>

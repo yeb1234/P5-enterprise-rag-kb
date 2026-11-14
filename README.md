@@ -17,6 +17,20 @@ React + FastAPI + PostgreSQL + Milvus + Redis/Celery + 外部 DeepSeek 的**可�
 > **中型公司知识库能力清单（含来源核实与 Top10 建议）**：`docs/kb-capability-checklist.md`；
 > **整体改进日志（版本坐标、改动清单、缺陷修正、验证快照）**：`docs/CHANGELOG.md`。
 > 演示切片前端已支持中英文切换、6 套主题色 × 明/暗模式，并新增「评估测试」可观测子页。
+>
+> **当前组织口径（2026-11-14）**：单组织 + 多用户多部门，**暂不实现多租户**；多租户仅作为未来研发方向。
+> webapp 演示切片的成本 / 限流统计维度已对齐为 `department`，backend 的 `tenant_id` / `TenantRepository`
+> 是历史命名技术债（完整 13 步清理方案见 `docs/org-model-change-plan.md`，**方案已定、代码尚未改造**）。
+> LLM 默认 `deepseek-v4.1-flash-1017`（Discovery 网关）+ **低思考 / 快速档**，可在「模型设置」页切换推理强度。
+>
+> **本轮复核产物（11 份 Markdown）**：改动总纲 `docs/change-manifest.md`（含最终状态回填）、
+> 架构复核 `docs/architecture-review.md`、限流与安全 `docs/rate-limit-and-security-review.md`、
+> 成本指标 `docs/cost-metrics-spec.md`、插件选型 `docs/plugin-selection.md`、
+> 能力优先级 `docs/capability-priority.md`、前端检查 `docs/frontend-audit.md`、
+> 验收报告 `docs/acceptance-report.md`、部署与腾讯云方案 `docs/deployment-guide.md`、
+> Git 规范 `docs/git-conventions.md`、安全前中后置与低思考档 `docs/llm-safety-positions.md`。
+> **独立面试演示页**：`interview/index.html`（单文件、零外部依赖，可直接双击打开）。
+> 部署编排见 `docker-compose.yml`，提交前检查清单见 `docs/git-conventions.md`。
 
 > **想直接看界面？** 另有一个「拿来即可演示」的可运行切片 `webapp/`：
 > `python -m uvicorn webapp.main:app --port 8765`，浏览器打开 `http://127.0.0.1:8765`，
