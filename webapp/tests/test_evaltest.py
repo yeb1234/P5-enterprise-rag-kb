@@ -1,6 +1,6 @@
 """评估测试子页 / 可观测治理能力的验收测试（隔离库 + 离线）。
 
-覆盖：新接口权限边界、成本与预算规则、超限拒绝、四维限流 429 反馈、
+覆盖：新接口权限边界、成本与预算规则、超限拒绝、三维限流 429 反馈、
 用量统计的「不查而非隐藏」、静态前端与 i18n/主题资源完整性。
 """
 from __future__ import annotations
@@ -50,8 +50,14 @@ def test_new_tables_and_defaults(client):
             assert t in tables
         rules = {r["dimension"]: r["limit_count"] for r in conn.execute(
             "SELECT dimension,limit_count FROM rate_rules")}
-        assert set(rules) == {"user", "tenant", "endpoint", "model"}
+        # 限流配额本体是用户 / 接口 / 模型调用三维；部门只作成本归因，不产生按部门 429。
+        assert set(rules) == {"user", "endpoint", "model"}
         assert all(v > 0 for v in rules.values())
+        # 口径锁定：台账物理列名必须是 department_id，旧 tenant 列必须已迁移掉。
+        cols = {r["name"] for r in conn.execute("PRAGMA table_info(usage_events)")}
+        assert "department_id" in cols and "tenant" not in cols
+        cfg_keys = {r["key"] for r in conn.execute("SELECT key FROM eval_configs")}
+        assert "department" in cfg_keys and "tenant" not in cfg_keys
         assert conn.execute("SELECT policy FROM budgets WHERE scope='global'").fetchone()[0] == "warn"
     finally:
         conn.close()
@@ -61,7 +67,7 @@ def test_evaltest_read_endpoints(client):
     h = _headers(client)
     for path in ("/api/evaltest/config", "/api/evaltest/runs?limit=5",
                  "/api/evaltest/metrics", "/api/evaltest/logs",
-                 "/api/evaltest/usage?dim=tenant", "/api/evaltest/budget",
+                 "/api/evaltest/usage?dim=department_id", "/api/evaltest/budget",
                  "/api/evaltest/ratelimit", "/api/evaltest/plugins",
                  "/api/evaltest/permissions"):
         r = client.get(path, headers=h)
@@ -154,10 +160,19 @@ def test_rate_limit_returns_429_with_headers(client):
         assert s1.status_code == 200 and s2.status_code == 200
         assert s3.status_code == 429, f"第 3 次应限流，实际 {s3.status_code}: {s3.text[:200]}"
         body = s3.json()
+        # 向后兼容字段
         assert body["dimension"] == "user" and body["limit"] == 2
         assert "retry_after" in body and body["policy"]
         assert s3.headers["Retry-After"]
         assert s3.headers["X-RateLimit-Dimension"] == "user"
+        # 本轮新增的统一 429 契约：业务错误码 / kind / message / trace_id / 部门归因
+        assert body["code"] == "RATE_LIMIT_USER_EXCEEDED"
+        assert body["kind"] == "rate_limit_exceeded"
+        assert body["message"] and isinstance(body["detail"], str)
+        assert len(body["trace_id"]) == 16
+        assert body["department"] == "default"
+        assert s3.headers["X-RateLimit-Code"] == body["code"]
+        assert s3.headers["X-Trace-Id"] == body["trace_id"]
     finally:
         client.put("/api/evaltest/ratelimit", headers=h,
                    json={"rules": [{"dimension": "user", "limit_count": 1200, "window_s": 60}]})

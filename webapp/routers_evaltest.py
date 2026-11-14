@@ -69,7 +69,7 @@ def put_config(body: ConfigPatch, _: dict = Depends(require_admin)):
 def start_run(user: dict = Depends(require_admin)):
     c = obs.get_config()["config"]
     return obs.run_offline_eval(actor=user["username"], project=c.get("project", "default"),
-                                tenant=c.get("tenant", "default"), user_id=user["id"])
+                                department=c.get("department", "default"), user_id=user["id"])
 
 
 @router.get("/runs")
@@ -153,8 +153,12 @@ def get_ratelimit(_: dict = Depends(get_current_user)):
     return {
         "rules": obs.rate_rules(), "hits": obs.rate_hits(50),
         "feedback": {"status_code": 429, "headers": ["Retry-After", "X-RateLimit-Dimension",
-                                                     "X-RateLimit-Limit", "X-RateLimit-Window"],
-                     "body": {"detail": "请求过于频繁", "dimension": "user|tenant|endpoint|model",
+                                                     "X-RateLimit-Limit", "X-RateLimit-Window",
+                                                     "X-RateLimit-Code", "X-Trace-Id"],
+                     "body": {"code": "RATE_LIMIT_USER_EXCEEDED|RATE_LIMIT_ENDPOINT_EXCEEDED|RATE_LIMIT_MODEL_EXCEEDED",
+                              "kind": "rate_limit_exceeded", "message": "请求过于频繁，请稍后重试",
+                              "detail": "请求过于频繁（<维度> 维度，<上限> 次 / <窗口>s）",
+                              "trace_id": "<16 位十六进制>", "dimension": "user|endpoint|model",
                               "limit": 0, "window_s": 0, "retry_after": 0},
                      "policy": "rate_limit_exceeded 退避重试；quota_exceeded 不重试"},
         "boundary": "进程内滑动窗口，单实例有效；生产换网关层 Redis 令牌桶",
@@ -198,7 +202,7 @@ def put_ratelimit(body: RatePatch, user: dict = Depends(require_admin)):
 def probe_ratelimit(user: dict = Depends(require_admin)):
     """验收用（仅 admin）：在独立命名空间模拟一次超限，返回统一 429 结构，不改全局规则。"""
     hit = obs.rate_check(path="/api/evaltest/ratelimit/probe#probe",
-                         user_id="__probe__" + user["id"], tenant="__probe__",
+                         user_id="__probe__" + user["id"], department="__probe__",
                          model="__probe__")
     fake = {"dimension": "user", "key": user["username"], "path": "/api/evaltest/ratelimit/probe",
             "limit": 3, "window_s": 60, "retry_after": 60, "current": 4}
@@ -206,8 +210,12 @@ def probe_ratelimit(user: dict = Depends(require_admin)):
         "status_code": 429, "headers": {"Retry-After": str(fake["retry_after"]),
                                         "X-RateLimit-Dimension": fake["dimension"],
                                         "X-RateLimit-Limit": str(fake["limit"]),
-                                        "X-RateLimit-Window": str(fake["window_s"])},
-        "body": {"detail": "请求过于频繁，请稍后重试", **fake},
+                                        "X-RateLimit-Window": str(fake["window_s"]),
+                                        "X-RateLimit-Code": "RATE_LIMIT_USER_EXCEEDED",
+                                        "X-Trace-Id": "<16 位十六进制>"},
+        "body": {"code": "RATE_LIMIT_USER_EXCEEDED", "kind": "rate_limit_exceeded",
+                 "message": "请求过于频繁，请稍后重试",
+                 "detail": "请求过于频繁，请稍后重试", **fake},
     }}
 
 
@@ -219,14 +227,20 @@ def get_plugins(_: dict = Depends(get_current_user)):
 
 @router.get("/permissions")
 def get_permissions(_: dict = Depends(get_current_user)):
-    """权限矩阵：多部门 / 多租户 / 组织隔离 / 角色层级 / 资源归属 / 可见范围 / 越权边界。"""
+    """权限矩阵：多部门 / 组织边界 / 角色层级 / 资源归属 / 可见范围 / 越权边界。
+
+    当前系统为单组织多部门（暂不实现多租户）；backend 的 tenant_id 是历史命名技术债，
+    webapp 演示切片尚未建立部门树，本接口只如实描述演示级能力，不夸大。
+    """
     return {
         "layers": [
-            {"layer": "组织隔离", "rule": "tenant_id 只由依赖注入产生，禁止来自请求体；所有查询经 TenantRepository 下推到 SQL",
-             "demo": "单租户（default）；users/documents/chat_logs 带 owner_id / user_id / created_by",
-             "production": "backend/app/db/repository.py · TenantRepository", "status": "架构预留"},
-            {"layer": "部门", "rule": "department_id 挂在资源与用户上；跨部门默认不可见，显式授权才放行",
-             "demo": "未建 department 表，仅用量台账有 project / tenant 维度", "production": "待建 org 树", "status": "未做"},
+            {"layer": "组织边界", "rule": "单组织单库，部门树为唯一组织边界；多租户仅作为未来研发方向",
+             "demo": "单库 default；users/documents/chat_logs 带 owner_id / user_id / created_by",
+             "production": "backend/app/models/identity.py · Department（物化路径 path）已实现；tenant_id 为历史命名待清理",
+             "status": "演示级"},
+            {"layer": "部门", "rule": "department_id 挂在资源与用户上；跨部门默认不可见，显式授权才放行，判定收敛到 decide()",
+             "demo": "未建 department 表；用量台账按 project / department_id 归因，不是权限隔离",
+             "production": "backend/app/services/permission.py · decide() 已实现；webapp 未接入", "status": "未做"},
             {"layer": "角色层级", "rule": "owner > admin > editor > viewer；权限只继承不放宽，判定收敛到 decide() 纯函数",
              "demo": "仅 admin / user 两级；admin 三个页面 + 写接口 403", "production": "backend/app/services/permission.py", "status": "演示级"},
             {"layer": "资源归属", "rule": "文档/会话/badcase 归属 owner；删除与导出必须校验归属或 admin",
@@ -245,5 +259,5 @@ def get_permissions(_: dict = Depends(get_current_user)):
             {"resource": "评估测试（只读）", "user": "本人范围用量/日志", "admin": "全局", "anon": "401"},
             {"resource": "评估配置 / 预算 / 限流 / 触发运行", "user": "403", "admin": "可读写", "anon": "401"},
         ],
-        "note": "本切片是单租户演示；多租户行级隔离、部门树、逐段落 ACL 属架构预留，不得对外称已实现",
+        "note": "本切片是单组织多部门口径的演示（暂不实现多租户）；webapp 未建部门树、无行级 ACL、无逐段落 ACL，backend 的 tenant_id 为历史命名技术债，不得对外称已实现多租户隔离或完整部门权限",
     }

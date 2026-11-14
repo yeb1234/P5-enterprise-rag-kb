@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+import uuid
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -19,6 +20,14 @@ from webapp.routers_ops import router as ops_router
 from webapp.routers_settings import router as settings_router
 
 STATIC_DIR = __import__("pathlib").Path(__file__).resolve().parent / "static"
+
+# 统一 429 业务错误码：按命中维度区分，前端可据此给不同的重试指引。
+# gateway/供应商侧的 quota_exceeded 不走这里（那类由 providers.classify_429 标记，不自动重试）。
+RATE_CODES = {
+    "user": "RATE_LIMIT_USER_EXCEEDED",
+    "endpoint": "RATE_LIMIT_ENDPOINT_EXCEEDED",
+    "model": "RATE_LIMIT_MODEL_EXCEEDED",
+}
 
 
 @asynccontextmanager
@@ -46,9 +55,11 @@ def create_app() -> FastAPI:
 
     @app.middleware("http")
     async def rate_limit_gate(request: Request, call_next):
-        """四维限流（user / tenant / endpoint / model）。仅拦截 /api/ 写与读请求，静态资源直通。
+        """三维计数（user / endpoint / model），静态资源直通。
 
-        默认阈值宽松，不误伤演示自测；规则可由 admin 在评估测试页调整，命中即返回统一 429。
+        配额本体是「用户 / 接口 / 模型调用」三维；department 只是成本归因标签，
+        不做按部门的 429 隔离断言。默认阈值宽松，不误伤演示自测；
+        规则可由 admin 在评估测试页调整，命中即返回统一 429。
         """
         path = request.url.path
         if not path.startswith("/api/"):
@@ -64,20 +75,33 @@ def create_app() -> FastAPI:
             model = "settings"
         elif path.startswith("/api/chat/"):
             model = "llm"
-        hit = obs.rate_check(path=path, user_id=uid, tenant="default", model=model)
+        hit = obs.rate_check(path=path, user_id=uid, department="default", model=model)
         if hit:
+            dim = hit["dimension"]
+            trace_id = uuid.uuid4().hex[:16]
+            # 统一错误契约：code（业务错误码）/ kind / message / detail / trace_id。
+            # detail 保持字符串：前端 api() 在 app.js:56/66 直接读 j.detail 做提示。
             body = {
-                "detail": "请求过于频繁，请稍后重试",
-                "dimension": hit["dimension"], "key": hit["key"], "path": hit["path"],
+                "code": RATE_CODES.get(dim, "RATE_LIMIT_EXCEEDED"),
+                "kind": "rate_limit_exceeded",
+                "message": "请求过于频繁，请稍后重试",
+                "detail": (f"请求过于频繁（{dim} 维度，{hit['limit']} 次 / {hit['window_s']}s），"
+                           f"请 {hit['retry_after']}s 后重试"),
+                "trace_id": trace_id,
+                "policy": "rate_limit_exceeded 可退避重试；quota_exceeded 不重试",
+                # 以下为向后兼容字段：评估测试子页与既有前端依赖，不删。
+                "dimension": dim, "key": hit["key"], "path": hit["path"],
                 "limit": hit["limit"], "window_s": hit["window_s"],
                 "retry_after": hit["retry_after"], "current": hit["current"],
-                "policy": "rate_limit_exceeded 可退避重试；quota_exceeded 不重试",
+                "department": hit.get("department", "default"),
             }
             return JSONResponse(status_code=429, content=body, headers={
                 "Retry-After": str(hit["retry_after"]),
-                "X-RateLimit-Dimension": hit["dimension"],
+                "X-RateLimit-Dimension": dim,
                 "X-RateLimit-Limit": str(hit["limit"]),
                 "X-RateLimit-Window": str(hit["window_s"]),
+                "X-RateLimit-Code": body["code"],
+                "X-Trace-Id": trace_id,
             })
         return await call_next(request)
 

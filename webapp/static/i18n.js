@@ -536,8 +536,8 @@
     '成本与预算': 'Cost & budget',
     '限流配额': 'Rate limits',
     '插件与边界': 'Plugins & boundaries',
-    '按项目 / 租户 / 调用维度统计 token 消耗与成本；超预算会留痕并拒绝新的付费调用。':
-      'Token usage and cost by project / tenant / call dimension; budget overruns are logged and further billable calls are rejected.',
+    '按项目 / 部门 / 调用维度统计 token 消耗与成本；超预算会留痕并拒绝新的付费调用。':
+      'Token usage and cost by project / department / call dimension; budget overruns are logged and further billable calls are rejected.',
     '当前评估配置': 'Current eval configuration',
     '评估档位': 'Eval profile',
     '提示词版本': 'Prompt version',
@@ -559,7 +559,7 @@
     '暂无日志': 'No logs',
     '全部': 'All',
     '按维度聚合': 'Group by',
-    '项目': 'Project', '租户': 'Tenant', '调用类型': 'Call type', '模型': 'Model',
+    '项目': 'Project', '部门': 'Department', '调用类型': 'Call type', '模型': 'Model',
     '输入 token': 'Prompt tokens', '输出 token': 'Completion tokens', '总 token': 'Total tokens',
     '成本（估算）': 'Cost (estimated)', '调用次数': 'Calls',
     '单价表为演示估算值，非供应商报价；上线前须用账单校准。':
@@ -618,8 +618,8 @@
     '外观模式：': 'Appearance: ',
 
     /* ---- 评估测试子页（静态） ---- */
-    '评估配置、运行记录、指标展示、日志追踪，以及按项目 / 租户 / 调用维度统计 token 消耗与成本；支持预算上限与超限处理。':
-      'Eval config, run history, metrics, log tracing, and token usage / cost by project, tenant and call dimension; with budget caps and over-limit handling.',
+    '评估配置、运行记录、指标展示、日志追踪，以及按项目 / 部门 / 调用维度统计 token 消耗与成本；支持预算上限与超限处理。':
+      'Eval config, run history, metrics, log tracing, and token usage / cost by project, department and call dimension; with budget caps and over-limit handling.',
     '当前配置与口径': 'Active config & semantics',
     '离线档位结果': 'Offline-profile results are',
     '禁止写入质量基线；': 'never written to a quality baseline;',
@@ -648,12 +648,12 @@
     '保存预算': 'Save budget',
     'Token 消耗与成本（按维度聚合）': 'Token usage & cost (by dimension)',
     '按维度聚合': 'Group by',
-    '项目': 'Project', '租户': 'Tenant', '调用类型': 'Call type',
+    '项目': 'Project', '部门': 'Department', '调用类型': 'Call type',
     '单价表为演示估算值，非供应商报价；上线前须用账单校准。':
       'Prices are demo estimates, NOT vendor quotes; calibrate against invoices before production.',
     '成本口径：输入 / 输出 token 分别计价，按调用逐条落台账后聚合。':
       'Cost model: prompt / completion tokens priced separately, aggregated from per-call ledger rows.',
-    '限流配额（用户 / 租户 / 接口 / 模型调用）': 'Rate limits (user / tenant / endpoint / model call)',
+    '限流配额（用户 / 接口 / 模型调用）': 'Rate limits (user / endpoint / model call)',
     '超限反馈：HTTP 429 + Retry-After + 统一错误体 + 审计留痕；':
       'Over-limit feedback: HTTP 429 + Retry-After + uniform error body + audit log;',
     '退避重试，': 'is retried with backoff,',
@@ -738,6 +738,13 @@
     '尚未开始': 'Not started',
     '全部 {n} 项': 'All {n} pages',
     '{n} 项（无管理后台 / 审计日志 / 模型设置）': '{n} pages (no admin / audit / model settings)',
+    /* ---- 推理强度（DeepSeek V4.1 Flash 低思考快速档） ---- */
+    '推理强度': 'Reasoning effort',
+    '推理：': 'Reasoning: ',
+    '低思考 · 快速（默认，关闭 thinking）': 'Low thinking · fast (default, thinking disabled)',
+    '完整推理（慢，先输出思考过程）': 'Full reasoning (slow, emits thinking first)',
+    'V4.1 系列默认会先输出思考过程；检索问答要低延迟，默认在请求里显式关闭。网关是否识别该字段尚未实测，未识别时由前端过滤内联思考块兜底，不假装已关闭。':
+      'V4.1 models emit reasoning first by default; retrieval Q&A needs low latency, so the request disables it explicitly. Whether the gateway honours this field is not yet verified; if not, inline thinking blocks are filtered client-side as a fallback, and it is never claimed as confirmed.',
   };
 
   /* 富文本整段替换：用 data-i18n-html 标记，保留标签结构 */

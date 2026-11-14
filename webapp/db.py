@@ -152,13 +152,15 @@ CREATE TABLE IF NOT EXISTS chunk_embeddings (
 );
 
 -- ============ 可观测与治理（评估测试子页的台账真值） ============
--- token 用量逐调用台账：项目 / 租户 / 用户 / 调用类型 / 模型 五个可聚合维度。
+-- token 用量逐调用台账：项目 / 部门 / 用户 / 调用类型 / 模型 五个可聚合维度。
+-- department_id 是「事件发生瞬间的部门快照」，用于成本归因，不随转岗回溯重写，
+-- 也不是准入隔离依据（当前为单组织多部门，暂不实现多租户）。
 -- 生产对应数仓事实表 + 供应商账单对账；这里落 SQLite，估算口径在 API 里明确标注。
 CREATE TABLE IF NOT EXISTS usage_events (
     id                TEXT PRIMARY KEY,
     ts                TEXT NOT NULL,
     project           TEXT NOT NULL DEFAULT 'default',
-    tenant            TEXT NOT NULL DEFAULT 'default',
+    department_id     TEXT NOT NULL DEFAULT 'default',
     user_id           TEXT NOT NULL DEFAULT '',
     call_type         TEXT NOT NULL,             -- chat|embedding|rerank|eval|search
     model             TEXT NOT NULL DEFAULT '',
@@ -173,11 +175,13 @@ CREATE TABLE IF NOT EXISTS usage_events (
 );
 CREATE INDEX IF NOT EXISTS ix_usage_ts ON usage_events(ts);
 CREATE INDEX IF NOT EXISTS ix_usage_project ON usage_events(project);
-CREATE INDEX IF NOT EXISTS ix_usage_tenant ON usage_events(tenant);
+-- department_id 上的索引刻意不放在 SCHEMA 里：旧库执行 SCHEMA 时还没有这个列，
+-- CREATE INDEX 会先报 "no such column"，导致整个 executescript 失败、迁移跑不到。
+-- 统一由 _migrate_tenant_to_department() 在列就绪后幂等创建。
 
 -- 预算：(scope,key) 一个上限；policy=warn 只告警，block 才拒绝新的付费调用。
 CREATE TABLE IF NOT EXISTS budgets (
-    scope      TEXT NOT NULL,                    -- global|tenant|project
+    scope      TEXT NOT NULL,                    -- global|department|project
     key        TEXT NOT NULL,
     limit_cny  REAL NOT NULL,
     policy     TEXT NOT NULL DEFAULT 'warn',     -- warn|block
@@ -185,9 +189,10 @@ CREATE TABLE IF NOT EXISTS budgets (
     PRIMARY KEY (scope, key)
 );
 
--- 限流规则：四个维度各自独立计数窗口。
+-- 限流规则：用户 / 接口 / 模型调用三个维度各自独立计数窗口。
+-- 部门只用于成本归因（usage_events.department_id），不在这里建规则行。
 CREATE TABLE IF NOT EXISTS rate_rules (
-    dimension   TEXT PRIMARY KEY,               -- user|tenant|endpoint|model
+    dimension   TEXT PRIMARY KEY,               -- user|department|endpoint|model
     limit_count INTEGER NOT NULL,
     window_s    INTEGER NOT NULL,
     enabled     INTEGER NOT NULL DEFAULT 1,
@@ -269,11 +274,52 @@ def log_action(actor: str, role: str, action: str, target: str = "", detail: str
         pass
 
 
+def _migrate_tenant_to_department(conn: sqlite3.Connection) -> None:
+    """把演示库里 tenant 口径的存量数据迁到 department 口径（幂等）。
+
+    为什么必须有这一步：SCHEMA 用 CREATE TABLE IF NOT EXISTS，旧库不会自动改列。
+    「全新库」与「含 tenant 旧列的存量库」两种输入都要能跑；另外还有第三种
+    「半迁移态」（两列并存），不能让旧列静默残留成第二条部门数据来源。
+    这里只改成本归集 / 限流统计维度，不动权限模型、不动冻结的 run_id。
+    """
+    # 用位置下标 r[1] 而不是 r["name"]：本函数不应隐式依赖调用方设置了
+    # row_factory=sqlite3.Row，裸 sqlite3 连接（含单测内存库）也要能跑。
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(usage_events)")}
+    if "tenant" in cols:
+        # 先删引用旧列的索引，否则 SQLite 会因索引依赖拒绝 DROP COLUMN。
+        conn.execute("DROP INDEX IF EXISTS ix_usage_tenant")
+        if "department_id" not in cols:
+            conn.execute("ALTER TABLE usage_events RENAME COLUMN tenant TO department_id")
+        else:
+            # 半迁移态：把旧列里有效的部门快照补回新列，再删旧列。
+            # 'default' 是新列的占位值，同样视为「尚未归因」，应被真实部门值回填。
+            conn.execute(
+                "UPDATE usage_events SET department_id=tenant "
+                "WHERE (department_id IS NULL OR department_id='' OR department_id='default') "
+                "AND tenant IS NOT NULL AND tenant <> '' AND tenant <> 'default'"
+            )
+            try:
+                conn.execute("ALTER TABLE usage_events DROP COLUMN tenant")
+            except sqlite3.OperationalError:
+                # 更老版本 SQLite 不支持 DROP COLUMN：保留旧列不影响新查询，
+                # 但它从此不再是数据来源（record_usage 只写 department_id）。
+                pass
+    # 新库与迁移后的旧库都在这里统一建索引，幂等。
+    conn.execute("CREATE INDEX IF NOT EXISTS ix_usage_department ON usage_events(department_id)")
+    # 旧库的 tenant 规则行按新口径收敛：限流只保留 user/endpoint/model 三维，
+    # 部门不再是限流维度（只是成本归因标签），故不迁移成 department 规则行。
+    conn.execute("DELETE FROM rate_rules WHERE dimension IN ('tenant', 'department')")
+    # 评估配置键 tenant → department（展示与成本归集用），保留新键优先。
+    conn.execute("UPDATE OR IGNORE eval_configs SET key='department' WHERE key='tenant'")
+    conn.execute("DELETE FROM eval_configs WHERE key='tenant'")
+
+
 def init_db() -> None:
     with _lock:
         conn = get_conn()
         try:
             conn.executescript(SCHEMA)
+            _migrate_tenant_to_department(conn)
             _seed(conn)
             conn.commit()
         finally:
@@ -314,15 +360,15 @@ def _seed(conn: sqlite3.Connection) -> None:
     if not cur.execute("SELECT 1 FROM budgets WHERE scope='global' AND key='default'").fetchone():
         cur.execute("INSERT INTO budgets(scope,key,limit_cny,policy,updated_at) VALUES (?,?,?,?,?)",
                     ("global", "default", 50.0, "warn", now))
-    defaults = {"user": (1200, 60), "tenant": (3000, 60),
-                "endpoint": (900, 60), "model": (600, 60)}
+    # 限流配额本体是三维；department 只作成本归因，不在此建规则行。
+    defaults = {"user": (1200, 60), "endpoint": (900, 60), "model": (600, 60)}
     for dim, (lim, win) in defaults.items():
         if not cur.execute("SELECT 1 FROM rate_rules WHERE dimension=?", (dim,)).fetchone():
             cur.execute(
                 "INSERT INTO rate_rules(dimension,limit_count,window_s,enabled,updated_at)"
                 " VALUES (?,?,?,?,?)", (dim, lim, win, 1, now))
     cfg = {"profile": "offline_placeholder", "prompt_version": "v2_grounded",
-           "params_id": "B", "samples": "all", "project": "default", "tenant": "default"}
+           "params_id": "B", "samples": "all", "project": "default", "department": "default"}
     for k, v in cfg.items():
         if not cur.execute("SELECT 1 FROM eval_configs WHERE key=?", (k,)).fetchone():
             cur.execute("INSERT INTO eval_configs(key,value,updated_at) VALUES (?,?,?)", (k, v, now))

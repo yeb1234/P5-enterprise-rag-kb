@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>企业级知识库 · 可运行演示切片</title>
   <!-- 同步执行：在 CSS 应用前写好 data-theme / data-mode，首屏无主题闪烁 -->
-  <script src="/theme.js?v=11"></script>
-  <script src="/i18n.js?v=11"></script>
-  <link rel="stylesheet" href="/style.css?v=11" />
+  <script src="/theme.js?v=12"></script>
+  <script src="/i18n.js?v=12"></script>
+  <link rel="stylesheet" href="/style.css?v=12" />
 </head>
 <body>
 
@@ -420,7 +420,7 @@
       <!-- ---------- 评估测试：可观测子页 ---------- -->
       <section id="view-evaltest" class="hidden">
         <div class="page-head">
-          <div><h2>评估测试</h2><p>评估配置、运行记录、指标展示、日志追踪，以及按项目 / 租户 / 调用维度统计 token 消耗与成本；支持预算上限与超限处理。</p></div>
+          <div><h2>评估测试</h2><p>评估配置、运行记录、指标展示、日志追踪，以及按项目 / 部门 / 调用维度统计 token 消耗与成本；支持预算上限与超限处理。</p></div>
           <div class="head-actions"><button class="btn btn-sm" onclick="loadEvalTest()">刷新</button></div>
         </div>
         <div id="et-banner"></div>
@@ -516,7 +516,7 @@
               <div class="section-title">Token 消耗与成本（按维度聚合）</div>
               <div class="field" style="margin-bottom:12px"><label>按维度聚合</label>
                 <select id="et-cost-dim" class="select" onchange="loadEtCost()">
-                  <option value="project">项目</option><option value="tenant">租户</option>
+                  <option value="project">项目</option><option value="department_id">部门</option>
                   <option value="call_type">调用类型</option><option value="model">模型</option>
                 </select>
               </div>
@@ -530,7 +530,7 @@
 
         <div class="tab-panel" id="et-gov">
           <div class="card" style="margin-bottom:16px">
-            <div class="section-title padded" style="padding-bottom:0">限流配额（用户 / 租户 / 接口 / 模型调用）</div>
+            <div class="section-title padded" style="padding-bottom:0">限流配额（用户 / 接口 / 模型调用）</div>
             <div class="table-wrap" id="et-rate-table"></div>
             <div class="padded muted small">超限反馈：HTTP 429 + Retry-After + 统一错误体 + 审计留痕；
               <code>rate_limit_exceeded</code> 退避重试，<code>quota_exceeded</code> 不重试。</div>
@@ -558,6 +558,13 @@
                 <option value="offline">离线占位</option>
               </select>
             </div>
+            <div class="field"><label>推理强度</label>
+              <select id="st-llm-thinking" class="select">
+                <option value="disabled">低思考 · 快速（默认，关闭 thinking）</option>
+                <option value="enabled">完整推理（慢，先输出思考过程）</option>
+              </select>
+            </div>
+            <p class="muted small" data-i18n="V4.1 系列默认会先输出思考过程；检索问答要低延迟，默认在请求里显式关闭。网关是否识别该字段尚未实测，未识别时由前端过滤内联思考块兜底，不假装已关闭。">V4.1 系列默认会先输出思考过程；检索问答要低延迟，默认在请求里显式关闭。网关是否识别该字段尚未实测，未识别时由前端过滤内联思考块兜底，不假装已关闭。</p>
             <div id="st-discovery-box">
               <div class="field"><label>网关模型</label>
                 <select id="st-discovery-model" class="select"></select>
@@ -636,6 +643,6 @@
 <div id="modal-root"></div>
 <div id="toasts"></div>
 
-<script src="/app.js?v=11"></script>
+<script src="/app.js?v=12"></script>
 </body>
 </html>

@@ -126,7 +126,8 @@ async def chat_stream(
                 prompt_text = body.question + "\n" + "\n".join(
                     str(s.get("text") or "") for s in sources)
                 obs.record_usage(
-                    project=cfg.get("project", "default"), tenant=cfg.get("tenant", "default"),
+                    project=cfg.get("project", "default"),
+                    department_id=cfg.get("department", "default"),
                     user_id=user["id"], call_type="chat", model=rag.get_model_label(),
                     prompt_text=prompt_text, completion_text="".join(full),
                     estimated=1, detail=f"conv={conv_id[:8]} degraded={final_degraded}")

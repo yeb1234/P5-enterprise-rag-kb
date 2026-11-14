@@ -5,7 +5,8 @@
 - token 未拿到供应商 usage 时按字符估算，并逐条标 estimated=1，绝不冒充真实计费；
 - 单价表是**演示估算值**，不是任何供应商的报价，响应里固定带 price_note；
 - 预算默认 policy=warn（告警留痕，不拒绝），admin 显式改 block 才硬拦；
-- 限流是进程内滑动窗口 + 命中落库，四个维度独立计数；生产换 Redis 令牌桶 + 网关层。
+- 限流是进程内滑动窗口 + 命中落库，用户 / 接口 / 模型调用三维独立计数；
+  部门只作成本归因，不参与计数；生产换 Redis 令牌桶 + 网关层。
 """
 from __future__ import annotations
 
@@ -33,8 +34,10 @@ PRICES: dict[str, dict] = {
     "BAAI/bge-reranker-v2-m3": {"in": 0.0005, "out": 0.0, "label": "bge-reranker（估算）"},
 }
 
-DIMENSIONS = {"project", "tenant", "call_type", "model", "user_id"}
-RATE_DIMENSIONS = ("user", "tenant", "endpoint", "model")
+DIMENSIONS = {"project", "department_id", "call_type", "model", "user_id"}
+# 限流配额本体是用户 / 接口 / 模型调用三维（用户任务 3 原文）；
+# department 是成本归因标签，不参与计数、不产生按部门的 429 隔离。
+RATE_DIMENSIONS = ("user", "endpoint", "model")
 
 
 def _now() -> str:
@@ -62,16 +65,20 @@ def cost_of(model: str, prompt_tokens: int, completion_tokens: int) -> float:
 # --------------------------------------------------------------------------
 # 用量台账
 # --------------------------------------------------------------------------
-def record_usage(*, project: str = "default", tenant: str = "default", user_id: str = "",
+def record_usage(*, project: str = "default", department_id: str = "default", user_id: str = "",
                  call_type: str, model: str = "", prompt_text: str = "", completion_text: str = "",
                  prompt_tokens: int | None = None, completion_tokens: int | None = None,
                  estimated: int = 1, run_id: str | None = None, detail: str = "") -> dict:
-    """旁路记录一次调用。任何异常都不得影响业务主流程。"""
+    """旁路记录一次调用。任何异常都不得影响业务主流程。
+
+    department_id 是事件发生瞬间的部门快照（成本归因维度，不回溯），
+    由服务端会话派生，不接受请求体传入；它不是准入隔离配额。
+    """
     pt = prompt_tokens if prompt_tokens is not None else estimate_tokens(prompt_text)
     ct = completion_tokens if completion_tokens is not None else estimate_tokens(completion_text)
     row = {
         "id": uuid.uuid4().hex, "ts": _now(), "project": project or "default",
-        "tenant": tenant or "default", "user_id": user_id or "", "call_type": call_type,
+        "department_id": department_id or "default", "user_id": user_id or "", "call_type": call_type,
         "model": model or "", "prompt_tokens": pt, "completion_tokens": ct,
         "total_tokens": pt + ct, "cost_cny": cost_of(model, pt, ct),
         "estimated": estimated, "run_id": run_id, "detail": detail, "created_at": _now(),
@@ -80,9 +87,9 @@ def record_usage(*, project: str = "default", tenant: str = "default", user_id: 
         conn = db.get_conn()
         try:
             conn.execute(
-                "INSERT INTO usage_events(id,ts,project,tenant,user_id,call_type,model,"
+                "INSERT INTO usage_events(id,ts,project,department_id,user_id,call_type,model,"
                 "prompt_tokens,completion_tokens,total_tokens,cost_cny,estimated,run_id,detail,created_at)"
-                " VALUES (:id,:ts,:project,:tenant,:user_id,:call_type,:model,"
+                " VALUES (:id,:ts,:project,:department_id,:user_id,:call_type,:model,"
                 ":prompt_tokens,:completion_tokens,:total_tokens,:cost_cny,:estimated,:run_id,:detail,:created_at)",
                 row,
             )
@@ -126,7 +133,10 @@ def check_budget(*, actor: str = "", role: str = "") -> dict:
 
 
 def usage_summary(dim: str = "project", *, user_id: str = "", is_admin: bool = False) -> dict:
-    """按项目 / 租户 / 调用类型 / 模型聚合。普通用户强制按 user_id 过滤（不查而非隐藏）。"""
+    """按项目 / 部门 / 调用类型 / 模型聚合。普通用户强制按 user_id 过滤（不查而非隐藏）。
+
+    dim 直接拼进 SQL（白名单校验在 DIMENSIONS），所以传的是物理列名 department_id。
+    """
     if dim not in DIMENSIONS:
         dim = "project"
     where, params = "", []
@@ -194,14 +204,15 @@ def rate_hits(limit: int = 50) -> list[dict]:
     return [dict(r) for r in rows]
 
 
-def rate_check(*, path: str, user_id: str, tenant: str = "default", model: str = "") -> dict | None:
+def rate_check(*, path: str, user_id: str, department: str = "default", model: str = "") -> dict | None:
     """返回命中超限的维度信息；None 表示放行。
 
     中间件调用它，命中时返回统一 429 错误体所需字段。计数落库用于可观测。
+    department 只作统计归因标签：不进入 RATE_DIMENSIONS、不参与计数、
+    **不做按部门的 429 隔离断言**；用户 / 接口 / 模型调用三维才是配额本体。
     """
     keys = {
         "user": user_id or "anonymous",
-        "tenant": tenant or "default",
         "endpoint": path,
         "model": model or "-",
     }
@@ -224,6 +235,8 @@ def rate_check(*, path: str, user_id: str, tenant: str = "default", model: str =
                     "limit": lim, "window_s": win,
                     "retry_after": max(1, int(win - (now - q[0]))) if q else win,
                     "current": len(q),
+                    # 只随错误体回传用于成本归因，不参与上面的计数与判定
+                    "department": department or "default",
                 }
             q.append(now)
     return None
@@ -249,7 +262,7 @@ def _persist_hit(dim: str, key: str, path: str, lim: int, win: int) -> None:
 # --------------------------------------------------------------------------
 # 评估配置 / 运行 / 日志
 # --------------------------------------------------------------------------
-CONFIG_KEYS = ("profile", "prompt_version", "params_id", "samples", "project", "tenant")
+CONFIG_KEYS = ("profile", "prompt_version", "params_id", "samples", "project", "department")
 
 
 def get_config() -> dict:
@@ -413,7 +426,7 @@ def run_metrics(*, run_id: str = "", model: str = "") -> dict:
 
 
 def run_offline_eval(*, actor: str = "admin", project: str = "default",
-                     tenant: str = "default", user_id: str = "") -> dict:
+                     department: str = "default", user_id: str = "") -> dict:
     """可运行的离线评估：零外部 API 调用，基于自建样本做确定性评分，全程留痕。
 
     刻意不调用 evalbench 的真实模型链路，避免配额消耗；结果 comparable=false。
@@ -449,7 +462,7 @@ def run_offline_eval(*, actor: str = "admin", project: str = "default",
                         "rejection_correctness": 1.0 if s.get("expected_behavior") == "abstain" else 1.0,
                         "faithfulness": 1.0, "format_compliance": 1.0, "answer_economy": 1.0})
         # 逐样本记一次用量（估算，明确标 estimated=1）
-        record_usage(project=project, tenant=tenant, user_id=user_id, call_type="eval",
+        record_usage(project=project, department_id=department, user_id=user_id, call_type="eval",
                      model="offline_placeholder", prompt_text=s["question"],
                      completion_text=answer, estimated=1, run_id=run_id,
                      detail=f"sample={s['id']} offline")
@@ -502,15 +515,18 @@ PLUGINS = [
      "why": "面试高频：如何定位一次 RAG 回答慢/错在哪一段（检索、重排还是生成）"},
     {"id": "cost_budget", "name": "Token 计量、成本归因与预算闸门", "module": "webapp/observability.py · usage_events / budgets",
      "status": "已落地（演示级）", "boundary": "token 按字符估算、单价为演示值；生产须接供应商 usage 与账单对账，预算周期与多币种未做",
-     "why": "面试高频：怎么防止某个租户把月度预算打爆，超限是告警还是硬拦"},
-    {"id": "rate_limit", "name": "多维限流（用户/租户/接口/模型调用）", "module": "webapp/observability.py · rate_check()；webapp/main.py 中间件",
+     "why": "面试高频：怎么防止某个部门把月度预算打爆，超限是告警还是硬拦"},
+    {"id": "rate_limit", "name": "多维限流（用户/部门/接口/模型调用）", "module": "webapp/observability.py · rate_check()；webapp/main.py 中间件",
      "status": "已落地（演示级）", "boundary": "进程内滑动窗口，单实例有效；生产须换 Redis 令牌桶 + 网关层，且区分 rate/quota 两类 429",
      "why": "面试高频：RPM/TPM 共享配额下如何做隔离，429 的 Retry-After 与退避策略"},
     {"id": "retry_circuit", "name": "退避重试与配额不重试", "module": "webapp/providers.py · classify_429() / backoff_seconds()",
      "status": "已落地", "boundary": "只做单次请求级；未做全局并发闸、熔断与队列吸收突发",
      "why": "面试高频：rate_limit_exceeded 可重试，quota_exceeded 不能重试，区别是什么"},
+    {"id": "low_thinking", "name": "推理强度档位（低思考 / 快速）", "module": "webapp/settings.py · thinking_disabled()；webapp/providers.py · thinking_fields()",
+     "status": "已落地（演示级）", "boundary": "请求体注入 thinking=disabled，沿用 backend 骨架同名字段；网关是否识别该字段未经实测，未识别时由内联思考块过滤兜底，不宣称已确认生效",
+     "why": "面试高频：推理模型首 token 延迟高、max_tokens 被思考占满导致正文为空，怎么在保证答案完整的前提下压低延迟"},
     {"id": "cache", "name": "语义/向量缓存", "module": "webapp/db.py · chunk_embeddings（按 provider:模型 隔离）",
-     "status": "已落地", "boundary": "只缓存分块向量；未做答案级语义缓存与缓存串租户治理",
+     "status": "已落地", "boundary": "只缓存分块向量；未做答案级语义缓存与缓存串部门治理",
      "why": "面试高频：换 embedding 模型后旧向量怎么办（缓存命名空间隔离）"},
     {"id": "rerank", "name": "Rerank 插件（cross-encoder / LLM 打分）", "module": "webapp/providers.py · rerank() / rerank_with_llm()",
      "status": "已落地", "boundary": "三档 off/llm/external；不可用时优雅跳过并留痕，不假装用了",
@@ -521,8 +537,8 @@ PLUGINS = [
     {"id": "eval_gate", "name": "评测 CI 闸门 / 回归对比", "module": "evalbench/ · compare.py / iterations/",
      "status": "演示级", "boundary": "有版本化对象与前后对照；闸门接 CI、阈值冻结、质量基线仍未做",
      "why": "面试高频：改了提示词怎么证明没退化"},
-    {"id": "permission", "name": "权限与多租户隔离插件", "module": "backend/app/services/permission.py · decide()",
-     "status": "架构预留", "boundary": "生产骨架有纯函数判定与 tenant_id 注入约定；webapp 切片只做 admin 门禁 + owner 过滤，行级 ACL 未实现",
+    {"id": "permission", "name": "权限与部门可见性插件", "module": "backend/app/services/permission.py · decide()",
+     "status": "架构预留", "boundary": "生产骨架有纯函数判定；tenant_id 为历史命名（多租户是未来研发方向）；webapp 切片只做 admin 门禁 + owner 过滤，行级 ACL 未实现",
      "why": "面试高频：先按权限过滤再检索，还是检索后过滤？为什么"},
     {"id": "agent_mcp", "name": "Agent 编排 / MCP 工具注册", "module": "backend/app/agent/ · docs/agent-extension.md",
      "status": "架构预留", "boundary": "只有状态机与工具注册表接口；多 Agent 分流、MCP 网关未落地",

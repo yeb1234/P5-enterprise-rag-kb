@@ -30,6 +30,7 @@ def _effective(cfg: dict) -> dict:
     return {
         "llm_provider": cfg["llm_provider"],
         "llm": providers.get_model_label(cfg),
+        "thinking": providers.get_thinking_mode(cfg),
         "embedding": settings.effective_embedding(cfg)["name"],
         "rerank": ("off" if cfg["rerank_provider"] == "off"
                    else "LLM-as-reranker" if cfg["rerank_provider"] == "llm"
@@ -91,16 +92,19 @@ def update_settings(body: SettingsUpdate, user: dict = Depends(require_admin)):
 def test_provider(body: ProviderTest, _: dict = Depends(require_admin)):
     cfg = settings.get_all()
     t = body.target
+    low = settings.thinking_disabled(cfg)
     try:
         if t == "llm":
             if cfg["llm_provider"] == "local":
-                r = providers.test_llm(cfg["local_llm_base_url"], cfg["local_llm_model"])
+                r = providers.test_llm(cfg["local_llm_base_url"], cfg["local_llm_model"],
+                                       thinking_disabled=low)
                 return {"ok": True, "message": f"本地 LLM 可用（{r['latency_ms']} ms）", "detail": r}
             if cfg["llm_provider"] == "sensenova":
                 r = providers.test_llm(
                     os.environ.get("SENSENOVA_BASE_URL", ""),
                     cfg["sensenova_model"],
                     os.environ.get("SENSENOVA_API_KEY", ""),
+                    thinking_disabled=low,
                 )
                 return {"ok": True, "message": f"外部 DeepSeek 可用（{r['latency_ms']} ms）", "detail": r}
             if cfg["llm_provider"] == "discovery":
@@ -108,10 +112,12 @@ def test_provider(body: ProviderTest, _: dict = Depends(require_admin)):
                     os.environ.get("DISCOVERY_BASE_URL", ""),
                     cfg["discovery_model"],
                     os.environ.get("DISCOVERY_API_KEY", ""),
+                    thinking_disabled=low,
                 )
                 note = "（注意：该模型只返回推理过程，正文为空）" if r.get("reasoning_only") else ""
                 return {"ok": True,
-                        "message": f"Discovery 网关可用（{r['latency_ms']} ms，模型 {cfg['discovery_model']}）{note}",
+                        "message": (f"Discovery 网关可用（{r['latency_ms']} ms，模型 {cfg['discovery_model']}，"
+                                    f"{r.get('thinking_mode', '')}，{r.get('low_thinking_evidence', '')}）{note}"),
                         "detail": r}
             return {"ok": True, "message": "当前为离线占位，无需连接"}
         if t == "embedding":

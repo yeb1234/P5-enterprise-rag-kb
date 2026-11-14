@@ -283,7 +283,7 @@ def search_debug(question: str, top_k: int = TOP_K) -> dict:
         "hits": hits,
         "degraded": degraded,
         "degrade_reason": "retrieval_empty" if degraded else None,
-        "permission_filter": "documents.status='ready'（演示切片单租户；生产为 tenant_id + ACL 在召回前过滤）",
+        "permission_filter": "documents.status='ready'（演示切片单库；生产为部门树 + decide() 在召回前过滤）",
         "rerank": meta["rerank"],
         "retrieval_mode": meta["retrieval_mode"],
         "fallback_reason": meta["fallback_reason"],

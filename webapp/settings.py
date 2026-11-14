@@ -23,6 +23,11 @@ DEFAULTS: dict[str, str] = {
     "local_llm_model": os.environ.get("LOCAL_LLM_MODEL", "qwen2.5-coder-7b-instruct"),
     "sensenova_model": os.environ.get("SENSENOVA_MODEL", "deepseek-flash"),
     "discovery_model": os.environ.get("DISCOVERY_MODEL", "deepseek-v4.1-flash-1017"),
+    # 推理强度：V4.1 系列默认会先吐 reasoning，检索问答要的是低延迟，所以默认关闭思考。
+    # 沿用 backend/app/core/config.py:69 的 DEEPSEEK_THINKING 口径与
+    # backend/app/integrations/llm.py:52 的 thinking={"type":"disabled"} 字段，不另造参数。
+    # 用 WEBAPP_ 前缀隔离：backend 骨架已有同名语义配置，避免两套枚举互相污染。
+    "llm_thinking": os.environ.get("WEBAPP_LLM_THINKING", "disabled"),
     # Embedding：offline（词法）| local（LM Studio Bge M3）| external（硅基流动 BAAI/bge-m3 等 OpenAI 兼容）
     "embedding_provider": os.environ.get("WEBAPP_EMBEDDING_PROVIDER", "local"),
     "local_embedding_base_url": os.environ.get("LOCAL_EMBED_BASE_URL", "http://127.0.0.1:1234/v1"),
@@ -43,7 +48,18 @@ ENUMS: dict[str, set[str]] = {
     "llm_provider": {"offline", "sensenova", "discovery", "local"},
     "embedding_provider": {"offline", "local", "external"},
     "rerank_provider": {"off", "llm", "external"},
+    "llm_thinking": {"disabled", "enabled"},
 }
+
+
+def thinking_disabled(cfg: dict | None = None) -> bool:
+    """「低思考 / 快速档」的唯一事实源：是否要在请求体注入关闭思考的字段。
+
+    放在配置层而不是 provider 里，是为了让流式、非流式、连接测试三条路径
+    共用同一个判定，避免某条链路忘了关闭思考而拖慢演示。
+    """
+    cfg = cfg or get_all()
+    return cfg.get("llm_thinking", "disabled") == "disabled"
 
 
 def _now() -> str:

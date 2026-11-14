@@ -61,6 +61,19 @@ async function api(path, opts = {}) {
     }
     throw new Error(detail);
   }
+  if (res.status === 429) {
+    // 统一 429 契约：区分可退避重试的 rate_limit_exceeded 与不重试的 quota_exceeded。
+    // 后端 body 见 webapp/main.py 的 rate_limit_gate；这里不能只抛 detail，否则前端
+    // 会把「额度耗尽」也提示成「稍后重试」，用户白等。
+    let j = {};
+    try { j = await res.json(); } catch (_) { }
+    const ra = Number(res.headers.get('Retry-After') || j.retry_after || 0);
+    const kind = j.kind || 'rate_limit_exceeded';
+    const hint = kind === 'quota_exceeded'
+      ? '额度已用尽，不会自动重试；请稍后重试或更换模型 / 供应商'
+      : (ra > 0 ? `请 ${ra}s 后重试` : '请稍后重试');
+    throw new Error(`${j.message || '请求被限流'}：${hint}${j.code ? `（${j.code}）` : ''}`);
+  }
   if (!res.ok) {
     let detail = '请求失败 (' + res.status + ')';
     try { const j = await res.json(); detail = j.detail || detail; } catch (_) { }
@@ -961,6 +974,7 @@ async function loadSettings() {
     S.settings = r;
     const c = r.config;
     $('st-llm-provider').value = c.llm_provider;
+    $('st-llm-thinking').value = c.llm_thinking || 'disabled';
     $('st-local-llm-base').value = c.local_llm_base_url;
     $('st-local-emb-base').value = c.local_embedding_base_url;
     $('st-external-emb-base').value = c.external_embedding_base_url;
@@ -979,6 +993,7 @@ async function loadSettings() {
     const extColor = extEmb.configured ? 'var(--success)' : 'var(--danger)';
     $('st-effective').innerHTML =
       `LLM：<b>${esc(r.effective.llm)}</b>（${esc(r.effective.llm_provider)}） · ` +
+      `推理：<b>${esc(r.effective.thinking || '—')}</b> · ` +
       `向量：<b>${esc(r.effective.embedding)}</b> · 重排：<b>${esc(r.effective.rerank)}</b><br/>` +
       `硅基流动密钥：<b style="color:${extColor}">${extEmb.configured ? '已配置（嵌入 + 重排共用）' : '未配置'}</b>` +
       ` · ${esc(t('本地 LM Studio'))}：<b style="color:${okColor}">${esc(t(r.local.reachable ? '可达' : '不可达'))}</b>` +
@@ -1021,6 +1036,7 @@ async function testProvider(target) {
 async function saveSettings() {
   const patch = {
     llm_provider: $('st-llm-provider').value,
+    llm_thinking: $('st-llm-thinking').value,
     local_llm_base_url: $('st-local-llm-base').value.trim(),
     local_llm_model: $('st-local-llm-model').value.trim(),
     discovery_model: $('st-discovery-model').value.trim(),
@@ -1084,7 +1100,7 @@ async function loadEtConfig() {
     const rows = [
       [t('评估档位'), esc(c.profile || '—')], [t('提示词版本'), esc(c.prompt_version || '—')],
       [t('参数组'), esc(c.params_id || '—')], [t('样本范围'), esc(c.samples || '—')],
-      [t('项目'), esc(c.project || 'default')], [t('租户'), esc(c.tenant || 'default')],
+      [t('项目'), esc(c.project || 'default')], [t('部门'), esc(c.department || 'default')],
       [t('统计范围'), esc(t(r.is_admin ? '全局（admin）' : '仅本人数据'))],
     ];
     $('et-config-view').innerHTML = rows.map(([k, v]) => `<div class="kv-line"><span>${k}</span><b>${v}</b></div>`).join('');
@@ -1266,7 +1282,8 @@ async function loadEtGov() {
       api('/api/evaltest/ratelimit'), api('/api/evaltest/plugins'),
     ]);
     const rules = r.rules || [], hits = r.hits || [];
-    const dimKey = { user: '用户', tenant: '租户', endpoint: '接口', model: '模型调用' };
+    const dimKey = { user: '用户', endpoint: '接口', model: '模型调用',
+                     department_id: '部门', project: '项目', call_type: '调用类型' };
     const hitCount = {};
     hits.forEach(h => { hitCount[h.dimension] = (hitCount[h.dimension] || 0) + 1; });
     $('et-rate-table').innerHTML = '<table class="table"><thead><tr>' +
