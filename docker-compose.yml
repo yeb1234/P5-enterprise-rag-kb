@@ -201,6 +201,38 @@ services:
     ports: ["8080:80"]
     depends_on: [api, frontend]
 
+  # 可插拔文档解析服务（独立进程、可单独扩容）。
+  # 用 profiles 隔离：默认 `docker compose up -d` 仍是原来的 11 个服务，
+  # 只有 `docker compose --profile parsing up -d` 才会拉起它，不影响既有演示链路。
+  # 端口只绑 127.0.0.1，避免把未鉴权的探测接口暴露到公网（见 deployment-guide §G1）。
+  parser:
+    build:
+      context: .
+      dockerfile: Dockerfile.parse
+    profiles: ["parsing"]
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: 0.5
+    logging: *default-logging
+    environment:
+      PARSING_STRATEGY: ${PARSING_STRATEGY:-auto}
+      PARSING_VISION_ESCALATION_RATIO: ${PARSING_VISION_ESCALATION_RATIO:-0.10}
+      PARSING_CONFIDENCE_MIN: ${PARSING_CONFIDENCE_MIN:-0.75}
+      PARSING_OCR_TEXT_CHARS_MIN: ${PARSING_OCR_TEXT_CHARS_MIN:-40}
+      # 外部端点未配置时适配器自动不可用；密钥只从 .env 注入，不写进镜像
+      PARSING_OCR_BASE_URL: ${PARSING_OCR_BASE_URL:-}
+      PARSING_OCR_API_KEY: ${PARSING_OCR_API_KEY:-}
+      PARSING_VISION_BASE_URL: ${PARSING_VISION_BASE_URL:-}
+      PARSING_VISION_API_KEY: ${PARSING_VISION_API_KEY:-}
+      PARSING_VISION_MODEL: ${PARSING_VISION_MODEL:-}
+    ports: ["127.0.0.1:8766:8766"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8766/health/live', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
 volumes:
   pgdata:
   redisdata:

@@ -1,0 +1,27 @@
+# 独立解析服务镜像（context 为项目根）
+# 只 COPY parsing/，不把 webapp/ 的 SQLite 演示替身或 backend/ 的重依赖带进来。
+# 用法（项目根执行）：
+#   docker compose --profile parsing up -d --build parser
+#   curl http://127.0.0.1:8766/health/live
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
+
+# 只装解析服务真正需要的最小依赖；P0 自研层本身是纯标准库。
+RUN pip install --no-cache-dir \
+        "fastapi>=0.110,<1" \
+        "uvicorn[standard]>=0.27,<1" \
+        "python-multipart>=0.0.9,<1"
+
+WORKDIR /app
+COPY parsing/ ./parsing/
+
+EXPOSE 8766
+
+# 健康检查用标准库 urllib，镜像里不需要额外装 curl。
+HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=5 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8766/health/live', timeout=3)"
+
+CMD ["uvicorn", "parsing.server:app", "--host", "0.0.0.0", "--port", "8766"]
