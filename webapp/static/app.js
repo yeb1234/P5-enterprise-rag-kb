@@ -176,6 +176,7 @@ const VIEW_META = {
   eval:   ['评测中心', '质量与治理 / 评测中心'],
   evaltest: ['评估测试', '质量与治理 / 评估测试（可观测）'],
   parsing: ['解析实验室', '质量与治理 / 解析实验室（三级策略）'],
+  knowledge: ['知识治理', '质量与治理 / 知识治理（新鲜度与冲突检测）'],
   admin:  ['管理后台', '质量与治理 / 管理后台（仅 admin）'],
   audit:  ['审计日志', '质量与治理 / 审计日志（仅 admin）'],
   settings: ['模型设置', '系统 / 模型设置（仅 admin）'],
@@ -187,7 +188,7 @@ const VIEWS = Object.keys(VIEW_META);
 const LOADERS = {
   home: loadOverview, docs: refreshDocs, tasks: loadTasks, eval: loadEval,
   admin: loadAdmin, audit: loadAudit, settings: loadSettings, system: loadSystem,
-  evaltest: loadEvalTest, parsing: loadParsing,
+  evaltest: loadEvalTest, parsing: loadParsing, knowledge: loadKnowledge,
 };
 function switchView(view) {
   if (ADMIN_VIEWS.includes(view) && (!S.user || S.user.role !== 'admin')) {
@@ -1414,6 +1415,88 @@ function renderParsingReport(rep) {
     `<div class="kv-line"><span>结构化块数 / 表格单元格</span><b>${(first.blocks || []).length} / ${sig.table_cells || 0}</b></div>` +
     `<div class="kv-line"><span>字符数 / 密度 / 置信度</span><b>${sig.text_chars || 0} / ${sig.text_density || 0} / ${sig.confidence || 0}</b></div>` +
     `<pre class="small" style="white-space:pre-wrap;margin:10px 0 0;max-height:220px;overflow:auto">${esc((first.text || '').slice(0, 1200))}</pre>`;
+}
+
+/* ================= 知识治理（新鲜度 + 事实冲突） ================= */
+let KN_DATA = null;
+
+async function loadKnowledge() {
+  try {
+    const [st, sc] = await Promise.all([
+      api('/api/knowledge/status'), api('/api/knowledge/scenario'),
+    ]);
+    KN_DATA = sc;
+    const p = st.policy;
+    $('kn-enabled').value = p.enabled ? '1' : '0';
+    $('kn-half').value = p.half_life_days;
+    $('kn-expired').value = p.expired_action;
+    $('kn-blend').value = p.blend;
+    $('kn-policy-msg').textContent = '当前策略：' + (p.enabled ? '启用' : '关闭') +
+      ' · 阈值说明：' + p.note;
+
+    const s = sc.freshness.summary;
+    $('kn-summary').innerHTML =
+      `<div class="kv-line"><span>候选文档 / stale / 已过期</span><b>${s.count} / ${s.stale} / ${s.expired}</b></div>` +
+      `<div class="kv-line"><span>未生效 / 被排除</span><b>${s.not_yet_effective} / ${s.excluded}</b></div>` +
+      `<div class="kv-line"><span>stale 占比 / 告警线</span><b style="color:var(${s.alert ? '--danger' : '--success'})">${(s.stale_ratio * 100).toFixed(1)}% / ${(s.alert_threshold * 100).toFixed(0)}%</b></div>` +
+      `<div class="kv-line"><span>年龄分布</span><b>${Object.entries(s.buckets).map(([k, v]) => k + ':' + v).join(' · ')}</b></div>` +
+      `<p class="muted small" style="margin:8px 0 0">${esc(s.note)}</p>`;
+
+    const ow = sc.freshness.order_with || [], owoff = sc.freshness.order_without || [];
+    $('kn-order').innerHTML =
+      `<div class="kv-line"><span>开启新鲜度</span><b>${esc(ow.join(' → ') || '—')}</b></div>` +
+      `<div class="kv-line"><span>关闭（仅关衰减）</span><b>${esc(owoff.join(' → ') || '—')}</b></div>` +
+      `<p class="muted small" style="margin:8px 0 0">${esc(sc.freshness.note)}</p>`;
+
+    const rows = (sc.freshness.results || []).map(r =>
+      `<tr><td><b>${esc(r.doc_id)}</b><br/><span class="small muted">${esc(r.title)}</span></td>` +
+      `<td>${esc(String(r.age_days))}d</td><td>${esc(String(r.decay))}</td>` +
+      `<td>${esc(String(r.base_score))}</td><td><b>${esc(String(r.effective_score))}</b></td>` +
+      `<td>${esc(r.action)}${r.excluded ? ' · 排除' : ''}${r.is_expired ? ' · 已过期' : ''}${r.not_yet_effective ? ' · 未生效' : ''}</td>` +
+      `<td class="small">${esc(r.reason)}</td></tr>`).join('');
+    $('kn-freshness').innerHTML =
+      `<table class="table"><thead><tr><th>文档</th><th>年龄</th><th>衰减</th><th>原分</th><th>有效分</th><th>处置</th><th>判定依据</th></tr></thead><tbody>${rows}</tbody></table>`;
+
+    const ev = sc.evidence;
+    $('kn-warnings').innerHTML = (ev.warnings || []).length
+      ? ev.warnings.map(w => `<div class="banner banner-warn" style="margin-bottom:6px">${esc(w)}</div>`).join('')
+      : '<div class="muted small">未检测到冲突</div>';
+    const cRows = (ev.conflicts || []).map(c =>
+      `<tr><td class="small">${esc(c.key)}</td><td><b>${esc(c.values.join(' vs '))}</b></td>` +
+      `<td>${esc(c.kind)}</td><td>${esc(c.resolution)}</td>` +
+      `<td>${c.needs_review ? '<span class="badge badge-amber">需复核</span>' : '<span class="badge badge-green">可按规则</span>'}</td>` +
+      `<td>${esc(c.winner_id || '并列转人工')}</td><td class="small">${esc(c.reason)}</td></tr>`).join('');
+    $('kn-conflicts').innerHTML = cRows
+      ? `<table class="table"><thead><tr><th>冲突键</th><th>互斥取值</th><th>类型</th><th>裁决</th><th>复核</th><th>胜出</th><th>理由</th></tr></thead><tbody>${cRows}</tbody></table>`
+      : '<div class="muted small">无冲突</div>';
+    $('kn-evidence').innerHTML =
+      `<div class="kv-line"><span>claim 数 / 冲突数 / conflict_signal</span><b>${ev.claims.length} / ${ev.conflicts.length} / ${ev.conflict_signal}</b></div>` +
+      `<div class="kv-line"><span>选中 / 排除 claim</span><b>${ev.selected_claim_ids.length} / ${ev.excluded_claim_ids.length}</b></div>` +
+      `<p class="muted small" style="margin:8px 0 0">${esc(ev.note)}</p>` +
+      `<pre class="small" style="white-space:pre-wrap;max-height:180px;overflow:auto;margin:10px 0 0">${esc(JSON.stringify(ev.resolution_log, null, 2).slice(0, 1800))}</pre>`;
+
+    $('kn-controls').innerHTML = '<ul class="small" style="padding-left:18px;margin:0">' +
+      (sc.controls.negative_controls || []).map(x => `<li>${esc(x)}</li>`).join('') +
+      `</ul><p class="muted small" style="margin:8px 0 0">${esc(sc.controls.note)}</p>`;
+    $('kn-docs').innerHTML = (sc.documents || []).map(d =>
+      `<div style="margin-bottom:8px"><b>${esc(d.doc_id)} · ${esc(d.title)}</b>` +
+      `<span class="small muted">（revision=${esc(d.revision)}, authority=${esc(String(d.authority))}, scope=${esc(JSON.stringify(d.scope))}）</span>` +
+      `<pre class="small" style="white-space:pre-wrap;margin:4px 0 0">${esc(d.text)}</pre></div>`).join('');
+  } catch (e) { safeToast(e); }
+}
+
+async function saveKnowledgePolicy() {
+  const patch = {
+    enabled: $('kn-enabled').value === '1',
+    half_life_days: Number($('kn-half').value),
+    expired_action: $('kn-expired').value,
+    blend: Number($('kn-blend').value),
+  };
+  try {
+    await api('/api/knowledge/policy', { method: 'PUT', body: JSON.stringify(patch) });
+    toast(t('设置已保存，已即时生效'), 'ok');
+    await loadKnowledge();
+  } catch (e) { safeToast(e); }
 }
 
 /* 语言切换后，评估页与解析页的动态内容需要重渲染 */

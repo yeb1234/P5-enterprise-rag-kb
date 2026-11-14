@@ -56,7 +56,14 @@ CREATE TABLE IF NOT EXISTS documents (
     chunk_count  INTEGER NOT NULL DEFAULT 0,
     error_msg    TEXT,
     created_at   TEXT NOT NULL,
-    updated_at   TEXT NOT NULL
+    updated_at   TEXT NOT NULL,
+    -- 知识治理：时效 / 适用性 / 来源权威（对应 backend/app/models/knowledge.py 已预留字段）
+    valid_from       TEXT,                     -- 生效时间，未来生效不得进上下文
+    expires_at       TEXT,                     -- 到期时间
+    last_verified_at TEXT,                     -- 最近人工复核时间，比入库时间更可信
+    revision         TEXT NOT NULL DEFAULT '1',
+    authority        INTEGER NOT NULL DEFAULT 1,  -- 由业务注册表定义，不是代码常量
+    scope_json       TEXT NOT NULL DEFAULT '{}'   -- region / plan / product_version 等
 );
 
 CREATE TABLE IF NOT EXISTS chunks (
@@ -314,12 +321,34 @@ def _migrate_tenant_to_department(conn: sqlite3.Connection) -> None:
     conn.execute("DELETE FROM eval_configs WHERE key='tenant'")
 
 
+def _migrate_knowledge_columns(conn: sqlite3.Connection) -> None:
+    """给旧库补知识治理列（幂等）。
+
+    和 department_id 那次一样的教训：新列**不能**在 SCHEMA 里被索引引用，
+    否则旧库 executescript 会先报 no such column。这里只做 ADD COLUMN，
+    索引留给真实语料规模上来之后再说。
+    """
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(documents)")}
+    additions = (
+        ("valid_from", "TEXT"),
+        ("expires_at", "TEXT"),
+        ("last_verified_at", "TEXT"),
+        ("revision", "TEXT NOT NULL DEFAULT '1'"),
+        ("authority", "INTEGER NOT NULL DEFAULT 1"),
+        ("scope_json", "TEXT NOT NULL DEFAULT '{}'"),
+    )
+    for name, ddl in additions:
+        if name not in cols:
+            conn.execute(f"ALTER TABLE documents ADD COLUMN {name} {ddl}")
+
+
 def init_db() -> None:
     with _lock:
         conn = get_conn()
         try:
             conn.executescript(SCHEMA)
             _migrate_tenant_to_department(conn)
+            _migrate_knowledge_columns(conn)
             _seed(conn)
             conn.commit()
         finally:

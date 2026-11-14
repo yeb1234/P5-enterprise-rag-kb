@@ -178,6 +178,50 @@ def _semantic_rank(question: str, candidates: list[dict], cfg: dict) -> list[dic
     return candidates
 
 
+FRESHNESS_NOTE_OFF = {"freshness": "off"}
+
+
+def _freshness_enabled() -> bool:
+    return os.environ.get("WEBAPP_FRESHNESS_ENABLED", "0").strip().lower() in (
+        "1", "true", "yes", "on")
+
+
+def _apply_freshness(hits: list[dict]) -> tuple[list[dict], dict]:
+    """可选叠加新鲜度重排。默认关闭，避免打断既有 33 项端到端自测。
+
+    诚实边界：这里只在 `top_k` 之内重排，不做召回前硬过滤；
+    生产应在 SQL / Milvus expr 阶段先排除「未来生效」与「已过期」文档，
+    否则过期内容仍会占用候选名额。治理层任何异常都不得打断检索主链路。
+    """
+    if not _freshness_enabled():
+        return hits, FRESHNESS_NOTE_OFF
+    try:
+        from knowledge import FreshnessPolicy, meta_from_row, rerank
+        conn = db.get_conn()
+        try:
+            rows = conn.execute("SELECT * FROM documents").fetchall()
+        finally:
+            conn.close()
+        metas = {}
+        for r in rows:
+            d = dict(r)
+            d["doc_id"] = r["id"]
+            d["scope"] = d.get("scope_json")
+            metas[r["id"]] = meta_from_row(d)
+        p = FreshnessPolicy(
+            half_life_days=float(os.environ.get("WEBAPP_FRESHNESS_HALF_LIFE_DAYS", 90)),
+            expired_action=os.environ.get("WEBAPP_FRESHNESS_EXPIRED_ACTION", "demote"),
+        )
+        ordered, results = rerank(hits, metas, policy=p)
+        return ordered, {
+            "freshness": "on", "policy": p.as_dict(),
+            "excluded": [r.doc_id for r in results if r.excluded],
+            "note": "仅在 top_k 内重排；生产应在召回前做硬过滤",
+        }
+    except Exception as e:
+        return hits, {"freshness": f"unavailable:{type(e).__name__}"}
+
+
 def retrieve(question: str, top_k: int = TOP_K, with_meta: bool = False):
     """检索：**词法门禁（保证不相关不硬凑）→ 向量排序 → 可选 rerank**。
 
@@ -240,6 +284,7 @@ def retrieve(question: str, top_k: int = TOP_K, with_meta: bool = False):
                 h["score"] = round(h.get("_rerank", 0), 4)
             rerank_note = "applied:" + rp
 
+    hits, freshness_meta = _apply_freshness(hits)
     out = []
     for c in hits:
         out.append({
@@ -248,12 +293,15 @@ def retrieve(question: str, top_k: int = TOP_K, with_meta: bool = False):
             "chunk_id": c["chunk_id"], "doc_id": c["doc_id"], "idx": c["idx"],
             "snippet": (c["text"] or "").strip().replace("\n", " ")[:180],
             "retrieval_mode": mode, "rerank": rerank_note,
+            "freshness": c.get("freshness"),
+            "effective_score": c.get("effective_score"),
         })
     meta = {
         "retrieval_mode": mode,
         "fallback_reason": fallback_reason,
         "rerank": rerank_note,
         "embedding_model": emb["name"],
+        "freshness": freshness_meta,
     }
     return (out, meta) if with_meta else out
 

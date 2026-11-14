@@ -41,6 +41,9 @@ def _source_dict(h: dict) -> dict:
         "retrieval_mode": h.get("retrieval_mode"),
         "rerank": h.get("rerank"),
         "text": h.get("text"),
+        # 新鲜度治理开启时带上（关闭时为 None），供来源卡片与 meta 事件展示
+        "freshness": h.get("freshness"),
+        "effective_score": h.get("effective_score"),
     }
 
 
