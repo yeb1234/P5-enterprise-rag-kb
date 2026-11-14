@@ -77,6 +77,20 @@ def analyze_document(doc_id: str) -> None:
                 "演示仅支持 txt/md/csv/json/py 等纯文本提取，该格式暂未解析",
             )
             return
+        # 入库前出口（GATE_INGEST）：分块之前一次性脱敏。晚一步做就晚了——
+        # chunks 是检索、向量缓存、来源卡片、chat_sources 的共同真值源，
+        # 只要原文进了 chunks，后面每一层都会把它带出去。
+        try:
+            from guardrails import default as guard_default
+            g = guard_default()
+            ingest_result = g.ingest(text)
+            text = ingest_result.text
+            if ingest_result.hit_count:
+                db.record_safety_event(ingest_result, f"upload:{doc_id[:8]}")
+        except Exception:
+            # fail-closed：脱敏不可用时宁可整份不入库，也不能把原文写进知识库
+            _set_error(conn, doc_id, "内容安全脱敏不可用，已阻断本次入库（fail-closed）")
+            return
         chunks = chunk_text(text)
         conn.execute("DELETE FROM chunks WHERE doc_id=?", (doc_id,))
         for idx, c in enumerate(chunks):

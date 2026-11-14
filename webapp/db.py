@@ -252,6 +252,22 @@ CREATE TABLE IF NOT EXISTS eval_logs (
 );
 CREATE INDEX IF NOT EXISTS ix_eval_logs_ts ON eval_logs(ts);
 CREATE INDEX IF NOT EXISTS ix_eval_logs_run ON eval_logs(run_id);
+
+-- 内容安全 / PII：四个出口的命中统计。只存 kind / 数量 / 动作 / 规则版本，
+-- 不存原文、不存首尾 preview、不存可逆 token 映射，避免台账本身成为新的泄漏面。
+CREATE TABLE IF NOT EXISTS safety_events (
+    id            TEXT PRIMARY KEY,
+    ts            TEXT NOT NULL,
+    gate          TEXT NOT NULL,       -- ingest|context|output|audit
+    kind          TEXT NOT NULL,
+    hit_count     INTEGER NOT NULL DEFAULT 0,
+    blocked       INTEGER NOT NULL DEFAULT 0,
+    action        TEXT,
+    rule_version  TEXT,
+    source        TEXT                -- 调用点标识：chat / upload / badcase / log:<action>
+);
+CREATE INDEX IF NOT EXISTS ix_safety_events_ts ON safety_events(ts);
+CREATE INDEX IF NOT EXISTS ix_safety_events_gate ON safety_events(gate);
 """
 
 
@@ -263,8 +279,68 @@ def get_conn() -> sqlite3.Connection:
     return conn
 
 
+def record_safety_counts(gate: str, by_kind: dict, source: str,
+                         blocked: bool = False, action: str = "",
+                         rule_version: str = "") -> None:
+    """按 kind 写命中台账；流式闸只有计数、没有逐条 finding，走这个入口。"""
+    if not by_kind:
+        return
+    try:
+        now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        conn = get_conn()
+        try:
+            for kind, n in by_kind.items():
+                conn.execute(
+                    "INSERT INTO safety_events(id,ts,gate,kind,hit_count,blocked,action,"
+                    "rule_version,source) VALUES (?,?,?,?,?,?,?,?,?)",
+                    (uuid.uuid4().hex, now, gate, kind, n, 1 if blocked else 0,
+                     action, rule_version, source),
+                )
+            conn.commit()
+        finally:
+            conn.close()
+    except Exception:
+        pass
+
+
+def record_safety_event(result, source: str = "") -> None:
+    """把一次脱敏命中按 kind 汇总落台账（旁路，异常不影响业务）。
+
+    刻意只记数量与类别：台账是给运维看「哪个出口在漏」的，不是给回放原文用的。
+    """
+    if not result or not getattr(result, "hit_count", 0):
+        return
+    d = result.as_dict()
+    actions = d.get("actions", {})
+    record_safety_counts(
+        d["gate"], d.get("by_kind", {}), source,
+        blocked=bool(d.get("blocked")),
+        action=max(actions, key=actions.get) if actions else "",
+        rule_version=d.get("rule_version", ""),
+    )
+
+
 def log_action(actor: str, role: str, action: str, target: str = "", detail: str = "") -> None:
-    """只追加一条审计记录。审计是旁路：任何异常都不能影响业务主流程。"""
+    """只追加一条审计记录。审计是旁路：任何异常都不能影响业务主流程。
+
+    审计出口（GATE_AUDIT）：target / detail 是最容易带上用户输入的两个字段，
+    写库前统一过一遍脱敏规则，避免「回答打码了、审计日志里还是明文」。
+    actor 是内部账号标识，不在此处脱敏；生产若用邮箱当账号需单独加规则。
+    """
+    try:
+        from guardrails import default as guard_default
+        g = guard_default()
+        if g.policy.enabled:
+            tr = g.audit(target or "")
+            dr = g.audit(detail or "")
+            target, detail = tr.text, dr.text
+            if tr.hit_count:
+                record_safety_event(tr, f"log:{action}")
+            if dr.hit_count:
+                record_safety_event(dr, f"log:{action}")
+    except Exception:
+        # fail-closed：脱敏链路异常时宁可丢字段，也不把可能的原文写进审计日志
+        target, detail = "[脱敏失败:字段已丢弃]", "[脱敏失败:字段已丢弃]"
     try:
         conn = get_conn()
         try:

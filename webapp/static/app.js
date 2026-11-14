@@ -182,6 +182,7 @@ const VIEW_META = {
   settings: ['模型设置', '系统 / 模型设置（仅 admin）'],
   system: ['系统设置与边界', '系统 / 设置与边界'],
   runtime: ['缓存与恢复', '系统 / 缓存与恢复（重启稳定性）'],
+  safety: ['内容安全 / PII 防护', '系统 / 内容安全与 PII 防护（四出口）'],
 };
 const ADMIN_VIEWS = ['admin', 'audit', 'settings'];
 const VIEWS = Object.keys(VIEW_META);
@@ -191,6 +192,7 @@ const LOADERS = {
   admin: loadAdmin, audit: loadAudit, settings: loadSettings, system: loadSystem,
   evaltest: loadEvalTest, parsing: loadParsing, knowledge: loadKnowledge,
   runtime: loadRuntime,
+  safety: loadSafety,
 };
 function switchView(view) {
   if (ADMIN_VIEWS.includes(view) && (!S.user || S.user.role !== 'admin')) {
@@ -489,6 +491,9 @@ async function sendChat() {
             if (obj.degraded) { degrade = true; if (obj.degrade_reason) reason = obj.degrade_reason; }
           } else if (ev === 'done') {
             finished = true;
+            // 流式脱敏闸会扣住尾部若干字符等右边界确认；收尾时由 done.tail 补齐，
+            // 这样「一个原始 token 一个包」的续传索引契约与内容安全两者都不破。
+            if (obj.tail) bot.bubble.insertAdjacentText('beforeend', obj.tail);
             // done 一定带 sources（可能为空数组，对应检索未命中）
             if (obj.sources) { lastSources = obj.sources; ensureSources(bot); renderSources(bot.sourcesEl, obj.sources); }
             if (obj.degraded) { degrade = true; if (obj.degrade_reason) reason = obj.degrade_reason; }
@@ -1591,6 +1596,100 @@ async function saveRuntimePolicy() {
     $('rt-msg').textContent = '缓存策略已保存并落 runtime_state，重启后可恢复';
     toast(t('设置已保存，已即时生效'), 'ok');
     await loadRuntime();
+  } catch (e) { safeToast(e); }
+}
+
+/* ================= 内容安全 / PII 防护（四出口） ================= */
+let SF_DATA = null;
+const SF_GATE_LABEL = { ingest: '入库前', context: '进模型前', output: '输出前', audit: '日志与导出前' };
+
+async function loadSafety() {
+  try {
+    const r = await api('/api/safety/status');
+    SF_DATA = r;
+    const p = r.policy, led = r.ledger;
+    $('sf-enabled').value = p.enabled ? '1' : '0';
+    $('sf-action').value = p.default_action;
+    $('sf-minconf').value = p.min_confidence;
+    $('sf-policy').innerHTML =
+      `<div class="kv-line"><span>规则版本 / 启用状态</span><b>${esc(r.rule_version || '')} · ${p.enabled ? '开启' : '关闭（对照演示）'}</b></div>` +
+      `<div class="kv-line"><span>默认动作 / 最小置信度</span><b>${esc(p.default_action)} / ${p.min_confidence}</b></div>` +
+      `<div class="kv-line"><span>拦截类别 / 可逆 token</span><b>${esc(p.block_kinds.join(', ') || '无')} / ${p.reversible_token ? '开启（有风险）' : '关闭'}</b></div>` +
+      `<div class="kv-line"><span>哈希盐已配置</span><b style="color:var(${p.hash_salt_configured ? '--success' : '--danger'})">${p.hash_salt_configured ? '是' : '否（演示占位盐）'}</b></div>` +
+      `<div class="section-title" style="margin-top:12px">四个出口命中台账（真实链路）</div>` +
+      ['ingest', 'context', 'output', 'audit'].map(g => {
+        const n = (led.by_gate[g] || {}).hits || 0;
+        return `<div class="kv-line"><span>${esc(SF_GATE_LABEL[g])}（${g}）</span><b>${n}</b></div>`;
+      }).join('') +
+      `<div class="kv-line"><span>台账事件行 / 只存统计</span><b>${led.event_rows} / 是</b></div>` +
+      `<p class="muted small" style="margin:8px 0 0">${esc(p.note)}</p>`;
+
+    $('sf-integration').innerHTML =
+      Object.entries(r.integration).map(([k, v]) =>
+        `<div class="kv-line"><span class="small">${esc(k)}</span><b class="small">${esc(v)}</b></div>`).join('');
+
+    $('sf-rules').innerHTML =
+      `<table class="table" style="margin-top:4px"><thead><tr><th>类别</th><th>名称</th><th>置信度</th><th>校验 / 门控</th></tr></thead><tbody>` +
+      r.rules.map(x => `<tr><td class="small">${esc(x.kind)}</td><td class="small">${esc(x.label)}</td>` +
+        `<td class="small">${x.confidence}</td><td class="small">${esc(x.validator || (x.context_gated ? '上下文门控' : '格式'))}</td></tr>`).join('') +
+      `</tbody></table>` +
+      `<p class="muted small" style="margin:8px 0 0">共 ${r.rules.length} 条规则；每条命中都带规则版本，便于回放比对。${esc(r.samples_note)}</p>`;
+  } catch (e) { safeToast(e); }
+}
+
+async function runSafetyDemo() {
+  try {
+    const d = await api('/api/safety/demo', { method: 'POST' });
+    $('sf-demo').innerHTML =
+      `<div class="kv-line"><span>规则版本 / 样本总命中</span><b>${esc(d.rule_version)} / ${d.total_hits}</b></div>` +
+      `<div class="kv-line"><span>防误报负向对照</span><b style="color:var(${d.negative_controls.length === 4 ? '--success' : '--danger'})">${d.negative_controls.length} / 4 通过</b></div>` +
+      `<table class="table" style="margin-top:8px"><thead><tr><th>样本</th><th>命中</th><th>类别</th><th>脱敏后</th></tr></thead><tbody>` +
+      d.rows.map(x => `<tr><td class="small">${esc(x.label)}</td><td class="small">${x.hit_count}</td>` +
+        `<td class="small">${esc(Object.keys(x.by_kind).join(', ') || '—')}</td><td class="small">${esc(x.redacted)}</td></tr>`).join('') +
+      `</tbody></table>` +
+      `<div class="section-title" style="margin-top:14px">四出口链路（同一段文本依次穿过）</div>` +
+      `<table class="table"><thead><tr><th>出口</th><th>命中</th><th>结果文本</th></tr></thead><tbody>` +
+      d.chain.map(c => `<tr><td class="small">${esc(SF_GATE_LABEL[c.gate] || c.gate)}</td><td class="small">${c.hit_count}</td>` +
+        `<td class="small">${esc(c.text)}</td></tr>`).join('') +
+      `</tbody></table>` +
+      `<div class="section-title" style="margin-top:14px">流式逐 token 跨界验证</div>` +
+      `<div class="kv-line"><span>下发字符数 / 扣留边界 / 命中</span><b>${d.stream.chunks} / ${d.stream.held_boundaries} / ${d.stream.hits}</b></div>` +
+      `<div class="kv-line"><span>原文是否泄漏</span><b style="color:var(${d.stream.leaked ? '--danger' : '--success'})">${d.stream.leaked ? '是（异常）' : '否'}</b></div>` +
+      `<pre class="small" style="white-space:pre-wrap;margin:8px 0 0">${esc(d.stream.output)}</pre>` +
+      `<p class="muted small" style="margin:8px 0 0">${esc(d.note)}</p>`;
+  } catch (e) { safeToast(e); }
+}
+
+async function runSafetyCheck() {
+  const text = $('sf-text').value.trim();
+  if (!text) { toast(t('请输入待检测文本'), 'err'); return; }
+  try {
+    const d = await api('/api/safety/check', { method: 'POST', body: JSON.stringify({ text }) });
+    $('sf-check').innerHTML =
+      `<div class="kv-line"><span>总命中（四出口合计）</span><b>${d.report.total_hits}</b></div>` +
+      `<table class="table" style="margin-top:8px"><thead><tr><th>出口</th><th>命中</th><th>类别</th><th>脱敏后文本</th></tr></thead><tbody>` +
+      d.report.results.map(x => `<tr><td class="small">${esc(SF_GATE_LABEL[x.gate] || x.gate)}</td>` +
+        `<td class="small">${x.hit_count}</td><td class="small">${esc(Object.keys(x.by_kind).join(', ') || '—')}</td>` +
+        `<td class="small">${esc(x.text)}</td></tr>`).join('') +
+      `</tbody></table>` +
+      `<p class="muted small" style="margin:8px 0 0">${esc(d.note)}</p>`;
+  } catch (e) { safeToast(e); }
+}
+
+async function saveSafetyPolicy() {
+  const patch = {
+    enabled: $('sf-enabled').value === '1',
+    default_action: $('sf-action').value,
+    min_confidence: Number($('sf-minconf').value),
+  };
+  if (!(patch.min_confidence >= 0 && patch.min_confidence <= 1)) {
+    toast(t('最小置信度必须在 0 到 1 之间'), 'err'); return;
+  }
+  try {
+    const d = await api('/api/safety/policy', { method: 'PUT', body: JSON.stringify(patch) });
+    $('sf-msg').textContent = d.effective + (d.warning ? ' · ' + d.warning : '');
+    toast(t('设置已保存，已即时生效'), 'ok');
+    await loadSafety();
   } catch (e) { safeToast(e); }
 }
 
