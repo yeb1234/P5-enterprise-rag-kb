@@ -63,6 +63,17 @@ A/B/C 三档口径与「面试场上不要把 A 档说成 C 档」的诚实边�
 - **通用规约 `docs/HARNESS.md`（YEBSPEC@1.0，Y1–Y22）** 可复制到别的项目，含三态标注、冻结区、命名空间隔离、验证门禁、交付前闸门与本项目真实踩坑表。后续会话改任何约束性文本前先读它。
 - 本轮三次提交 `a3e8e5b`（代码）/ `70a6977`（文档）/ `c179f3d`（构建）；全量回归 **92 passed**（webapp 74 + parsing 18）+ backend 16 + eval 14 + evalbench 16 + demo 16/16 + e2e 33/33，冻结区零 diff。
 
+## 2026-11-14 追加：知识治理硬约束（改动时别破）
+
+- **`knowledge/` 是独立纯函数包**（不依赖 FastAPI），只管「哪些证据适用、是否互斥」；`parsing/` 管「字节→结构化文本」，两者都不动下游 `ChunkSpec` / citation 契约。入口 `knowledge/README.md`。
+- **最新 ≠ 适用**：年龄优先取 `last_verified_at`；`valid_from` 在未来标 `not_yet_effective` 并排除（**不是判过期**）；`expires_at` 已过按 `demote|exclude|warn` 三档处置；`scope`（region/plan/product_version）不同，同字段不同值**不算冲突**。
+- **关掉新鲜度开关只关时间衰减，不关适用性门控**（`test_rerank_keeps_before_after_evidence` 锁定）。公式：`decay=max(floor,0.5^(age/half_life))`、`effective=base*(1-blend+blend*decay)`；阈值全是演示经验起始值、非实测。
+- **相似度最高 ≠ 可信**，冲突必须作为 `EvidenceRecord.conflict_signal` 正式状态传给生成层，不能把互斥片段无序塞进上下文。裁决顺序：**业务权威度 → 生效期（强制 `needs_review=True`）→ 并列转人工（winner=None，不发明 tie-break）**；冲突图用并查集求连通分量，**按簇独立裁决**；被淘汰 claim 在 `excluded_claim_ids` 留痕不删除。
+- **防误报**：年份 1900–2099 无单位与裸小整数 1–9 降置信度；单位/否定词/scope 原样保留；主题 Jaccard 门控；每条 claim 保留 `text` + `chunk_id`。这是规则级实现，不等于 NLI 模型级识别。
+- **接入边界**：`webapp/rag.py::_apply_freshness()` 由 `WEBAPP_FRESHNESS_ENABLED=1` 开启，**默认关闭**避免打断 33 项 e2e，且只在 `top_k` 内重排（生产应在召回前硬过滤）；**生成层注入 EvidenceRecord 与逐句 grounding 仍为只设计**；权威注册表业务审批流未做。
+- 内置合成场景 `DEMO-FRESHNESS-CONFLICT-001`（`knowledge/samples.py`）：6 文档 / 2 冲突簇（`freshness` 需复核、`authority` 不复核）/ 3 负向对照，不写业务库、零外部调用。前端「知识治理」是第 13 个 `data-view`，C33 冻结的仍是 10 具名 view + 6 具名 loader 存在性检查。静态资源当前 **`?v=14`**。
+- 调研/候选/面试/设计见 `docs/knowledge/01–04`，交付话术 `docs/KNOWLEDGE-DELIVERY.md`。本轮提交 `84da4ab`（代码）/ `446d676`（文档）；全量回归 **128 passed** + 33/33 e2e，冻结区零 diff。
+
 ## 目录入口
 - 总览与启动：`README.md`
 - 重点方案：`docs/async-upload.md`
