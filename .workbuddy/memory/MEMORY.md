@@ -91,6 +91,18 @@ PG 是状态真值，Redis 只是实时通道；**先写 PG 文本再写 Milvus 
 - 演示容器**不是 compose 起的前缀卷**，是 `run-demo.sh` 的 `docker run -v kb-webapp-data`（固定卷名）。
   用 `docker compose -f docker-compose.showcase.yml up` 会因容器名冲突 + 新空卷丢掉演示数据。
 
+### 10. 本机基础设施（已实跑，别再试错）
+- **5432 被 `siteyeb-pg`、6379 被 `siteyeb-redis` 占用**（别的项目容器，不停它）；
+  **Docker Hub 不可达**，本机只有 `docker.m.daocloud.io/library/postgres:16-alpine` 与 `redis:7-alpine`，
+  **没有** milvus / etcd / minio。
+- `docker-compose.infra.yml` 的宿主端口与镜像名全部可用环境变量覆盖（默认值不变）：
+  `KB_PG_PORT` / `KB_REDIS_PORT` / `KB_MILVUS_PORT` / `KB_PG_IMAGE` / `KB_REDIS_IMAGE` / …
+  本机起法：`KB_PG_PORT=55432 KB_REDIS_PORT=56379 KB_PG_IMAGE=… KB_REDIS_IMAGE=… docker compose -f docker-compose.infra.yml up -d postgres redis`
+- 一行自检：`python scripts/verify_infra.py --pg-dsn postgresql://kb:kb_demo_only@127.0.0.1:55432/kb --redis-url redis://127.0.0.1:56379/0` → `INFRA_READY`。
+- **已验证结果**：PG 迁 903 行 / 20 表 `COUNT(*)` 全一致 / 时间戳逐字节相同（`Z→+00:00` 生效）；
+  Redis 在 `limit=3` 下两进程内存放行 6 次、Redis 放行 3 次（**放大 2.0×**）。
+- 迁移脚本报「尝试 / 实际写入 / 跳过」三个数（`cur.rowcount`）。**只报一个数就是没真跑过**。
+
 ## 已验证的可复现坑（别再踩）
 1. **Docker 29 + Compose v5 bake 在中文路径报错**：`x-docker-expose-session-sharedkey … non-printable ASCII`。
    → 拆 `docker build` + `docker run`（`run-demo.sh`），或 `COMPOSE_BAKE=false`。
