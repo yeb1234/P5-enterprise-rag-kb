@@ -38,7 +38,7 @@ def overview(user: dict = Depends(get_current_user)):
         ).fetchone()["c"]
         chat_rows = conn.execute(
             "SELECT COUNT(DISTINCT conversation_id) AS conv, COUNT(*) AS msg,"
-            " SUM(degraded) AS degraded FROM chat_logs"
+            " SUM(CASE WHEN degraded THEN 1 ELSE 0 END) AS degraded FROM chat_logs"
             + ("" if is_admin else " WHERE user_id=?"),
             [] if is_admin else [user["id"]],
         ).fetchone()
@@ -262,7 +262,8 @@ def list_audit(action: str | None = None, actor: str | None = None,
         sql += " AND action=?"; params.append(action)
     if actor:
         sql += " AND actor=?"; params.append(actor)
-    sql += " ORDER BY created_at DESC, rowid DESC LIMIT ?"
+    # SQLite 的隐式 rowid 在 PG 里不存在，用主键做稳定的次序后缀
+    sql += " ORDER BY created_at DESC, id DESC LIMIT ?"
     params.append(limit)
     conn = db.get_conn()
     try:

@@ -51,7 +51,7 @@ React + FastAPI + PostgreSQL + Milvus + Redis/Celery + 外部 DeepSeek 的**可�
 > 真实检索链的新鲜度重排**默认关闭**（`WEBAPP_FRESHNESS_ENABLED=1` 开启），生成层注入证据记录仍为只设计。
 >
 > **缓存与重启稳定性（2026-11-14 新增）**：入口 `cache/README.md`，交付话术 `docs/CACHE-DELIVERY.md`。
-> 双层缓存 `L1 内存 LRU + L2 SQLite`、13 段缓存 key（含授权快照 / 数据版本 / 策略版本）、
+> 双层缓存 `L1 内存 LRU + L2 PostgreSQL`、13 段缓存 key（含授权快照 / 数据版本 / 策略版本）、
 > 懒失效（版本递增让旧 key 自然不命中）、TTL / 负缓存 / 抖动 / 容量淘汰；
 > 启动自检 7 项（孤儿任务幂等重投、幽灵向量对账、过期缓存清理、策略从 `runtime_state` 恢复），
 > 前端「缓存与恢复」视图可现场做缓存演示与模拟重启。调研与设计见 `docs/cache-recovery/01–02`，
@@ -74,8 +74,10 @@ React + FastAPI + PostgreSQL + Milvus + Redis/Celery + 外部 DeepSeek 的**可�
 > **通用开发规约（可复制到别的项目）**：`docs/HARNESS.md`（YEBSPEC@1.0，Y1–Y22 规则 + 最小文件骨架 + 交付前闸门）。
 
 > **想直接看界面？** 另有一个「拿来即可演示」的可运行切片 `webapp/`：
-> `python -m uvicorn webapp.main:app --port 8765`，浏览器打开 `http://127.0.0.1:8765`，
-> 用 `admin / admin123` 登录即可看到完整功能。说明见 `webapp/README.md`。
+> 先 `docker compose -f docker-compose.infra.yml up -d postgres` 起真 PostgreSQL，
+> 再 `WEBAPP_DATABASE_URL=… python -m uvicorn webapp.main:app --port 8765`，
+> 浏览器打开 `http://127.0.0.1:8765`，用 `admin / admin123` 登录。
+> **SQLite 已完全移除**，`webapp/` 现在跑在真 PG 上。说明见 `webapp/README.md`。
 
 ---
 

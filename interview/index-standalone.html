@@ -540,14 +540,14 @@ footer .fine{border-top:1px solid var(--border);padding-top:16px;line-height:1.8
           <li>中英 i18n × 6 主题色 × 明暗正交</li>
           <li>评估测试子页：配置/运行/指标/日志/成本预算/限流插件</li>
         </ul>
-        <div class="foot">SQLite 与进程内队列是 <b>PG / Celery 的演示替身</b>，页面内已明确标注。</div>
+        <div class="foot">存储层已换成真 <b>PostgreSQL</b>（2026-11-15 移除 SQLite）；只剩<span class="strike">进程内队列</span>是 Celery 的演示替身，页面内已明确标注。</div>
       </div>
 
       <div class="card rise" style="--d:.13s">
         <h3>只设计 <span class="badge a">生产基础设施 · 未接入</span></h3>
         <p><b>要分层说，不能一句「没做」糊过去</b>：<code>backend/</code> 骨架里<b>算法与契约层有代码、有单测</b>；
           真实 PG / Milvus / Redis 已在 2026-11-15 起在本机并跑通迁移与过滤验证，**Celery 集群仍未接**；
-          但 <code>webapp/</code> 演示切片走的仍是 SQLite 替身。下面逐条标清测到哪一层。</p>
+          <code>webapp/</code> 也已在 2026-11-15 切到真 PG（SQLite 移除），只剩 Milvus 召回未接。下面逐条标清测到哪一层。</p>
         <ul>
           <li>混合检索：<code>rrf_fuse()</code> + <code>decide()</code> 召回前 expr / 召回后逐条复核，<b>契约层已实测</b>；
             真实 Milvus <code>expr</code> 执行 <b>已实测</b>（错 tenant 0 条、按 doc 收窄 46→1）；
@@ -560,7 +560,7 @@ footer .fine{border-top:1px solid var(--border);padding-top:16px;line-height:1.8
         </ul>
         <div class="foot"><b>实测证据</b>：<code>python -m pytest -q backend/tests</code> → <b>26 passed</b>
           （原 16 项纯函数 + 本轮新增 <code>test_retrieval_contract.py</code> 10 项「先过滤→再融合」对拍，含 A13 双向一致性）。
-          逐段落 ACL 仅保留开关预留（默认关闭），<b>不假装已启用</b>；演示切片是 SQLite + 进程内队列替身。</div>
+          逐段落 ACL 仅保留开关预留（默认关闭），<b>不假装已启用</b>；演示切片的存储已换成真 PG，只剩进程内队列是替身。</div>
       </div>
 
       <div class="card rise" style="--d:.21s">
@@ -648,7 +648,7 @@ footer .fine{border-top:1px solid var(--border);padding-top:16px;line-height:1.8
 
       <div class="card rise" style="--d:.50s"><div class="n">13 / 缓存</div>
         <h3>双层缓存 + 版本感知失效</h3>
-        <p>L1 内存 LRU（重启清空）+ L2 SQLite（重启可恢复）。缓存 key 有 13 段：查询、模型、embedding、top_k、rerank、<b>授权快照</b>、数据版本、策略版本等；缺哪段就对应一类事故（串权限、串模型、旧答案）。文档 / 授权 / 策略变化只递增版本让旧 key 自然不命中（懒失效），命中时仍复核三重版本字段。</p>
+        <p>L1 内存 LRU（重启清空）+ L2 PostgreSQL（重启可恢复）。缓存 key 有 13 段：查询、模型、embedding、top_k、rerank、<b>授权快照</b>、数据版本、策略版本等；缺哪段就对应一类事故（串权限、串模型、旧答案）。文档 / 授权 / 策略变化只递增版本让旧 key 自然不命中（懒失效），命中时仍复核三重版本字段。</p>
         <span class="chip">TTL 不是权限控制 · 先过滤后写</span></div>
 
       <div class="card rise" style="--d:.54s"><div class="n">14 / 重启</div>
@@ -669,7 +669,7 @@ footer .fine{border-top:1px solid var(--border);padding-top:16px;line-height:1.8
   <div class="wrap">
     <div class="sec-head"><span class="sec-num">03</span><h2>数据流图解：从上传到来源卡片</h2></div>
     <p class="sec-desc">纯 CSS/SVG 绘制。箭头上的光点表示数据流向；带「演示替身」标记的环节，
-      在生产骨架里由 PG / Milvus / Celery 承担，在演示切片里由 SQLite / 进程内队列等价替身承担。</p>
+      在目标架构里由 PG / Milvus / Celery 承担。<b>存储层已经是真的</b>（PG 16）；只剩 Milvus 召回与 Celery 尚未接进主链路。</p>
 
     <div class="flow-wrap rise" style="--d:.05s">
       <!-- 第一行 -->
@@ -687,7 +687,7 @@ footer .fine{border-top:1px solid var(--border);padding-top:16px;line-height:1.8
           <span class="flow-arrow" style="--fd:.5s"></span>
         </div>
         <div class="flow-cell">
-          <div class="flow-node"><span class="idx">4</span><b>向量缓存 / Milvus</b><span>生产为 Milvus 向量库；切片按 (chunk_id, cache_key) 缓存</span><span class="subst">演示替身：SQLite chunk_embeddings</span></div>
+          <div class="flow-node"><span class="idx">4</span><b>向量缓存 / Milvus</b><span>生产为 Milvus 向量库；切片按 (chunk_id, cache_key) 缓存</span><span class="subst">切片现状：PG chunk_embeddings（文本列）· Milvus 迁移已实测</span></div>
           <span class="flow-arrow" style="--fd:.75s"></span>
         </div>
         <div class="flow-cell">
@@ -755,9 +755,9 @@ footer .fine{border-top:1px solid var(--border);padding-top:16px;line-height:1.8
         </div>
       </div>
       <div class="layer l2 rise" style="--d:.10s">
-        <div class="lab"><b>webapp/ 演示切片</b><small>FastAPI · SQLite · 零构建静态页</small></div>
+        <div class="lab"><b>webapp/ 演示切片</b><small>FastAPI · PostgreSQL · 零构建静态页</small></div>
         <div class="body">
-          <p>注册登录、上传排队、流式问答、来源追溯、badcase 闭环、评估测试子页、i18n × 6 主题 × 明暗。<b>唯一可双击打开跑通全链路</b>的一层；页面内用「组件替身映射表」逐行说明 SQLite ↔ PG、进程内队列 ↔ Celery。</p>
+          <p>注册登录、上传排队、流式问答、来源追溯、badcase 闭环、评估测试子页、i18n × 6 主题 × 明暗。<b>唯一可双击打开跑通全链路</b>的一层；页面内用「组件替身映射表」逐行说明进程内队列 ↔ Celery、PG 文本列向量 ↔ Milvus。存储层已不是替身。</p>
           <span class="pill g">已实现 · 可演示</span><span class="pill a">演示级替身</span>
         </div>
       </div>
@@ -827,7 +827,7 @@ footer .fine{border-top:1px solid var(--border);padding-top:16px;line-height:1.8
         <div class="tbl-wrap"><table class="table">
           <thead><tr><th>模块</th><th>唯一职责</th><th>不允许做的事</th></tr></thead>
           <tbody>
-            <tr><td><code>db.py</code></td><td>SQLite 真值与 SCHEMA（生产对应 PG）</td><td>不做业务判断、不拼 SQL 给外部</td></tr>
+            <tr><td><code>db.py</code> + <code>pgkit.py</code></td><td>PostgreSQL 真值与 DDL（DDL 唯一事实源是 <code>scripts/pg_init.sql</code>）</td><td>不做业务判断、不拼 SQL 给外部</td></tr>
             <tr><td><code>providers.py</code></td><td>LLM / Embedding / Rerank 三个 Protocol 适配器</td><td>不知道 RAG 存在，只谈消息与向量</td></tr>
             <tr><td><code>rag.py</code></td><td>检索 → 重排 → 生成 → 引用</td><td>不直连数据库以外的外部服务</td></tr>
             <tr><td><code>queue.py</code></td><td>进程内异步与进度快照</td><td>不写文档状态真值（写 PG 由 router 负责）</td></tr>
@@ -853,7 +853,7 @@ footer .fine{border-top:1px solid var(--border);padding-top:16px;line-height:1.8
         </table></div>
         <h5>取舍：为什么演示切片不用 React + PG + Milvus</h5>
         <p>因为演示的第一要求是<b>别人能跑起来</b>。零依赖意味着双击就能开、离线也能讲、面试现场不怕没网。
-          所以这里做了明确的替身映射：SQLite → PG、进程内 <code>deque</code> → Celery、进程内滑动窗口 → Redis、
+          所以这里做了明确的替身映射：进程内 <code>deque</code> → Celery、进程内滑动窗口 → Redis、
           文本列存 JSON 向量 → Milvus。<b>替身跑通不等于生产组件测过</b>，这句话在页面和文档里写了三遍。</p>
         <div class="note"><b>边界</b>：单进程；进程内队列重启会丢在跑任务（靠 <code>documents.status</code> 幂等重投兜底）；
           没有全局并发闸之外的背压；SSE 断线续传按原始 token 索引，重连时尾部可能少几个字。</div>
@@ -922,7 +922,7 @@ footer .fine{border-top:1px solid var(--border);padding-top:16px;line-height:1.8
           错 tenant 命中 <b>0 条</b>、按 <code>doc_id</code> 收窄后文档数 <b>46 → 1</b>。
           这说明「先按权限过滤再检索」不只是代码里写了对的字符串，而是<b>真的在过滤</b>。
           <br><b>仍没测</b>：真实 PG 全文检索、混合检索的 MRR/NDCG、P95 延迟、Redis 断线重连、Celery 页级 chord，
-          以及 <code>rag.py</code> 主链路切到 Milvus 之后的召回变化。<b>拿 SQLite 替身的通过结果说「生产测过了」是失真。</b></div>
+          以及 <code>rag.py</code> 主链路切到 Milvus 之后的召回变化。<b>拿替身跑出来的通过结果说「生产测过了」是失真。</b></div>
         <div class="rfoot">复跑：<code>python webapp/selftest.py</code>（33 项）· <code>python -m pytest webapp/tests -q</code>（134 项）</div>
       </div>
 
@@ -1128,7 +1128,7 @@ footer .fine{border-top:1px solid var(--border);padding-top:16px;line-height:1.8
           <span class="n">请求<small>query + principal</small></span><span class="ar">→</span>
           <span class="n">13 段 key<small>含 authz/version</small></span><span class="ar">→</span>
           <span class="n">L1 LRU<small>进程内</small></span><span class="ar">→</span>
-          <span class="n">L2 SQLite<small>重启可恢复</small></span><span class="ar">→</span>
+          <span class="n">L2 PostgreSQL<small>重启可恢复</small></span><span class="ar">→</span>
           <span class="n">key_matches<small>三重复核</small></span><span class="ar">→</span>
           <span class="n">命中/回源</span>
         </div>
@@ -1162,7 +1162,7 @@ footer .fine{border-top:1px solid var(--border);padding-top:16px;line-height:1.8
         </table></div>
         <p><b>真值层先行</b>：强停（SIGKILL）不执行 lifespan 的 <code>finally</code>，<code>last_shutdown_at</code> 可能缺失。
           这一点在真实重启演练里被实证——正好反证「关闭钩子不可靠，必须靠真值层 + 启动对账」。</p>
-        <div class="note"><b>边界</b>：L2 落在与业务库同一个 SQLite 文件，是演示替身（生产对应 PG 真值 + Redis）；
+        <div class="note"><b>边界</b>：L2 落在与业务库同一个 PostgreSQL（<code>cache_entries</code> 表），生产会把这层换 Redis；
           <code>rag.retrieve()</code> 主链路<b>默认不接</b>检索结果缓存；答案缓存 / 语义缓存未做。</div>
         <div class="rfoot">事实源：<code>cache/README.md</code> · <code>cache/store.py</code> · <code>cache/recovery.py</code> · <code>docs/cache-recovery/01–02</code></div>
       </div>
@@ -1219,7 +1219,7 @@ footer .fine{border-top:1px solid var(--border);padding-top:16px;line-height:1.8
         </ul>
         <h5>性能口径（明确不吹）</h5>
         <p>只统计<b>命中率</b>与<b>失效原因分布</b>（data_version / grant_version / policy_version / ttl），
-          因为这些是能从库里真实聚合出来的。延迟与吞吐<b>没有测</b>——单机 SQLite 上的数字没有参考价值。</p>
+          因为这些是能从库里真实聚合出来的。延迟与吞吐<b>没有测</b>——单机 PG 上的数字没有参考价值。</p>
         <div class="note"><b>没测什么</b>：多副本共享 L2、Redis 故障切换、缓存击穿与雪崩防护、容量上限。
           <code>purge_expired()</code> 的回收效果只在演示规模上验证过，没有长跑数据。</div>
         <div class="rfoot">复跑：<code>python -m pytest cache/tests -q</code>（19 项）· 重启演练见 <code>docs/cache-recovery/02</code></div>
@@ -1580,7 +1580,7 @@ footer .fine{border-top:1px solid var(--border);padding-top:16px;line-height:1.8
       <b>统一 429 错误契约</b>（业务错误码 + <code>code/kind/trace_id</code>，前端区分 quota / rate 两类）、
       <b>可插拔文档解析策略</b>（自研 / OCR API / 多模态兜底三级，质量门禁 + 90:10 预算闸门）、
       <b>知识治理</b>（入库新鲜度：时间衰减 + 适用性门控 + 过期三档；事实冲突检测：claim 级比对 + 冲突图按簇裁决 + 结构化证据记录，前端「知识治理」页可现场改策略看排序翻转与裁决日志）、
-      <b>缓存与重启稳定性</b>（L1 内存 LRU + L2 SQLite、13 段缓存 key 含授权快照 / 数据版本 / 策略版本、懒失效、启动 7 项自检：孤儿任务幂等重投 / 幽灵向量对账 / 策略从 <code>runtime_state</code> 恢复；隔离库真·进程重启演练 healthy=True、boot 1→2、无 500）、
+      <b>缓存与重启稳定性</b>（L1 内存 LRU + L2 PostgreSQL、13 段缓存 key 含授权快照 / 数据版本 / 策略版本、懒失效、启动 7 项自检：孤儿任务幂等重投 / 幽灵向量对账 / 策略从 <code>runtime_state</code> 恢复；隔离库真·进程重启演练 healthy=True、boot 1→2、无 500）、
       <b>内容安全 / PII 防护</b>（一层统一规则贯穿入库前 / 进模型前 / 输出前 / 日志与导出前四出口；分块前脱敏且异常 fail-closed，SSE 流式闸跨 chunk 扣留候选串、保持包数不变以保住续传索引契约；命中台账只存类别与数量；27 项包单测 + 11 项 API 单测，4 条防误报负向对照零命中，长文本流式 leaked=false）。
       <b>2026-11-14 实测纠正</b>：网关 <code>/models</code> 的 <code>input_modalities</code> 显示 10 个模型里 <b>6 个支持 image</b>（此前只凭模型名判断「全为纯文本」是错的）。
       P2 已接通 <code>deepseek-v4.1-flash-1017</code>：两张内容不同的图（浅蓝 73492/CODE-A、浅黄 18620/CODE-B）都被精确识别且回答不同，完整链路 <code>vision_applied / degraded=None</code>。
@@ -1616,7 +1616,7 @@ footer .fine{border-top:1px solid var(--border);padding-top:16px;line-height:1.8
       <code>webapp/out/eval_report.json</code> 为准；<code>NOT_COMPARABLE</code> / <code>comparable=false</code> 口径不因这些实测数字而改变。</p>
 
     <div class="sec-head" style="margin-top:34px"><span class="sec-num">06.1</span><h2 style="font-size:19px">真基础设施验证（2026-11-15 本机实跑）</h2></div>
-    <p class="sec-desc" style="margin-bottom:16px">演示切片用的是 SQLite + 进程内队列与窗口。这一组数字是把
+    <p class="sec-desc" style="margin-bottom:16px"><code>webapp</code> 已跑在真 PostgreSQL 上（SQLite 于 2026-11-15 全部移除，138 处调用点改完、231 项单测与 33 项端到端全绿）。这一组数字是把
       <b>真 PostgreSQL 16</b> 与 <b>真 Redis 7</b> 起在本机后跑出来的，用来证明「换掉替身之后仍然正确」，
       而不是证明「性能更好」。</p>
     <div class="tbl-wrap rise">
@@ -1651,6 +1651,10 @@ footer .fine{border-top:1px solid var(--border);padding-top:16px;line-height:1.8
             <td class="num">0 条 / 46→1 文档</td>
             <td>只验「连上了」等于没验；<b>过滤必须能证明真的发生了</b></td>
             <td class="src">scripts/verify_infra.py --skip-pg --skip-redis</td></tr>
+          <tr><td><b>SQLite 彻底移除</b>：138 处 SQL 调用点 → 真 PG</td>
+            <td class="num">231 passed · 33/33</td>
+            <td>不是「换个驱动」：改的是数据层、缓存 L2、测试夹具。容器内 <code>grep -rln "import sqlite3" /app</code> 无输出</td>
+            <td class="src">webapp/selftest.py · pytest</td></tr>
           <tr><td><b><code>/metrics</code> 真实抓取</b></td>
             <td class="num">6 指标 · 零值样本齐</td>
             <td>零值不预置，告警条件永远 no data，等于没装监控</td>
@@ -1658,7 +1662,7 @@ footer .fine{border-top:1px solid var(--border);padding-top:16px;line-height:1.8
         </tbody>
       </table>
     </div>
-    <p class="tbl-note"><b>边界</b>：Celery 映射仍只设计；<code>webapp/rag.py</code> 主链路仍走 SQLite 向量，
+    <p class="tbl-note"><b>边界</b>：Celery 映射仍只设计；<code>webapp/rag.py</code> 主链路仍从 PG 的 <code>chunk_embeddings</code> 文本列读向量，
       <b>尚未真正切到 Milvus 召回</b>——本次做的是「数据迁到位 + 过滤能证明」。
       Milvus 用 <code>storageType=local</code> 起（minio 镜像在国内几个源都拿不到），
       这是 standalone 妥协，生产必须对象存储。本组数字全部来自 <code>scripts/verify_infra.py</code>
@@ -1757,9 +1761,9 @@ footer .fine{border-top:1px solid var(--border);padding-top:16px;line-height:1.8
       </details>
 
       <details class="rise" style="--d:.29s">
-        <summary>SQLite + 进程内队列，会不会被质疑「这不就是个玩具」？</summary>
+        <summary>进程内队列（存储已换成真 PG），会不会被质疑「这不就是个玩具」？</summary>
         <div class="ans">
-          <p>关键在<b>契约一致 + 页面诚实标注</b>。演示切片用 SQLite 作唯一真值（对应 PG 的 ingest_jobs / 审计台账）、进程内信号量队列作 Celery + Redis broker 的替身，用 2.5 s 轮询 + SSE 心跳展示同一套状态语义。</p>
+          <p>先说已经补掉的：<b>存储层不再是替身</b>——2026-11-15 把 SQLite 全部移除，<code>webapp/</code> 直接连 PostgreSQL 16，138 处 SQL 调用点全部迁完，231 项单测 + 33 项端到端都跑在真库上。剩下的替身只有<b>进程内信号量队列</b>（对应 Celery + Redis broker），它用 2.5 s 轮询 + SSE 心跳展示同一套状态语义。</p>
           <p>页面里有一张「组件替身映射：演示切片 vs 生产架构」表，逐行写清「本切片（真实可跑）/ 生产架构（设计）」；<code>view-system</code> 还列出 A/B/C 档与「明确不做」清单。<b>换掉替身就是真链路</b>，但绝不声称切片实现了 PG / Milvus / Celery / 完整 ACL。</p>
           <p>对应的验证：33 项端到端自测覆盖登录鉴权、admin 门禁 403、繁忙排队、格式降级、流式与续传索引连续、检索为空/模型报错降级、badcase 字段完整性、完成度前后一致、统计权限分离等；这些断言校验的是<b>行为与契约</b>，不是替身的性能。</p>
         </div>
@@ -1820,17 +1824,17 @@ footer .fine{border-top:1px solid var(--border);padding-top:16px;line-height:1.8
           <p><b>key 的每一段对应一类事故</b>：查询哈希、org 命名空间、缓存类型、embedding 模型、生成模型、top_k、检索模式、rerank、新鲜度开关、<b>授权快照</b>、数据版本、策略版本、schema 版本。缺 embedding 模型名会复用旧向量（维度不一致时余弦静默归零），缺授权快照会跨用户串权限，缺数据版本会在文档删除后继续返回旧片段。</p>
           <p><b>失效不是只靠 TTL</b>：文档增删改 → 递增 <code>data_version</code>；转岗 / 角色 / ACLGrant 变更 → 递增 <code>grant_version</code>；策略变更 → 更新 <code>policy_version</code>。做法是<b>懒失效</b>：只递增版本，旧 key 自然不命中，不做批量删除；TTL 到期再回收空间。每次命中仍比对三重版本字段——<b>TTL 不是权限控制</b>，写缓存前也必须先把越权片段过滤掉。</p>
           <p><b>现场证据</b>：「缓存与恢复」页能看到 key 的 13 段拆解、命中率与失效原因分布；点「运行缓存演示」会看到首次 miss → 权限过滤前后条数 → 清 L1 后从 L2 命中 → 数据版本变化后新 key 未命中。</p>
-          <p><b>边界</b>：答案缓存 / 语义缓存未做，检索结果缓存默认不接主问答链路；SQLite 单文件不是生产 Redis，阈值是演示经验起始值。</p>
+          <p><b>边界</b>：答案缓存 / 语义缓存未做，检索结果缓存默认不接主问答链路；PG 的 <code>cache_entries</code> 不是生产 Redis（后者是实时通道），阈值是演示经验起始值。</p>
         </div>
       </details>
 
       <details class="rise" style="--d:.50s">
         <summary>服务器重启会丢什么？怎么证明重启后状态正常？</summary>
         <div class="ans">
-          <p><b>先分三类</b>：① <b>可安全丢弃</b>——限流滑动窗口、解析轨迹 deque、SSE 连接，丢了只是窗口重置，不产生错误数据；② <b>可从真值重建</b>——队列活跃/排队态、进度快照，靠 <code>documents.status</code> 扫描并幂等重投；③ <b>必须持久化</b>——配置与策略、预算、用量台账、文档与 <code>chunk_embeddings</code>、会话，落 SQLite 与 <code>runtime_state</code>。真值层先行，所以连 SIGKILL 都不怕。</p>
+          <p><b>先分三类</b>：① <b>可安全丢弃</b>——限流滑动窗口、解析轨迹 deque、SSE 连接，丢了只是窗口重置，不产生错误数据；② <b>可从真值重建</b>——队列活跃/排队态、进度快照，靠 <code>documents.status</code> 扫描并幂等重投；③ <b>必须持久化</b>——配置与策略、预算、用量台账、文档与 <code>chunk_embeddings</code>、会话，落 PostgreSQL 与 <code>runtime_state</code>。真值层先行，所以连 SIGKILL 都不怕。</p>
           <p><b>启动 7 项自检</b>：schema 就绪、易失状态声明、孤儿任务重投、幽灵向量对账（<code>chunk_embeddings</code> 中已无对应分块的行删掉）、文档指纹校验（变化则递增数据版本）、策略恢复、过期缓存与容量清理。本报告 <code>healthy=True</code> 且逐项给分类与结论；本轮还修了「删文档只删 chunks 不删向量」这个真实幽灵向量缺陷，属于源头治理。</p>
           <p><b>怎么证明</b>：隔离库做两次真实进程启停——先改策略（半衰期 45 / blend 0.5）、写 1 条缓存、埋 1 个 <code>analyzing</code> 孤儿任务和 1 条幽灵向量；强停后重启：<code>boot_count 1→2</code>、重投 1、清理 1、策略 45/0.5 完整恢复、L2 条目仍在、无 500。强停时 <code>last_shutdown_at</code> 没写入，正好反证「关闭钩子不可靠，必须靠真值层」。现场可在「缓存与恢复」页点「模拟重启」复现。</p>
-          <p><b>边界</b>：这是功能连通性实证，不是压测或 SLA 结论；没有持续看门狗 / 死信队列 / 心跳 lease；演示切片的 SQLite + 进程内队列不是生产 Redis/Celery。</p>
+          <p><b>边界</b>：这是功能连通性实证，不是压测或 SLA 结论；没有持续看门狗 / 死信队列 / 心跳 lease；演示切片的进程内队列不是生产 Redis/Celery（存储层已换成真 PG）。</p>
         </div>
       </details>
 
@@ -1847,7 +1851,7 @@ footer .fine{border-top:1px solid var(--border);padding-top:16px;line-height:1.8
       <details class="rise" style="--d:.56s">
         <summary>你说这些「只设计」，那到底测没测？</summary>
         <div class="ans">
-          <p><b>先分两层，别一句「没做」糊过去</b>：① <b>算法 / 契约层</b>——<code>backend/</code> 骨架里是有代码、有单测的；② <b>基础设施集成层</b>——2026-11-15 已在本机把真 PG 16 / Redis 7 / Milvus 2.5.10 起起来，跑通「903 行数据迁移 + 83 条向量迁移 + 权限 expr 反证」；但真实 PG <code>tsvector</code> 全文、Celery broker/chord 仍未接。演示切片是 SQLite + 进程内队列替身，<b>替身跑通不等于生产组件测过</b>，反过来<b>集成层跑通也不等于切片已经切过去了</b>。</p>
+          <p><b>先分两层，别一句「没做」糊过去</b>：① <b>算法 / 契约层</b>——<code>backend/</code> 骨架里是有代码、有单测的；② <b>基础设施集成层</b>——2026-11-15 已在本机把真 PG 16 / Redis 7 / Milvus 2.5.10 起起来，跑通「903 行数据迁移 + 83 条向量迁移 + 权限 expr 反证」；但真实 PG <code>tsvector</code> 全文、Celery broker/chord 仍未接。演示切片的<b>存储层已经切过去了</b>（SQLite 全删，231 项单测 + 33 项端到端跑在真 PG 上），只剩<b>进程内队列</b>是 Celery 的替身，以及 <code>rag.py</code> 召回还没切到 Milvus。<b>替身跑通不等于生产组件测过</b>，反过来<b>集成层跑通也不等于每一层都切过去了</b>。</p>
           <p><b>实测命令与数字</b>：<code>python -m pytest -q backend/tests</code> → <b>26 passed</b>。原有 16 项覆盖 <code>rrf_fuse()</code> 双路去重与排名、<code>decide()</code> 的八条越权红线（显式 deny 优先 / 跨部门拒绝 / 部门管理员覆盖子树 / 敏感度上限 / 精细权限开关默认关）、阶段进度单调性与体积加权。本轮又补了 <code>backend/tests/test_retrieval_contract.py</code> 的 10 项离线对拍：把「召回前 expr 收窄 → 召回后逐条 <code>decide()</code> → RRF 融合」的<b>顺序纪律</b>锁住，其中 A13 双向一致性验证 expr 排除的候选不会被 <code>decide()</code> 放行，以及<b>融合不能把被过滤的片段重新带回来</b>（对照实验里不过滤时跨部门片段会排第一）。全部离线可跑、不连真库。</p>
           <p><b>集成层另有实测</b>：<code>python scripts/verify_infra.py</code> 一条命令验完三项 —— PG 20 表 / 种子无偏差 / <code>created_at</code> 真的是 <code>timestamptz</code>；Redis 在 <code>limit=3</code> 下两进程内存放行 6 次、Redis 放行 3 次（放大 2.0×）；Milvus 存活 83 条向量、错 tenant 命中 0 条、按 <code>doc_id</code> 收窄后文档数 46→1。向量的自证是「20 条真实向量回查，20/20 在 top-k 且 <code>score=1.0000</code>」。</p>
           <p><b>明确没测，也不假装测过</b>：真实 PG 全文/BM25 与端到端 MRR/NDCG、P95 延迟、Redis 快照的断线重连与 Cluster 形态、Celery 页级 chord 与失败重试、完整部门树拓扑 <code>visible_department_ids()</code>、逐段落/逐行 ACL、trace→span 全链路与全局并发闸，以及 <code>rag.py</code> 主链路切到 Milvus 之后的召回变化。这些都是<b>真的没做</b>：没有评估集、没有压测环境，切片也还没切过去。拿替身的通过结果去说「生产测过了」是失真。</p>

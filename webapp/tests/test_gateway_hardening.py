@@ -18,6 +18,7 @@ from fastapi.testclient import TestClient
 
 import webapp.observability as obs
 from webapp import db, security
+from webapp.tests._dbutil import upsert_budget, upsert_rate_rule
 
 
 @pytest.fixture(autouse=True)
@@ -34,10 +35,7 @@ def _reset_rate_state():
     conn = db.get_conn()
     try:
         conn.execute("DELETE FROM rate_rules WHERE dimension='ip'")
-        conn.execute(
-            "INSERT OR REPLACE INTO rate_rules(dimension,limit_count,window_s,enabled,updated_at)"
-            " VALUES ('ip',600,60,1,'test')"
-        )
+        upsert_rate_rule(conn, "ip", 600, 60)
         conn.commit()
     finally:
         conn.close()
@@ -72,11 +70,7 @@ def _mini_app():
 def _set_ip_rule(limit: int, window: int = 60) -> None:
     conn = db.get_conn()
     try:
-        conn.execute(
-            "INSERT OR REPLACE INTO rate_rules(dimension,limit_count,window_s,enabled,updated_at)"
-            " VALUES ('ip',?,?,1,'test')",
-            (limit, window),
-        )
+        upsert_rate_rule(conn, "ip", limit, window)
         conn.commit()
     finally:
         conn.close()
@@ -144,10 +138,7 @@ def test_ip_dimension_skipped_when_ip_not_provided(client):
 def test_ip_dimension_skipped_when_rule_disabled(client):
     conn = db.get_conn()
     try:
-        conn.execute(
-            "INSERT OR REPLACE INTO rate_rules(dimension,limit_count,window_s,enabled,updated_at)"
-            " VALUES ('ip',1,60,0,'test')"
-        )
+        upsert_rate_rule(conn, "ip", 1, 60, enabled=False)
         conn.commit()
     finally:
         conn.close()
@@ -324,17 +315,23 @@ def test_static_paths_bypass_gate(client, monkeypatch):
 # 6. 按用户配额隔离（check_budget 的 user 级覆盖 + A 超支不影响 B）
 # ---------------------------------------------------------------------------
 def _add_usage(user_id: str, cost: float) -> None:
-    """直接写一条 usage_events（record_usage 已写 user_id，无需改表）。"""
+    """直接写一条 usage_events（record_usage 已写 user_id，无需改表）。
+
+    注意：SQLite 时代这里可以给 timestamptz 列塞 "x"、给 boolean 塞 1；
+    PostgreSQL 会直接拒绝。夹具必须写**合法值**，否则测的是夹具不是业务。
+    """
+    import time
     import uuid
 
+    now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     conn = db.get_conn()
     try:
         conn.execute(
             "INSERT INTO usage_events(id,ts,project,department_id,user_id,call_type,model,"
             "prompt_tokens,completion_tokens,total_tokens,cost_cny,estimated,run_id,detail,created_at)"
             " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-            (uuid.uuid4().hex, "x", "default", "default", user_id, "chat", "m",
-             1, 1, 2, cost, 1, None, "", "x"),
+            (uuid.uuid4().hex, now, "default", "default", user_id, "chat", "m",
+             1, 1, 2, cost, True, None, "", now),
         )
         conn.commit()
     finally:
@@ -344,11 +341,7 @@ def _add_usage(user_id: str, cost: float) -> None:
 def _set_user_budget(user_id: str, limit: float, policy: str = "block") -> None:
     conn = db.get_conn()
     try:
-        conn.execute(
-            "INSERT OR REPLACE INTO budgets(scope,key,limit_cny,policy,updated_at)"
-            " VALUES ('user',?,?,?,'x')",
-            (user_id, limit, policy),
-        )
+        upsert_budget(conn, "user", user_id, limit, policy)
         conn.commit()
     finally:
         conn.close()

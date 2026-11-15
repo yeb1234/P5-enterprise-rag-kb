@@ -23,10 +23,8 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import sqlite3
 import time
 import uuid
-from pathlib import Path
 
 PREFIX = "QUEUE-DEMO-"
 DEMO_USERS = (
@@ -39,7 +37,7 @@ def _now() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
 
-def _ensure_user(conn: sqlite3.Connection, username: str, department: str) -> str:
+def _ensure_user(conn, username: str, department: str) -> str:
     row = conn.execute("SELECT id FROM users WHERE username=?", (username,)).fetchone()
     if row:
         uid = row[0]
@@ -56,8 +54,10 @@ def _ensure_user(conn: sqlite3.Connection, username: str, department: str) -> st
     return uid
 
 
-def seed(db_path: str) -> None:
-    conn = sqlite3.connect(db_path)
+def seed() -> None:
+    from webapp import db
+
+    conn = db.get_conn()
     try:
         total = 0
         for username, dept, n in DEMO_USERS:
@@ -78,8 +78,10 @@ def seed(db_path: str) -> None:
         conn.close()
 
 
-def clean(db_path: str) -> None:
-    conn = sqlite3.connect(db_path)
+def clean() -> None:
+    from webapp import db
+
+    conn = db.get_conn()
     try:
         cur = conn.execute("DELETE FROM documents WHERE filename LIKE ?", (f"{PREFIX}%",))
         users = conn.execute(
@@ -94,17 +96,18 @@ def clean(db_path: str) -> None:
 
 def main(argv: list[str] | None = None) -> None:
     ap = argparse.ArgumentParser(description="队列积压演示种子")
-    ap.add_argument("--db", default=".data/webapp/app.db", help="SQLite 路径")
+    ap.add_argument("--schema", default="", help="可选：指定 PG schema（测试隔离用），默认走 search_path")
     group = ap.add_mutually_exclusive_group(required=True)
     group.add_argument("--seed", action="store_true", help="生成演示数据")
     group.add_argument("--clean", action="store_true", help="按前缀清理")
     args = ap.parse_args(argv)
 
-    path = Path(args.db)
-    if not path.exists():
-        raise SystemExit(f"数据库不存在：{path}（先在宿主机起一次服务或指定容器内路径）")
-    print(f"目标库：{path}")
-    seed(str(path)) if args.seed else clean(str(path))
+    if args.schema:
+        import os
+        os.environ["WEBAPP_DB_SCHEMA"] = args.schema
+    from webapp import pgkit
+    print(f"目标库：{pgkit.dsn()}" + (f" · schema={args.schema}" if args.schema else ""))
+    seed() if args.seed else clean()
 
 
 if __name__ == "__main__":

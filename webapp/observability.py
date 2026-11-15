@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import threading
 import time
 import uuid
@@ -18,6 +19,9 @@ from collections import defaultdict, deque
 from pathlib import Path
 
 from webapp import db
+
+# 成本台账写失败只报警一次（避免每请求刷日志）
+_USAGE_WARNED = False
 
 ROOT = Path(__file__).resolve().parent.parent
 EVALBENCH_RUNS = ROOT / "evalbench" / "runs"
@@ -71,7 +75,7 @@ def cost_of(model: str, prompt_tokens: int, completion_tokens: int) -> float:
 def record_usage(*, project: str = "default", department_id: str = "default", user_id: str = "",
                  call_type: str, model: str = "", prompt_text: str = "", completion_text: str = "",
                  prompt_tokens: int | None = None, completion_tokens: int | None = None,
-                 estimated: int = 1, run_id: str | None = None, detail: str = "") -> dict:
+                 estimated: bool = True, run_id: str | None = None, detail: str = "") -> dict:
     """旁路记录一次调用。任何异常都不得影响业务主流程。
 
     department_id 是事件发生瞬间的部门快照（成本归因维度，不回溯），
@@ -84,7 +88,8 @@ def record_usage(*, project: str = "default", department_id: str = "default", us
         "department_id": department_id or "default", "user_id": user_id or "", "call_type": call_type,
         "model": model or "", "prompt_tokens": pt, "completion_tokens": ct,
         "total_tokens": pt + ct, "cost_cny": cost_of(model, pt, ct),
-        "estimated": estimated, "run_id": run_id, "detail": detail, "created_at": _now(),
+        # PG 的 boolean 不接受 0/1；这里统一收口，调用方传 1/True 都能用
+        "estimated": bool(estimated), "run_id": run_id, "detail": detail, "created_at": _now(),
     }
     try:
         conn = db.get_conn()
@@ -99,8 +104,14 @@ def record_usage(*, project: str = "default", department_id: str = "default", us
             conn.commit()
         finally:
             conn.close()
-    except Exception:
-        pass
+    except Exception as exc:
+        # 原来这里是静默 pass。改造期间它掩盖了一个真实故障：适配层不支持命名占位符，
+        # 于是每一次 record_usage 都失败、成本台账全是空的，但业务完全正常、测试只报
+        # 「calls == 0」。旁路可以不影响业务，但**不能不留痕**——这里每条原因只 WARN 一次。
+        global _USAGE_WARNED
+        if not _USAGE_WARNED:
+            _USAGE_WARNED = True
+            logging.getLogger("webapp.usage").warning("record_usage failed: %s", exc)
     return row
 
 
@@ -181,7 +192,7 @@ def usage_summary(dim: str = "project", *, user_id: str = "", is_admin: bool = F
         rows = conn.execute(
             f"SELECT {dim} AS k, COUNT(*) AS calls, SUM(prompt_tokens) AS pt,"
             " SUM(completion_tokens) AS ct, SUM(total_tokens) AS tt, SUM(cost_cny) AS cost,"
-            " SUM(estimated) AS est FROM usage_events" + where + " GROUP BY k ORDER BY cost DESC",
+            " SUM(CASE WHEN estimated THEN 1 ELSE 0 END) AS est FROM usage_events" + where + " GROUP BY k ORDER BY cost DESC",
             params,
         ).fetchall()
         total = conn.execute(
@@ -230,7 +241,7 @@ def rate_hits(limit: int = 50) -> list[dict]:
     try:
         rows = conn.execute(
             "SELECT ts,dimension,key,path,limit_count,window_s FROM rate_hits"
-            " ORDER BY ts DESC, rowid DESC LIMIT ?", (limit,),
+            " ORDER BY ts DESC, id DESC LIMIT ?", (limit,),
         ).fetchall()
     finally:
         conn.close()
@@ -382,7 +393,8 @@ def list_logs(*, run_id: str = "", level: str = "", limit: int = 200,
         sql += " AND level=?"; p.append(level)
     if not is_admin:
         sql += " AND (actor=? OR actor='' OR actor='system')"; p.append(user_id)
-    sql += " ORDER BY ts DESC, rowid DESC LIMIT ?"; p.append(min(limit, 1000))
+    # rowid 是 SQLite 隐式列，PG 没有；同秒记录必须有显式 tiebreaker，否则分页顺序会抖
+        sql += " ORDER BY ts DESC, id DESC LIMIT ?"; p.append(min(limit, 1000))
     conn = db.get_conn()
     try:
         rows = conn.execute(sql, p).fetchall()
@@ -429,7 +441,7 @@ def sync_evalbench_runs() -> int:
                 "samples,n_records,status_counts,created_at,actor,git_branch,git_commit,source)"
                 " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (d.name, s.get("label") or c.get("label") or "", s.get("mode") or "live",
-                 1 if s.get("comparable") else 0, c.get("metrics_version", ""),
+                 bool(s.get("comparable")), c.get("metrics_version", ""),
                  ",".join((c.get("prompts") or {}).keys()), ",".join((c.get("params") or {}).keys()),
                  "all", int(s.get("n_records") or 0),
                  json.dumps(s.get("status_counts") or {}, ensure_ascii=False),
@@ -448,7 +460,7 @@ def list_runs(limit: int = 100) -> list[dict]:
     conn = db.get_conn()
     try:
         rows = conn.execute(
-            "SELECT * FROM eval_runs ORDER BY created_at DESC, rowid DESC LIMIT ?", (min(limit, 500),)
+            "SELECT * FROM eval_runs ORDER BY created_at DESC, run_id DESC LIMIT ?", (min(limit, 500),)
         ).fetchall()
     finally:
         conn.close()
@@ -524,7 +536,7 @@ def run_offline_eval(*, actor: str = "admin", project: str = "default",
         # 逐样本记一次用量（估算，明确标 estimated=1）
         record_usage(project=project, department_id=department, user_id=user_id, call_type="eval",
                      model="offline_placeholder", prompt_text=s["question"],
-                     completion_text=answer, estimated=1, run_id=run_id,
+                     completion_text=answer, estimated=True, run_id=run_id,
                      detail=f"sample={s['id']} offline")
     n = len(records)
     groups: dict[tuple, list[float]] = defaultdict(list)
@@ -541,7 +553,7 @@ def run_offline_eval(*, actor: str = "admin", project: str = "default",
             "INSERT INTO eval_runs(run_id,label,mode,comparable,profile,prompt_version,params_id,"
             "samples,n_records,status_counts,created_at,actor,git_branch,git_commit,source)"
             " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-            (run_id, "offline-eval", "offline", 0, cfg.get("profile"),
+            (run_id, "offline-eval", "offline", False, cfg.get("profile"),
              cfg.get("prompt_version"), cfg.get("params_id"), cfg.get("samples"), n,
              json.dumps({"ok": n}), now, actor, branch, commit, "webapp"),
         )

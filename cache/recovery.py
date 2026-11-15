@@ -11,7 +11,6 @@
 """
 from __future__ import annotations
 
-import sqlite3
 from typing import Any, Callable
 
 from cache.contracts import (CheckResult, RecoveryReport, REASON_GHOST,
@@ -24,8 +23,12 @@ from cache.store import utcnow
 OrphanCallback = Callable[[str, str], None]
 
 
-def _table_exists(con: sqlite3.Connection, name: str) -> bool:
-    r = con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (name,)).fetchone()
+def _table_exists(con: Any, name: str) -> bool:
+    """表是否存在。用 current_schema() 而不是硬编码 public，测试独立 schema 才看得对。"""
+    r = con.execute(
+        "SELECT 1 FROM information_schema.tables"
+        " WHERE table_schema = current_schema() AND table_name = ?", (name,)
+    ).fetchone()
     return bool(r)
 
 

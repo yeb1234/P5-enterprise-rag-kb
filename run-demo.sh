@@ -22,8 +22,13 @@ docker build -f showcase/Dockerfile -t kb-showcase:dev \
 echo "==> 重建容器"
 docker rm -f kb-webapp kb-showcase >/dev/null 2>&1 || true
 
+# SQLite 已移除：webapp 必须连真 PostgreSQL。
+# 先确保基础设施起着：KB_PG_PORT=55432 … docker compose -f docker-compose.infra.yml up -d postgres
+DB_URL="${WEBAPP_DATABASE_URL:-postgresql://kb:kb_demo_only@kb-pg:5432/kb}"
 docker run -d --name kb-webapp \
   -p 127.0.0.1:8765:8765 \
+  --network kb-infra_default \
+  -e WEBAPP_DATABASE_URL="$DB_URL" \
   -e WEBAPP_LLM_PROVIDER=offline \
   -e WEBAPP_EMBEDDING_PROVIDER=offline \
   -e WEBAPP_RERANK_PROVIDER=off \
@@ -39,7 +44,7 @@ docker run -d --name kb-showcase \
   --restart unless-stopped \
   kb-showcase:dev >/dev/null
 
-echo "==> 等待健康检查"
+echo "==> 等待健康检查（webapp 需要 PG 就绪，失败先看 docker logs kb-webapp）"
 for p in 8765 8767; do
   for i in $(seq 1 30); do
     code=$(curl -s -o /dev/null -m 2 -w '%{http_code}' "http://127.0.0.1:$p/" || true)

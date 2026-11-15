@@ -11,7 +11,7 @@
 
 | 演示切片 | 生产架构（v0.1 骨架 / v0.2 方案） |
 |---|---|
-| SQLite（唯一真值） | PostgreSQL（`ingest_jobs` / 审计台账） |
+| **PostgreSQL（唯一真值）** | PostgreSQL（`ingest_jobs` / 审计台账） |
 | 进程内信号量队列 | Celery + Redis broker → v0.2 RabbitMQ |
 | 词法门禁 + 外部 BGE 向量 + cross-encoder 重排（三档可切） | PG 全文 + Milvus 向量 + RRF 融合 |
 | 真实 DeepSeek SSE 流式（限流/故障回退离线占位） | DeepSeek V4.1 Flash SSE 流式 |
@@ -19,14 +19,25 @@
 
 ---
 
-## 1. 启动（两条命令）
+## 1. 启动（三步：起库 → 装依赖 → 起服务）
+
+> **SQLite 已从运行时移除**：`webapp/` 现在必须连真 PostgreSQL。这不是可选优化，
+> 是 2026-11-15 的架构变更——理由与代价见 `docs/production/01-data-migration.md` §12。
 
 ```bash
-python -m pip install fastapi uvicorn python-multipart
+# 1) 起 PostgreSQL（本机 5432 若被占用，用 KB_PG_PORT 换端口）
+KB_PG_PORT=55432 docker compose -f docker-compose.infra.yml up -d postgres
+
+# 2) 装依赖（多了 psycopg）
+python -m pip install fastapi uvicorn python-multipart "psycopg[binary]"
+
+# 3) 起服务（DSN 必须给，默认值指向 5432 标准端口）
+export WEBAPP_DATABASE_URL=postgresql://kb:kb_demo_only@127.0.0.1:55432/kb
 python -m uvicorn webapp.main:app --host 127.0.0.1 --port 8765
 ```
 
-浏览器打开 `http://127.0.0.1:8765`。首次启动自动建表并种入演示数据。
+浏览器打开 `http://127.0.0.1:8765`。首次启动会用 `scripts/pg_init.sql` 建表并种入演示数据
+（幂等，重启不会重复插）。
 想**一键看到含管理后台的全貌**，直接打开 `http://127.0.0.1:8765/?demo=admin`（自动登录演示管理员，
 仅本地演示切片使用，生产环境必须移除该分支）。
 
@@ -83,7 +94,7 @@ API 文档：`http://127.0.0.1:8765/api-docs`（共 36 条 API，含 12 条 `/ap
 | 质量与治理 | **评估测试** | `GET /api/evaltest/*` + `evalbench/runs/` 留存 | 已实现（演示级） | 评估配置 / 运行记录 / 指标 / 日志追踪 / token 与成本按项目·部门·调用维度聚合 / 预算上限与超限（全局 + 按用户覆盖）/ **三维业务配额（user / endpoint / model）+ IP 接入层防刷** / 插件边界；只读真实数据，写接口仅 admin |
 | 质量与治理 | 管理后台 | badcase + 完成度 | 已实现（仅 admin） | 采集与查看权限分离，导出与列表共用筛选 |
 | 质量与治理 | 审计日志 | `GET /api/admin/audit` | 已实现（演示级） | 只追加台账，可按动作/人回放「谁在什么时候做了什么」；**未接** `trace_id`、留存策略与脱敏 |
-| 系统 | 模型设置（仅 admin） | `GET/PUT /api/settings` + `/api/settings/test` | 已实现 | LLM 本地/外部/离线可切、Bge M3 向量、Rerank 可配（不可用优雅跳过）；配置落 SQLite、**即时生效** |
+| 系统 | 模型设置（仅 admin） | `GET/PUT /api/settings` + `/api/settings/test` | 已实现 | LLM 本地/外部/离线可切、Bge M3 向量、Rerank 可配（不可用优雅跳过）；配置落 PostgreSQL 的 `app_settings`、**即时生效** |
 | 系统 | 系统设置与边界 | `/api/system/busy` + `/api/admin/users` + 静态映射 | 混合 | 组件替身映射表、A/B/C 档、**明确不做**清单——面试时别把 A 档说成 C 档 |
 
 **权限**：`管理后台`、`审计日志`、`模型设置` 仅 admin 可见，接口同样 403；`系统设置与边界` 普通用户可见，
@@ -112,7 +123,7 @@ localStorage、head 同步防闪烁）× `static/style.css`（CSS 变量分层�
 `OfflineLLMProvider`（占位）、`OpenAILikeLLMProvider`（OpenAI 兼容，外部与本地共用）、
 `OpenAILikeEmbeddingProvider`（通用 `/v1/embeddings`，本地 LM Studio 与硅基流动共用；
 `LocalEmbeddingProvider` 保留为兼容别名）。**切换由「模型设置」页写入
-SQLite（`app_settings`），即时生效、无需重启**，不动检索 / 权限 / 评测逻辑。
+PostgreSQL 的 `app_settings`，即时生效、无需重启**，不动检索 / 权限 / 评测逻辑。
 
 **当前默认（真实外部模型全链路，2026-11-11 实测）**：
 
@@ -245,7 +256,7 @@ SQLite（`app_settings`），即时生效、无需重启**，不动检索 / 权�
 ## 5. 面试 30 秒讲法
 
 > 「我另外做了一个能直接打开跑的切片，把注册登录、上传排队、流式问答、badcase 采集
-> 到管理员导出串成一条闭环。它用 SQLite 当真值、进程内队列替身 Celery，并已接真实 DeepSeek——
+> 到管理员导出串成一条闭环。它用真 PostgreSQL 当真值、进程内队列替身 Celery，并已接真实 DeepSeek——
 > 但**契约和生产架构一致**：LLM 走适配器 seam，检索/权限/评测逻辑一处没动，换掉替身就是真链路。
 > 最想讲的是降级：检索为空会明确拒答不编造，模型限流会回退本地拼接而不崩，流断了带 resume_from 续传，
 > 后端挂了前端自动重连并刷新，上传繁忙会显示排队位置。所有降级都可见、都留痕。
