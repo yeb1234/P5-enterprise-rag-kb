@@ -96,6 +96,10 @@ PG 是状态真值，Redis 只是实时通道；**先写 PG 文本再写 Milvus 
   **Docker Hub 不可达**。国内源实拉结论：`milvusdb/milvus` → `docker.m.daocloud.io` ✅、
   `coreos/etcd` → `quay.m.daocloud.io` ✅、`postgres/redis` → daocloud ✅、
   **`minio/minio` 四源全失败**（daocloud denied / 1panel blob 403 / 1ms·rat.dev·proxy.net no such manifest）。
+- **镜像源新结论（2026-11-16）**：除了「加速站」，还有**云厂商公共镜像仓库**——
+  华为云 SWR 的 `ddn-k8s` 镜像了主流 Docker Hub 仓库且不整仓屏蔽：
+  `swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/minio/minio:RELEASE.2025-04-22T22-12-26Z`
+  （minio 在 daocloud 被 denied、1panel.live blob 403、1panel.top 是 Cloudflare 每日限额）。
 - `docker-compose.infra.yml` 的宿主端口与镜像名全部可用环境变量覆盖（默认值不变）：
   `KB_PG_PORT` / `KB_REDIS_PORT` / `KB_MILVUS_PORT` / `KB_PG_IMAGE` / `KB_REDIS_IMAGE` / … / `KB_MILVUS_STORAGE`
   本机起法：`KB_PG_PORT=55432 KB_REDIS_PORT=56379 KB_MILVUS_STORAGE=local KB_ETCD_IMAGE=quay.m.daocloud.io/coreos/etcd:v3.5.16 KB_MILVUS_IMAGE=docker.m.daocloud.io/milvusdb/milvus:v2.5.10 docker compose -f docker-compose.infra.yml up -d postgres redis etcd milvus`
@@ -118,12 +122,16 @@ PG 是状态真值，Redis 只是实时通道；**先写 PG 文本再写 Milvus 
 - 必须记住的坑：**旁路的 `except: pass` 会把「功能已坏」伪装成「什么都没发生」**——
   `record_usage` 因命名占位符不支持而静默丢光成本台账，业务全绿、日志干净。现已改为 WARN 一次。
 
-### 12. Milvus 三个必知陷阱
+### 12. Milvus 四个必知陷阱
 1. **`num_entities` 是近似值且含已删未压实墓碑**：`upsert`=delete+insert，重跑 83→166；
    正确性断言必须用 `query(count(*))`。
 2. **库里有逐元素完全相同的向量**（同一样本反复上传，实测 5 组、最多 9 条）：
    「top1 必须是它自己」是错断言，正确断言是「在 top-k 且 score≈1」，并列单独报。
 3. `backend/app/integrations/milvus_client.py` 全用 pymilvus **ORM 风格**，2.6 已告警 3.1 移除 —— 升级前必须重写。
+4. **换对象存储必须 `--reset-collection`**：Milvus 元数据在 etcd、数据在对象存储，两边分开持久化。
+   把 `storageType` 从 `local` 换成 `minio` 后，etcd 里 collection 还在、segment 已不存在，
+   `ensure_collection()` 因 `has_collection` 为真直接 return，随后 `load()` **永久挂住** ——
+   看起来像「Milvus 挂了」，实际是元数据与数据不一致。`utility.*` 前必须先 `connections.connect`。
 
 ## 已验证的可复现坑（别再踩）
 1. **Docker 29 + Compose v5 bake 在中文路径报错**：`x-docker-expose-session-sharedkey … non-printable ASCII`。
