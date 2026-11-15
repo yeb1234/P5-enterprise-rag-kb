@@ -26,7 +26,7 @@
 | `guardrails/` | PII 四出口（ingest/context/output/audit） | `guardrails/` |
 | `showcase/` | 独立演示站（端口 8767），单向 import 上述包 | `docs/showcase/03-phase2-spec.md` |
 
-上游应用：`webapp/`（可运行演示切片，端口 8765，admin/admin123）、`backend/`（FastAPI 骨架）、
+上游应用：`webapp/`（可运行演示切片，端口 8765，admin/admin123，**跑在真 PostgreSQL 上**）、`backend/`（FastAPI 骨架）、
 `frontend/`（React + Vite）、`eval/` + `evalbench/`（评测）、`demo/`（演示物料，冻结区）。
 
 ## 硬约束（改任何东西前先读）
@@ -106,7 +106,19 @@ PG 是状态真值，Redis 只是实时通道；**先写 PG 文本再写 Milvus 
   Milvus 83 条向量 / 幽灵 0 / 漏迁 0 / 20-20 回查 score=1.0 / 错 tenant 0 条 / 收窄 46→1。
 - 迁移脚本报「尝试 / 实际写入 / 跳过」三个数（`cur.rowcount`）。**只报一个数就是没真跑过**。
 
-### 11. Milvus 三个必知陷阱
+### 11. SQLite 已彻底移除（2026-11-15）
+- `webapp/` 与 `cache/` **运行时零 sqlite3 依赖**，必须连 PostgreSQL。138 处 `conn.execute` 调用点
+  经 `pgkit.py` 适配（`?`→`%s`、`:name`→`%(name)s`、`%`→`%%`、`datetime/Decimal` 收敛为 ISO/float）。
+- **改回 SQLite = 撤销一次大改造**，不要再往 `db.py` 里写 `CREATE TABLE IF NOT EXISTS`；
+  建表 DDL 唯一事实源是 `scripts/pg_init.sql`（容器 initdb / `init_db()` / 测试三处共用）。
+- 测试必须 PG 起着：`webapp` 每进程一个 `kb_test_<uuid8>` schema，`cache` 每用例一个 schema。
+  **不再有「零依赖 clone 就能跑单测」**。
+- `CacheStore(db_path)` 语义已改为 `CacheStore(schema)`，传路径会直接 ValueError。
+- `scripts/legacy/import_legacy_sqlite.py` 是**一次性 ETL**（旧 .db → PG），不属于运行时。
+- 必须记住的坑：**旁路的 `except: pass` 会把「功能已坏」伪装成「什么都没发生」**——
+  `record_usage` 因命名占位符不支持而静默丢光成本台账，业务全绿、日志干净。现已改为 WARN 一次。
+
+### 12. Milvus 三个必知陷阱
 1. **`num_entities` 是近似值且含已删未压实墓碑**：`upsert`=delete+insert，重跑 83→166；
    正确性断言必须用 `query(count(*))`。
 2. **库里有逐元素完全相同的向量**（同一样本反复上传，实测 5 组、最多 9 条）：
