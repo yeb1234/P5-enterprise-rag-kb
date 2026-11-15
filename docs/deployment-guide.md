@@ -151,7 +151,7 @@ $ ls -la backend/Dockerfile frontend/Dockerfile frontend/index.html frontend/src
 
 | 项 | 结论 | 理由 | 是否落地到 `docker-compose.yml` |
 |---|---|---|---|
-| ① **webapp 演示切片未进 compose** | **不纳入，改为可选 profile 建议** | 实查 `webapp/README.md:22-31`：独立进程 `python -m uvicorn webapp.main:app --host 127.0.0.1 --port 8765`，SQLite 文件库 + 进程内队列，**无 Dockerfile**、无 `webapp/requirements.txt`；定位是「生产架构的可演示替身，不替代 `backend/` 骨架」。纳入 compose 需新增 Dockerfile 或挂载后运行时装依赖、把 `127.0.0.1` 改 `0.0.0.0`、新增服务名与端口，且会把演示替身与生产骨架混编，**超出「保守改动」边界** | **否**（仅在 §2.1 给出未落地的可选片段） |
+| ① **webapp 演示切片未进 compose** | **仍不纳入 compose，但已独立成镜像** | **2026-11-16 更新**：`webapp/Dockerfile` 已存在，`run-demo.sh` 用 `docker build` + `docker run --network kb-infra_default` 独立起容器（`127.0.0.1:8765`），不再依赖宿主 `uvicorn` 临时装依赖；运行时已是**真 PostgreSQL**（SQLite 已从运行时移除），数据卷 `kb-webapp-data`。**仍不进 `docker-compose.yml` 的理由变了**：不是「没 Dockerfile / 会联网装依赖」，而是①演示替身与 `backend/` 生产骨架混编会让「哪个是上线件」讲不清；②它需要独立卷与一整套 `WEBAPP_*` 配置，塞进总编排会污染 `backend` 的 `EMBEDDING_PROVIDER` 等同名键 | **否**（§2.1 的旧片段已过期，以 `run-demo.sh` 为准） |
 | ② **资源限制 / restart policy / 日志轮转** | **补齐** | 三者均为**纯增量字段**：不删服务、不改服务名与端口、不改变启动顺序；`restart: unless-stopped` 覆盖宿主机重启与异常退出；日志轮转防止默认 `json-file` 无限增长撑爆磁盘；资源上限防止单服务打满宿主机 | **是**（§3 逐条） |
 | ③ **`.env` 密钥注入与 `.env.example` 对齐** | **补齐一处参数化；其余不动** | 实查：`api` / 三个 worker / `beat` 用 `env_file: .env` 注入容器；compose 变量的 `${VAR:-default}` 插值则是**解析期**机制（自动读项目根 `.env`），两者不同。唯一不对齐点是 `frontend.build.args.VITE_API_BASE_URL` 被**硬编码**为 `/api/v1`，而 `.env.example:89` 已有同名键 → 改为 `${VITE_API_BASE_URL:-/api/v1}`，默认值不变、纯参数化。密钥本身**不新增、不外泄、不入库**（`.gitignore:1` 排除 `.env`）。**并发注记**：本轮核对时 `.env.example` 已由其他成员扩展出第 91 行起的 `WEBAPP_` 演示切片配置段（含「`WEBAPP_` 前缀不可去掉、与 backend `EMBEDDING_PROVIDER` 枚举互斥」的说明），这正是命名空间隔离约定的落地佐证；该文件**本轮未改动**，且其新增键均为 webapp 进程自行读取的 `WEBAPP_*`，不参与 compose 插值，故与本轮 1 行参数化改动无冲突 | **是**（仅 1 行） |
 | ④ **生产与开发的 profile 分离** | **只给方案，不落地** | 需要 `compose.override.yaml`（开发：bind mount / 暴露调试端口 / DEBUG）与 `compose.prod.yaml`（生产：去掉 bind mount、改用镜像 tag、加 TLS 卷、资源与日志策略、G1 端口收口）。这属于**新增文件**，本轮纪律限定「只改 `docker-compose.yml` 一个文件」，故不落地；给出可复制片段与落地步骤 | **否**（§2.2） |
@@ -172,7 +172,10 @@ $ ls -la backend/Dockerfile frontend/Dockerfile frontend/index.html frontend/src
     ports: ["127.0.0.1:8765:8765"]
     restart: unless-stopped
 ```
-> 说明：该片段会在容器启动时联网安装依赖、并新增宿主端口，**本轮不落地**；`webapp` 使用 SQLite，容器内多副本会有状态冲突，故仅适合单副本本地演示，不进入上线方案。
+> **这段已过期，保留仅为记录编制时的判断**（编制时 `webapp/` 还没有 Dockerfile、且跑在 SQLite 上）。
+> 现状：走 `webapp/Dockerfile` + `run-demo.sh` 的 `docker build` / `docker run` 路线，容器连 `kb-pg`（真 PG），
+> 数据落 `kb-webapp-data` 卷。多副本时真正的冲突点已从「SQLite 文件争用」变成**进程内队列与进程内限流闸**，
+> 所以仍然只适合单副本；要多副本必须先把 Celery 与 Redis 限流接上（见 `production/07-remaining-work.md` §3–§4）。
 
 ### 2.2 生产 / 开发分离建议（**未落地**）
 
@@ -505,7 +508,7 @@ docker compose --profile parsing up -d --build parser     # 额外拉起解析�
 curl http://127.0.0.1:8766/health/live
 ```
 
-为什么不塞进 `api` 或 `worker-*`：`parsing/` 是**纯函数包**（零 PG / Milvus / Celery 依赖），单独一个进程/镜像才能独立扩容、独立跑单测、独立替换供应商；把演示替身（`webapp/` 的 SQLite + 进程内队列）和它混编会讲不清边界。
+为什么不塞进 `api` 或 `worker-*`：`parsing/` 是**纯函数包**（零 PG / Milvus / Celery 依赖），单独一个进程/镜像才能独立扩容、独立跑单测、独立替换供应商；把演示替身（`webapp/` 的真 PG + 进程内队列）和它混编会讲不清边界。
 
 | 项 | 值 | 理由 |
 |---|---|---|

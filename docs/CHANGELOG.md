@@ -7,12 +7,48 @@
 > - 骨架与方案：`v0.1 骨架`（`README.md` §1.2、`docs/next-version-messaging-and-plugins.md`）、`方案 v0.2`。
 > - 评测体系：`EVAL-PLAN@0.1.0`、14 个对象 `@0.1.0`（`eval/config/registry.json`）、`cases_v0.1.0` / `fixtures_v0.1.0`、`eval-record/v0.1`。
 > - 演示物料：`DEMO-KBQA-EVAL-001` 场景版本 `1.0.0`（`demo/scenario.json`）。
-> - 演示切片：`webapp/main.py` 的 `version="0.2.0-demo"`；静态资源 `v=3 → v=5 → v=9 → v=10 → v=11`。
+> - 演示切片：`webapp/main.py` 的 `version="0.2.0-demo"` → **`1.0.0`（2026-11-16 定版）**；静态资源 `v=3 → v=5 → v=9 → v=10 → v=11 → v=15`。
 > - 评估工作台：`METRICS@1.0.0 → 1.1.0 → 1.2.0`、`self_built_v1`、分支 `eval/v1…v4` / `demo/v1` 与 commit。
 > - **事实源**：`git log`、`.workbuddy/memory/2026-11-11.md`、`2026-11-12.md`、`MEMORY.md`、`README.md`、`webapp/README.md`、`docs/` 全部文档及各配置文件版本字段。
 >
 > **定位**：开发框架骨架 + 面试讲解版（A/B 档），非上线交付版。
 > **统一列**：版本或日期 ｜ 改进项名称 ｜ 改动说明 ｜ 影响范围 ｜ 备注。
+
+---
+
+## v1.0.0 · 2026-11-16 · 真基础设施全链路跑通与定版
+
+> **1.0 的含义**：**「开发框架骨架 + 面试讲解版」的 1.0**，不是「可上线产品 1.0」。
+> 判据是「真 PG + 真 Redis + 真 Milvus + 真外部模型四件都实跑过、数字可复现、未做的部分明确标注」，
+> 而不是「功能齐全」。未做清单见 `docs/production/07-remaining-work.md`（20 项，逐项三态）。
+
+| 日期 | 改进项 | 改动说明 | 影响范围 | 备注 |
+|---|---|---|---|---|
+| 2026-11-16 | **版本号定版 `1.0.0`** | `webapp/main.py` 的 FastAPI `version` 由 `0.2.0-demo` → `1.0.0`；`frontend/package.json` 由 `0.1.0` → `1.0.0`；打 annotated tag `v1.0.0` | `webapp/main.py`、`frontend/package.json` | 无测试断言该字符串；`/api-docs` 显示版本随之更新 |
+| 2026-11-16 | **部署文档去 SQLite 残留** | `docs/deployment-guide.md` 三处仍写「`webapp` 用 SQLite、无 Dockerfile、容器内多副本状态冲突」——均已过期。改为「有 `webapp/Dockerfile`、跑真 PG、走 `run-demo.sh` 的 build+run 路线」，并把多副本冲突点更正为**进程内队列与进程内限流闸** | `docs/deployment-guide.md` §2 项①、§2.1 说明、§5 解析服务边界 | 这三处会直接误导腾讯云上线步骤，不是文风问题 |
+| 2026-11-16 | **新增剩余工作清单** | `docs/production/07-remaining-work.md`：20 项缺口逐项标「未做 / 只设计 / 半成品」，附阻塞原因、做完的判断标准、建议顺序（本周 / 面试前 / 生产前）与新环境启动陷阱 | `docs/production/`、`00-overview.md` §3/§8 | 逐项回代码核过（如 `rag.py:154` 仍读 PG 文本列），非凭印象 |
+
+**1.0 定版的实测证据（2026-11-16 本机全量重跑，无任何预设环境变量，全部走 `.env` + `docker-compose.infra.yml`）**
+
+| 项 | 结果 |
+|---|---|
+| 单测（webapp + parsing + knowledge + cache + guardrails + showcase） | **231 passed**（44.34s） |
+| `backend/` 单测 | **26 passed** |
+| `eval/` 单测 | **14 passed** |
+| `evalbench/` 单测 | **16 passed** |
+| 端到端自测（打容器里的真服务） | **33/33 `DEMO_READY`** |
+| showcase 集成校验 | **31/31 `INTEGRATION_READY`** |
+| demo 物料自检 | **16/16** |
+| 基础设施自检 `verify_infra.py` | **`INFRA_READY`**（3.93s）：PG 20 表 / 限流种子无偏差；Redis `limit=3` 内存 6 次 vs Redis 3 次 = **放大 2.0×**；Milvus 存活 83 条 / 覆盖 46 文档 / 错 tenant 命中 0 |
+| 前端 | `node --check` ×3 通过；`npm run build` 通过 |
+| 冻结区 | `git diff main..HEAD -- eval/ demo/` **零 diff** |
+| **真外部模型链路**（LLM `deepseek-v4.1-flash-1017` + 硅基流动 bge-m3 嵌入 + bge-reranker 重排） | 冷启首字 **23.84s** / 200 tokens / 4 sources / `degraded=False`；**热态首字 1.56s**，两次总时长 3.50s、5.64s |
+| 容器 | `kb-pg` `kb-redis` `kb-etcd` `kb-minio` `kb-milvus` `kb-webapp` `kb-showcase` **七个全 healthy** |
+
+> 冷启 23.84s vs 热态 1.56s 是 DeepSeek 推理模型的固有抖动（此前实测 13–58s）。
+> 上线若要改善首字体验，只能换非推理档或预热，**不是本次能修的 bug**。
+>
+> 本版**没有**改变 `eval/` `demo/` 任何冻结口径；`__TBC__` / `NOT_COMPARABLE` / `real_api` 阻断语义保持原样。
 
 ---
 
