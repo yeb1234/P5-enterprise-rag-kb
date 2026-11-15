@@ -77,6 +77,20 @@ PG 是状态真值，Redis 只是实时通道；**先写 PG 文本再写 Milvus 
   并加 HTTP 级回归，不能只修一条路径就宣称修好。
 - 指标零值样本必须预置，否则 Prometheus 里指标「不存在」。
 
+### 8. 三个唯一事实源（重复实现就是事故）
+- `settings.effective_embedding()`：端点/模型/key/缓存命名空间。
+- `providers.thinking_fields()`：低思考字段发不发。
+- `db.RATE_RULE_DEFAULTS`：限流默认配额（`_seed()` 与测试隔离共用，`pg_init.sql` 必须人工对齐）。
+
+### 9. 测试与镜像
+- `webapp/tests/conftest.py` 是**会话级共享临时库**，任何用例改了 `rate_rules` / `budgets`
+  都会污染后续用例。已加 autouse fixture「用例开始前复位规则 + 清 `obs._WINDOWS` + 丢 limiter 实例」。
+  **不要改回「靠用例自己收尾」**——崩溃时走不到 finally。
+- `webapp/Dockerfile` 必须 `COPY eval/config/`：`/api/eval/objects` 读 `eval/config/registry.json`，
+  漏了就让端点 500（本地 uvicorn 200、容器 500 是「打包漏文件」的典型症状）。
+- 演示容器**不是 compose 起的前缀卷**，是 `run-demo.sh` 的 `docker run -v kb-webapp-data`（固定卷名）。
+  用 `docker compose -f docker-compose.showcase.yml up` 会因容器名冲突 + 新空卷丢掉演示数据。
+
 ## 已验证的可复现坑（别再踩）
 1. **Docker 29 + Compose v5 bake 在中文路径报错**：`x-docker-expose-session-sharedkey … non-printable ASCII`。
    → 拆 `docker build` + `docker run`（`run-demo.sh`），或 `COMPOSE_BAKE=false`。
