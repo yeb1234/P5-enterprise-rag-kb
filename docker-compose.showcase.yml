@@ -29,8 +29,13 @@ services:
       PARSING_OFFLINE: "1"
       # 前端用 location.hostname + 8767 回退，这里仅作服务端可见的说明性配置
       WEBAPP_SHOWCASE_URL: http://127.0.0.1:8767
+      # SQLite 已移除：必须连真 PostgreSQL（kb-infra 里的 kb-pg）
+      WEBAPP_DATABASE_URL: ${WEBAPP_DATABASE_URL:-postgresql://kb:kb_demo_only@kb-pg:5432/kb}
     volumes:
       - kb-webapp-data:/app/.data
+    networks:
+      - default
+      - kb-infra
     restart: unless-stopped
 
   showcase:

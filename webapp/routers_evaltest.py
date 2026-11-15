@@ -233,7 +233,7 @@ def put_ratelimit(body: RatePatch, user: dict = Depends(require_admin)):
                 " limit_count=excluded.limit_count, window_s=excluded.window_s,"
                 " enabled=excluded.enabled, updated_at=excluded.updated_at",
                 (r["dimension"], int(r["limit_count"]), int(r["window_s"]),
-                 1 if r.get("enabled", 1) else 0, obs._now()),
+                 bool(r.get("enabled", True)), obs._now()),
             )
         conn.commit()
     finally:

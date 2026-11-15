@@ -1,18 +1,20 @@
-"""双层缓存：L1 进程内 LRU（重启清空）+ L2 SQLite 持久化（重启可恢复）。
+"""双层缓存：L1 进程内 LRU（重启清空）+ L2 PostgreSQL 持久化（重启可恢复）。
 
 为什么分两层：
 - L1 快但**重启必然丢**；把它当加速器，不当真值。
-- L2 落在与业务库同一个 SQLite 文件里，重启后条目仍在；命中后仍要复核
-  `data_version` / `authz_snapshot` / `policy_version`，过期或版本变了就当未命中。
-- 生产对应「PG 为状态真值 + Redis 做实时通道」，本包是它的演示替身。
+- L2 落在与业务库**同一个 PostgreSQL**里（`cache_entries` / `runtime_state` 两张表），
+  重启后条目仍在；命中后仍要复核 `data_version` / `authz_snapshot` / `policy_version`，
+  过期或版本变了就当未命中。
+- 生产对应「PG 为状态真值 + Redis 做实时通道」。**L2 已经不再用 SQLite**：
+  改造前它是「与业务库同一个 .db 文件」的演示替身，现在两者都在真 PG 里。
 
 安全约束：调用方必须**先按权限过滤再写**；本层不负责授权，只在读取时做快照复核。
 """
 from __future__ import annotations
 
 import json
+import os
 import random
-import sqlite3
 import threading
 import time
 from collections import OrderedDict
@@ -20,17 +22,16 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
+import pgkit
+
 from cache.contracts import (CacheEntry, CachePolicy, CacheStats, REASON_AUTHZ,
                              REASON_CAPACITY, REASON_EXPLICIT, REASON_POLICY,
                              REASON_TTL, REASON_VERSION)
 from cache.keys import key_matches
 
 ROOT = Path(__file__).resolve().parent.parent
-
-
-def default_db_path() -> Path:
-    import os
-    return Path(os.environ.get("WEBAPP_DB_PATH", str(ROOT / ".data" / "webapp" / "app.db")))
+import re as _re
+_SCHEMA_NAME_RE = _re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
 def utcnow(now: str | None = None) -> str:
@@ -39,44 +40,66 @@ def utcnow(now: str | None = None) -> str:
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS cache_entries (
-    key             TEXT PRIMARY KEY,
-    namespace       TEXT NOT NULL,
-    value_json      TEXT NOT NULL,
-    data_version    TEXT NOT NULL DEFAULT '',
-    authz_snapshot  TEXT NOT NULL DEFAULT '',
-    policy_version  TEXT NOT NULL DEFAULT '',
-    created_at      TEXT NOT NULL,
-    expires_at      TEXT NOT NULL,
-    last_access     TEXT NOT NULL,
-    hits            INTEGER NOT NULL DEFAULT 0,
-    is_negative     INTEGER NOT NULL DEFAULT 0,
-    size_bytes      INTEGER NOT NULL DEFAULT 0
+    key            text PRIMARY KEY,
+    namespace      text NOT NULL,
+    value_json     text NOT NULL,
+    data_version   text NOT NULL DEFAULT '',
+    authz_snapshot text NOT NULL DEFAULT '',
+    policy_version text NOT NULL DEFAULT '',
+    created_at     timestamptz NOT NULL,
+    expires_at     timestamptz NOT NULL,
+    last_access    timestamptz NOT NULL,
+    hits           integer NOT NULL DEFAULT 0,
+    is_negative    boolean NOT NULL DEFAULT false,
+    size_bytes     integer NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS ix_cache_expires ON cache_entries(expires_at);
 CREATE INDEX IF NOT EXISTS ix_cache_access ON cache_entries(last_access);
 CREATE TABLE IF NOT EXISTS runtime_state (
-    key         TEXT PRIMARY KEY,
-    value       TEXT NOT NULL,
-    updated_at  TEXT NOT NULL
+    key        text PRIMARY KEY,
+    value      text NOT NULL,
+    updated_at timestamptz NOT NULL
 );
 """
 
 
 class CacheStore:
-    def __init__(self, db_path: Path | None = None, policy: CachePolicy | None = None):
-        self.db_path = Path(db_path or default_db_path())
+    def __init__(self, schema: str | None = None, policy: CachePolicy | None = None):
+        """`schema` 用于测试隔离（切 search_path）；生产留空走默认 schema。
+
+        参数原来是 `db_path`（SQLite 文件路径），改造后语义变成 schema 名。
+        保留第一个位置参数的位置，是为了让调用方能一眼看出「这里只换隔离维度」。
+        """
+        import os
+        raw = schema or (os.environ.get("WEBAPP_DB_SCHEMA") or "").strip() or None
+        if raw is not None and not _SCHEMA_NAME_RE.match(str(raw)):
+            # 改造前第一个参数是 SQLite 文件路径；现在必须传 schema 名。
+            # 这里显式拦住「还按老习惯传路径」的调用，而不是让它变成一条看不懂的 PG 报错。
+            raise ValueError(
+                f"CacheStore 的隔离参数已从「SQLite 文件路径」改为「schema 名」，"
+                f"收到 {raw!r}。请传合法标识符（如 'kb_test_abc123'）或留空。"
+            )
+        self.schema = str(raw) if raw is not None else None
         self.policy = policy or CachePolicy()
         self._lock = threading.RLock()
         self._l1: OrderedDict[str, CacheEntry] = OrderedDict()
         self.stats = CacheStats()
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self.ensure_schema()
 
     # -------------------------------------------------------------- 连接
-    def _conn(self) -> sqlite3.Connection:
-        con = sqlite3.connect(str(self.db_path), timeout=30)
-        con.row_factory = sqlite3.Row
-        return con
+    def _conn(self) -> pgkit.PgConn:
+        """连接到 PG；若指定了 schema，则把该连接的 search_path 指过去。"""
+        if not self.schema:
+            return pgkit.connect()
+        prev = os.environ.get("WEBAPP_DB_SCHEMA")
+        os.environ["WEBAPP_DB_SCHEMA"] = self.schema
+        try:
+            return pgkit.connect()
+        finally:
+            if prev is None:
+                os.environ.pop("WEBAPP_DB_SCHEMA", None)
+            else:
+                os.environ["WEBAPP_DB_SCHEMA"] = prev
 
     def ensure_schema(self) -> None:
         con = self._conn()
@@ -153,7 +176,7 @@ class CacheStore:
                     "last_access=excluded.last_access,is_negative=excluded.is_negative,"
                     "size_bytes=excluded.size_bytes",
                     (key, entry.namespace, payload, entry.data_version, entry.authz_snapshot,
-                     entry.policy_version, stamp, exp, stamp, 0, int(is_negative), entry.size_bytes))
+                     entry.policy_version, stamp, exp, stamp, 0, bool(is_negative), entry.size_bytes))
                 con.commit()
             finally:
                 con.close()

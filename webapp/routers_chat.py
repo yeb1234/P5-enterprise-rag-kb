@@ -198,7 +198,7 @@ async def chat_stream(
                     department_id=cfg.get("department", "default"),
                     user_id=user["id"], call_type="chat", model=rag.get_model_label(),
                     prompt_text=prompt_text, completion_text=answer,
-                    estimated=1, detail=f"conv={conv_id[:8]} degraded={final_degraded}")
+                    estimated=True, detail=f"conv={conv_id[:8]} degraded={final_degraded}")
             except Exception:
                 pass
 
@@ -228,13 +228,13 @@ def _persist(conv_id: str, user_id: str, question: str, answer: str, degraded: b
         conn.execute(
             "INSERT INTO chat_logs(id,conversation_id,user_id,role,content,degraded,created_at)"
             " VALUES (?,?,?,?,?,?,?)",
-            (security.new_id(), conv_id, user_id, "user", question, 0, now),
+            (security.new_id(), conv_id, user_id, "user", question, False, now),
         )
         assistant_id = security.new_id()
         conn.execute(
             "INSERT INTO chat_logs(id,conversation_id,user_id,role,content,degraded,created_at)"
             " VALUES (?,?,?,?,?,?,?)",
-            (assistant_id, conv_id, user_id, "assistant", answer, 1 if degraded else 0, now),
+            (assistant_id, conv_id, user_id, "assistant", answer, bool(degraded), now),
         )
         # 溯源落库：把本次回答引用的分块写成 chat_sources，关联助手消息 id
         for i, s in enumerate(sources or []):

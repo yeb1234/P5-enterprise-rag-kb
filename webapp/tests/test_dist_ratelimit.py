@@ -13,6 +13,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import webapp.ratelimit_dist as rl
+from webapp.tests._dbutil import upsert_rate_rule
 
 
 @pytest.fixture(autouse=True)
@@ -80,10 +81,7 @@ def test_check_rate_returns_rate_check_compatible_structure(monkeypatch):
 
     conn = db.get_conn()
     try:
-        conn.execute(
-            "INSERT OR REPLACE INTO rate_rules(dimension,limit_count,window_s,enabled,updated_at)"
-            " VALUES ('endpoint',1,60,1,'test')"
-        )
+        upsert_rate_rule(conn, "endpoint", 1, 60)
         conn.commit()
     finally:
         conn.close()

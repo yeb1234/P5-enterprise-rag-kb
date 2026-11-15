@@ -27,8 +27,8 @@
       --pg-dsn postgresql://kb:kb_demo_only@127.0.0.1:55432/kb \
       --milvus-uri http://127.0.0.1:19530
 
-    # 4) 只读 SQLite（PG 还没迁完时用）
-    python scripts/migrate_vectors_to_milvus.py --from-sqlite
+    # 4) 换目标 Milvus
+    python scripts/migrate_vectors_to_milvus.py --apply --milvus-uri http://127.0.0.1:19530
 """
 from __future__ import annotations
 
@@ -36,7 +36,6 @@ import argparse
 import json
 import os
 import pathlib
-import sqlite3
 import sys
 import time
 
@@ -44,7 +43,6 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 BACKEND = ROOT / "backend"
 
 DEFAULT_MODEL = "external:BAAI/bge-m3"
-DEFAULT_SQLITE = ROOT / ".data" / "webapp" / "app.db"
 DEFAULT_PG = "postgresql://kb:kb_demo_only@127.0.0.1:5432/kb"
 
 
@@ -72,25 +70,16 @@ def _sql(ph: str) -> str:
     return _SQL_TPL.format(ph=ph)
 
 
-def load_rows(source: str, model: str, pg_dsn: str, sqlite_path: pathlib.Path) -> list[dict]:
-    if source == "sqlite":
-        if not sqlite_path.exists():
-            raise SystemExit(f"[FAIL] SQLite 不存在：{sqlite_path}")
-        conn = sqlite3.connect(str(sqlite_path))
-        try:
-            raw = conn.execute(_sql("?"), (model,)).fetchall()
-        finally:
-            conn.close()
-    else:
-        try:
-            import psycopg  # type: ignore
-        except ImportError:
-            raise SystemExit("[FAIL] 未安装 psycopg。安装：pip install 'psycopg[binary]'\n"
-                             "       或用 --from-sqlite 从演示库读。")
-        with psycopg.connect(pg_dsn, connect_timeout=5) as conn:
-            with conn.cursor() as cur:
-                cur.execute(_sql("%s"), (model,))
-                raw = cur.fetchall()
+def load_rows(model: str, pg_dsn: str) -> list[dict]:
+    """从 PostgreSQL 读向量。运行时已无 SQLite，来源只有一个。"""
+    try:
+        import psycopg  # type: ignore
+    except ImportError:
+        raise SystemExit("[FAIL] 未安装 psycopg。安装：pip install 'psycopg[binary]'")
+    with psycopg.connect(pg_dsn, connect_timeout=5) as conn:
+        with conn.cursor() as cur:
+            cur.execute(_sql("%s"), (model,))
+            raw = cur.fetchall()
 
     rows = []
     bad = 0
@@ -117,39 +106,25 @@ def load_rows(source: str, model: str, pg_dsn: str, sqlite_path: pathlib.Path) -
     return rows
 
 
-def coverage(source: str, model: str, pg_dsn: str, sqlite_path: pathlib.Path) -> dict:
+def coverage(model: str, pg_dsn: str) -> dict:
     """统计覆盖：总 chunk、本命名空间、其他命名空间、完全没向量。"""
-    if source == "sqlite":
-        conn = sqlite3.connect(str(sqlite_path))
-        try:
-            total = conn.execute("SELECT COUNT(*) FROM chunks").fetchone()[0]
-            mine = conn.execute("SELECT COUNT(*) FROM chunk_embeddings WHERE model=?", (model,)).fetchone()[0]
-            others = conn.execute(
-                "SELECT model, COUNT(*) FROM chunk_embeddings WHERE model<>? GROUP BY model", (model,)
-            ).fetchall()
-            no_vec = conn.execute(
+    import psycopg
+
+    with psycopg.connect(pg_dsn, connect_timeout=5) as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM chunks")
+            total = cur.fetchone()[0]
+            cur.execute("SELECT COUNT(*) FROM chunk_embeddings WHERE model=%s", (model,))
+            mine = cur.fetchone()[0]
+            cur.execute(
+                "SELECT model, COUNT(*) FROM chunk_embeddings WHERE model<>%s GROUP BY model", (model,)
+            )
+            others = cur.fetchall()
+            cur.execute(
                 "SELECT COUNT(*) FROM chunks c WHERE NOT EXISTS"
                 " (SELECT 1 FROM chunk_embeddings e WHERE e.chunk_id=c.id)"
-            ).fetchone()[0]
-        finally:
-            conn.close()
-    else:
-        import psycopg  # type: ignore
-        with psycopg.connect(pg_dsn, connect_timeout=5) as conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT COUNT(*) FROM chunks")
-                total = cur.fetchone()[0]
-                cur.execute("SELECT COUNT(*) FROM chunk_embeddings WHERE model=%s", (model,))
-                mine = cur.fetchone()[0]
-                cur.execute(
-                    "SELECT model, COUNT(*) FROM chunk_embeddings WHERE model<>%s GROUP BY model", (model,)
-                )
-                others = cur.fetchall()
-                cur.execute(
-                    "SELECT COUNT(*) FROM chunks c WHERE NOT EXISTS"
-                    " (SELECT 1 FROM chunk_embeddings e WHERE e.chunk_id=c.id)"
-                )
-                no_vec = cur.fetchone()[0]
+            )
+            no_vec = cur.fetchone()[0]
     return {"total_chunks": total, "with_model": mine,
             "other_namespaces": dict(others), "no_vector_at_all": no_vec}
 
@@ -164,8 +139,6 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--model", default=DEFAULT_MODEL, help="只迁这一个嵌入命名空间")
     ap.add_argument("--milvus-uri", default="http://127.0.0.1:19530")
     ap.add_argument("--pg-dsn", default=DEFAULT_PG)
-    ap.add_argument("--sqlite", default=str(DEFAULT_SQLITE))
-    ap.add_argument("--from-sqlite", action="store_true", help="从演示库读而不是 PG")
     ap.add_argument("--tenant", default="default", help="Milvus partition key 取值（单组织演示填 default）")
     ap.add_argument("--batch", type=int, default=200)
     ap.add_argument("--verify-top1", type=int, default=20,
@@ -178,13 +151,10 @@ def main(argv: list[str] | None = None) -> int:
         print("[WARN] 同时给了 --apply 与 --dry-run，按只读处理", file=sys.stderr)
         args.apply = False
 
-    source = "sqlite" if args.from_sqlite else "pg"
-    sqlite_path = pathlib.Path(args.sqlite)
-
-    print(f"来源：{'SQLite ' + str(sqlite_path) if source == 'sqlite' else 'PostgreSQL ' + args.pg_dsn}")
+    print(f"来源：PostgreSQL {args.pg_dsn}")
     print(f"命名空间：{args.model}")
 
-    cov = coverage(source, args.model, args.pg_dsn, sqlite_path)
+    cov = coverage(args.model, args.pg_dsn)
     print(f"覆盖率：chunks 共 {cov['total_chunks']} 条，其中本命名空间 {cov['with_model']} 条"
           f"（{cov['with_model'] / max(cov['total_chunks'], 1):.1%}），"
           f"完全没向量 {cov['no_vector_at_all']} 条")
@@ -192,7 +162,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"       其它命名空间（**本次跳过**）：{cov['other_namespaces']}")
         print("       为什么跳过：同维度不同模型的向量不在同一向量空间，混在一起余弦能算但分数无意义")
 
-    rows = load_rows(source, args.model, args.pg_dsn, sqlite_path)
+    rows = load_rows(args.model, args.pg_dsn)
     print(f"待迁向量：{len(rows)} 条，维度 {len(rows[0]['embedding']) if rows else '-'}")
 
     if not rows:

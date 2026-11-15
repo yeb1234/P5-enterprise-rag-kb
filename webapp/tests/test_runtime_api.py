@@ -6,7 +6,7 @@ import json
 import pytest
 from fastapi.testclient import TestClient
 
-from webapp import recovery
+from webapp import db, recovery
 from webapp.main import app
 
 
@@ -81,25 +81,42 @@ def test_recovery_endpoint_returns_last_report(client, auth):
     assert {"discardable", "rebuildable", "must_persist"} <= cats
 
 
-def test_startup_idempotent_on_same_store(tmp_path, monkeypatch):
-    """同一个库连续启动两次：孤儿任务不重复重投。"""
-    from cache import CacheStore
-    from pathlib import Path
-    dbp = tmp_path / "restart.db"
-    import sqlite3
-    con = sqlite3.connect(str(dbp))
-    con.executescript(
-        "CREATE TABLE documents (id TEXT PRIMARY KEY, filename TEXT, status TEXT, "
-        "updated_at TEXT, chunk_count INTEGER DEFAULT 0, checksum TEXT DEFAULT '');"
-        "INSERT INTO documents VALUES ('d1','a.md','analyzing','2026-11-14T12:00:00Z',0,'');")
-    con.commit(); con.close()
-    s = CacheStore(dbp)
+def test_startup_idempotent_on_same_store(client):
+    """同一个 store 连续两次启动自检：孤儿任务只重投一次。
+
+    改造前这里自己造一个 SQLite 文件塞业务表；现在业务表就在真 PG 的测试 schema 里，
+    所以改成「插一条真实 documents 行」——不再有第二个数据库，也没有第二份 DDL。
+    """
+    import time
+    import uuid
+
+    from cache import CacheStore, run_startup_checks
+
+    now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    doc_id = "d_" + uuid.uuid4().hex[:10]
+    conn = db.get_conn()
+    try:
+        conn.execute(
+            "INSERT INTO documents(id,owner_id,filename,title,size_bytes,status,chunk_count,"
+            "error_msg,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+            (doc_id, "u_test", "a.md", "a.md", 10, "analyzing", 0, "", now, now),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    s = CacheStore()
     calls = []
-    from cache import run_startup_checks
     r1 = run_startup_checks(s, requeue=lambda d, f: calls.append(d))
-    assert r1.requeued == 1
-    con = sqlite3.connect(str(dbp))
-    con.execute("UPDATE documents SET status='ready' WHERE id='d1'")
-    con.commit(); con.close()
+    assert [d for d in calls if d == doc_id] == [doc_id], "孤儿任务没有被重投"
+
+    conn = db.get_conn()
+    try:
+        conn.execute("UPDATE documents SET status='ready' WHERE id=?", (doc_id,))
+        conn.commit()
+    finally:
+        conn.close()
+
     r2 = run_startup_checks(s, requeue=lambda d, f: calls.append(d))
-    assert r2.requeued == 0 and len(calls) == 1
+    assert [d for d in calls if d == doc_id] == [doc_id], "同一条孤儿任务被重复重投"
+    assert doc_id not in r2.orphan_task_ids

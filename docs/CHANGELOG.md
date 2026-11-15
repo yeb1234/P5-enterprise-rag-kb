@@ -16,6 +16,26 @@
 
 ---
 
+## 0. 2026-11-15 · 运行时彻底移除 SQLite（`feat/pg-only`）
+
+| 日期 | 改进项 | 改动说明 | 影响范围 | 备注 |
+|---|---|---|---|---|
+| 2026-11-15 | **`webapp/` 改连真 PostgreSQL** | 删除 `db.py` 的 SCHEMA / 三段「补列」迁移 / `DB_PATH`；新增 `pgkit.py` 承担连接、占位符翻译（`?`→`%s`、`:name`→`%(name)s`、`%`→`%%`）与类型收敛（`datetime`→ISO、`Decimal`→float） | `webapp/`、`cache/`、`pgkit.py`、`scripts/pg_init.sql` | 138 处 `conn.execute` 调用点一行未改，方言差异收敛到一个文件 |
+| 2026-11-15 | **`cache/` L2 改落 PG** | `cache_entries` / `runtime_state` 不再写 SQLite；`CacheStore(db_path)` 语义改为 `CacheStore(schema)`，传路径直接报错 | `cache/store.py`、`cache/__init__.py`、`cache/recovery.py` | 参数语义变更加了正则校验，避免变成看不懂的 PG 报错 |
+| 2026-11-15 | **测试隔离改独立 schema** | `webapp/tests/conftest.py` 建 `kb_test_<uuid8>` schema；`cache/tests/conftest.py` 每用例一个 schema；DDL 统一执行 `scripts/pg_init.sql` | 全部 Python 测试 | **代价：`pytest` 现在要求 PG 起着**，不再零外部依赖 |
+| 2026-11-15 | **删除 12 项 SQLite 专有测试** | `test_department_migration.py` 整文件（测三段补列迁移）已删；补列幂等用例同删 | `webapp/tests/` | 被测代码已不存在；正向断言（列存在、权限口径）保留。243 → 231 |
+| 2026-11-15 | **修复静默丢数据缺陷** | `record_usage` 的命名占位符 `:name` 不被 psycopg 支持，成本台账全空；`except Exception: pass` 把故障完全掩盖 | `webapp/observability.py`、`pgkit.py` | 改为失败 **WARN 一次**：旁路可以不影响业务，但不能不留痕 |
+| 2026-11-15 | **4 处隐式 `rowid` 改显式主键** | SQLite 每表自带 rowid，PG 没有；同秒记录分页顺序会抖 | `observability.py`、`routers_ops.py` | 用 `id` / `run_id` 作 tiebreaker |
+| 2026-11-15 | **一次性 ETL 归档** | `scripts/migrate_sqlite_to_pg.py` → `scripts/legacy/import_legacy_sqlite.py` | `scripts/legacy/` | 只用于导入旧 `.db`，不属于运行时；删掉不影响业务与测试 |
+
+> 验证：`231 passed`（webapp + parsing + knowledge + cache + guardrails + showcase）·
+> `webapp/selftest.py` **33/33 `DEMO_READY`**（打容器里的真服务）·
+> `docker exec kb-webapp grep -rln "import sqlite3" /app` **无输出** ·
+> 容器内 `pgkit.dsn()` → `postgresql://kb:kb_demo_only@kb-pg:5432/kb`（PostgreSQL 16.16）。
+> 设计取舍与 8 个坑的完整记录见 `docs/production/01-data-migration.md` §12。
+
+---
+
 ## 1. 版本坐标对照
 
 | 版本标识 | 含义 | 出处 | 对应阶段 |

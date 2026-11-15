@@ -11,6 +11,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from webapp import db, observability as obs
+from webapp.tests._dbutil import columns
 from webapp.main import app
 
 
@@ -44,7 +45,8 @@ def test_new_tables_and_defaults(client):
     conn = db.get_conn()
     try:
         tables = {r["name"] for r in conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table'")}
+            "SELECT table_name AS name FROM information_schema.tables"
+            " WHERE table_schema = current_schema()")}
         for t in ("usage_events", "budgets", "rate_rules", "rate_hits",
                   "eval_configs", "eval_runs", "eval_logs"):
             assert t in tables
@@ -56,7 +58,7 @@ def test_new_tables_and_defaults(client):
         assert rules.get("ip", 0) > 0
         assert all(v > 0 for v in rules.values())
         # 口径锁定：台账物理列名必须是 department_id，旧 tenant 列必须已迁移掉。
-        cols = {r["name"] for r in conn.execute("PRAGMA table_info(usage_events)")}
+        cols = columns(conn, "usage_events")
         assert "department_id" in cols and "tenant" not in cols
         cfg_keys = {r["key"] for r in conn.execute("SELECT key FROM eval_configs")}
         assert "department" in cfg_keys and "tenant" not in cfg_keys

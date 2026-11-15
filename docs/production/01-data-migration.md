@@ -2,10 +2,12 @@
 
 > 配套文件（均**已实现**）：
 > - `scripts/pg_init.sql` — SQLite `SCHEMA` 的 PG 方言翻译 + 必要种子
-> - `scripts/migrate_sqlite_to_pg.py` — 迁移脚本（默认只读，`--apply` 才写）
+> - `scripts/legacy/import_legacy_sqlite.py` — **一次性 ETL**：把旧 `.db` 导入 PG（默认只读，`--apply` 才写）
 > - `docker-compose.infra.yml` — PG 16 / Redis 7 / Milvus（etcd + minio + standalone）
 >
-> **三态**：PG 建表与迁移脚本 **已实现且已在本机真 PG 上跑通**（2026-11-15，PG 16-alpine，
+> **三态**：**SQLite 已于 2026-11-15 从运行时代码中彻底移除**（详见 §12：138 处调用点、
+> 231 passed、33/33 e2e 跑在真 PG 上）；
+> PG 建表与迁移脚本 **已实现且已在本机真 PG 上跑通**（2026-11-15，PG 16-alpine，
 > `--apply` 903 行、逐表比对 20/20 一致、时间戳逐字节相同）；**Milvus 向量迁移已实测**
 > （真 Milvus 2.5.10 standalone，83 条向量、幽灵 0 / 漏迁 0、20/20 回查命中自己、权限 expr 收窄生效）；
 > Celery 映射 **只设计**（`backend/` 有 13 个任务骨架，`webapp/` 仍是进程内队列）。
@@ -510,9 +512,124 @@ python scripts/verify_infra.py \
 **诚实边界**：`--apply` 已在真 PG 上跑通（903 行 / 20 表一致 / 时间逐字节对齐），
 向量迁移也已在真 Milvus 上跑通（83 条 / 幽灵 0 / 漏迁 0 / 回查 20-20 命中 / expr 收窄生效）。
 但 **Celery 映射只设计未实现**，**影子读双跑未做**（需应用侧改造），
-**`webapp/rag.py` 主链路仍走 SQLite 向量、没有真正切到 Milvus 召回**。
+**`webapp/rag.py` 主链路仍从 PG 的 `chunk_embeddings` 文本列读向量、没有真正切到 Milvus 召回**。
 **说清楚哪一步没做，比把设计说成实现更值钱。**
 
 **再加一条能立刻分辨真假的**：问他「Milvus 里有多少条向量」。
 答得出「存活 83 条、另有 N 条已删墓碑」的是真跑过；
 只报 `num_entities` 的，八成没注意它是近似值。
+
+---
+
+## 12. 彻底移除 SQLite（2026-11-15 完成）
+
+上一节之前，`webapp/` 的运行时代码仍然依赖 SQLite——「迁到 PG」只是把数据搬过去了，
+代码还在读写 `.db` 文件。这一节记录把它**连根拔掉**的全过程。
+
+### 12.1 改造规模（先量再动）
+
+| 项 | 数量 |
+|---|---|
+| `conn.execute(...)` 调用点 | **138 处 / 19 个文件** |
+| `webapp/db.py` | 508 行（SCHEMA + 3 段「补列」迁移 + 种子） |
+| `cache/store.py` | 317 行（L2 持久化） |
+| 依赖临时 `.db` 文件的测试 | 134 项（webapp）+ 19 项（cache） |
+| SQLite 专有语法 | `INSERT OR REPLACE` ×6、`PRAGMA table_info` ×8、`sqlite_master` ×3、隐式 `rowid` ×4 |
+
+**结论先行**：这不是「换个驱动」。138 处调用点 + 两套测试夹具 + 一套 DDL，
+半途而废比不做更糟——所以这次在 `feat/pg-only` 分支上做，跑通才合并。
+
+### 12.2 三个关键决策
+
+**① 占位符兼容层，而不是全量改文本**
+
+138 处 `?` 要改成 `%s`，同时 SQL 里的字面 `%` 必须写成 `%%`（`LIKE '%' || ? || '%'`
+这类写法漏改会静默参数错位）。在一次改动里同时换存储 + 批量改 138 处文本，
+回归风险远大于收益。所以引入 `pgkit.py`，在**唯一入口**做翻译：
+
+```
+?  → %s          （位置占位符）
+%  → %%          （有参数时）
+:name → %(name)s （命名占位符 + dict，SQLite 支持、psycopg 不支持）
+```
+
+调用点一行没动。代价是多一层转换；收益是 138 处零回归。
+**后续可选清理**：按文件替换 `?` → `%s`，再删掉翻译函数即可。
+
+**② 类型收敛层：把 PG 的强类型值转回应用层契约**
+
+SQLite 是动态类型：`timestamptz` 读出来是 ISO 字符串、`numeric` 读出来是 float。
+全仓的 Pydantic 响应模型和比较逻辑都按这个契约写。PG 会老实返回 `datetime` / `Decimal`，
+于是 `UserOut(created_at=datetime)` 直接 ValidationError，`Decimal + float` 直接 TypeError。
+
+在 `pgkit.Row` 里统一转换（`datetime → '%Y-%m-%dT%H:%M:%SZ'`、`Decimal → float`）。
+**代价**：`numeric` 退化成 float，不再有精确十进制。做金额对账应在 SQL 里
+`ROUND(...)::text` 拿字符串，不能指望这一层。
+
+**③ 测试隔离从「临时文件」改为「独立 schema」**
+
+原来 `conftest` 用一个临时 `.db` 文件；现在每个 pytest 进程建一个 `kb_test_<uuid8>` schema，
+`search_path` 指过去，`public` 完全看不见，结束时 `DROP SCHEMA ... CASCADE`。
+`cache/tests` 更进一步：**每个用例一个 schema**，比「共用一个库再清表」可靠。
+
+**DDL 不另抄一份**：新 schema 里直接执行 `scripts/pg_init.sql`——它同时是容器 initdb
+与 `db.init_db()` 的事实源。测试库结构与生产结构不一致是最隐蔽的一种假绿。
+
+### 12.3 实际踩到的 8 个坑
+
+| # | 坑 | 症状 | 原因 | 处置 |
+|---|---|---|---|---|
+| 1 | 布尔列写 `0/1` | `column "degraded" is of type boolean but expression is of type smallint` | SQLite 用 INTEGER 存布尔 | 8 处改 `bool(...)`；`record_usage` 里统一 `bool()` 收口 |
+| 2 | **命名占位符 `:name` + dict** | **成本台账全是空的，但业务完全正常、没有报错** | `pgkit` 把 dict 当序列 `tuple()`，参数错位；而 `record_usage` 用 `except Exception: pass` 吞掉 | 适配层加 `:name → %(name)s`；并把静默 pass 改成 **WARN 一次**（旁路可以不影响业务，但不能不留痕） |
+| 3 | 隐式 `rowid` 不存在 | `column "rowid" does not exist` | SQLite 每表自带 rowid，PG 没有 | 4 处改为主键 `id` / `run_id` 作 tiebreaker；否则同秒记录分页顺序会抖 |
+| 4 | `SUM(boolean)` 不存在 | `function sum(boolean) does not exist` | SQLite 能对 0/1 求和 | 改 `SUM(CASE WHEN x THEN 1 ELSE 0 END)`（2 处） |
+| 5 | 夹具写非法时间 | `invalid input syntax for type timestamp with time zone: "test"` | SQLite 什么字符串都收 | 夹具改真实 ISO 时间；**夹具必须写合法值，否则测的是夹具不是业务** |
+| 6 | `INSERT OR REPLACE` / `PRAGMA` / `sqlite_master` | 语法错误 | SQLite 专有 | 测试加 `webapp/tests/_dbutil.py`（`upsert_*` / `columns()`）；`PRAGMA table_info` → `information_schema.columns` |
+| 7 | `CacheStore(db_path)` 语义变了 | `TypeError: str expected, not WindowsPath` | 第一个参数从「文件路径」变成「schema 名」 | 加正则校验，传路径时直接报「参数语义已变更」，而不是抛一条看不懂的 PG 错 |
+| 8 | 过时测试 | `AttributeError: _migrate_knowledge_columns` | 被测函数已随 SQLite 一起删除 | 删 12 项：`test_department_migration.py` 整文件（测三段补列迁移）+1 项补列幂等 |
+
+**第 2 条是这次最有价值的发现**：如果不是「调用数 ≥ 2」这条断言，这个故障会一直躺着——
+业务全绿、日志干净、只有成本台账默默是空表。**旁路的 `except: pass` 是最危险的一种设计**，
+它把「功能已经坏了」伪装成「什么都没发生」。
+
+### 12.4 结果
+
+```bash
+$ python -m pytest webapp/tests parsing/tests knowledge/tests cache/tests guardrails/tests showcase/tests -q
+231 passed
+
+$ python webapp/selftest.py          # 打的是容器里的真服务
+{"total": 33, "passed": 33, "failed": 0, "verdict": "DEMO_READY"}
+
+$ docker exec kb-webapp python -c "import pgkit; print(pgkit.dsn())"
+postgresql://kb:kb_demo_only@kb-pg:5432/kb
+$ docker exec kb-webapp sh -c "grep -rln 'import sqlite3' /app --include=*.py"
+（无输出）
+```
+
+测试数从 243 降到 231，差额是**删掉的 12 项 SQLite 专有测试**，不是丢覆盖：
+`test_department_migration.py` 整个文件测的是「给旧 SQLite 库补列」，
+那段代码已删除；`test_knowledge_api` 里的补列幂等测试同理。
+对应的正向断言（列确实存在、权限口径正确）全部保留。
+
+### 12.5 代价（必须说清楚）
+
+- **`pytest` 现在要求 PG 起着**。原来是「零外部依赖、clone 下来就能跑单测」。
+  这是彻底不用 SQLite 的必然结果，不是配置疏漏。
+- **没有连接池**：`get_conn()` 每次新建连接（本机 ~2–5ms）。演示与测试够用，
+  生产应换 `psycopg_pool.ConnectionPool` 或 FastAPI 依赖注入——**未做**。
+- **`scripts/legacy/import_legacy_sqlite.py` 保留**：它是一次性 ETL（读旧 `.db` 写 PG），
+  不属于运行时，删掉它等于让这次迁移不可复现。依赖方向是单向的，运行时永远不回读 SQLite。
+- **`backend/` 的 13 步去 tenant 改造仍未做**，与本次无关。
+
+### 12.6 面试怎么讲这一段
+
+**不要讲「我把 SQLite 换成了 PostgreSQL」——那句话谁都会说。要讲「我怎么保证 138 处改动没改坏」。**
+
+1. **先量化再动手**：138 处调用点、19 个文件、两套测试夹具。量出来才知道这不是「换驱动」，
+   才需要分支、需要兼容层、需要分阶段验证。
+2. **把方言差异关进一个文件**：占位符翻译 + 类型收敛都在 `pgkit.py`。
+   这既是工程取舍（降低回归面），也是可回退设计（删掉这层就回到原生 `%s`）。
+3. **最值钱的是那个静默故障**：命名占位符不支持 → 成本台账静默全空。
+   它教育我一件事：**旁路的 `except: pass` 必须至少留一行日志**。
+   能主动讲出这个坑，比讲十个顺利通过的用例更能证明真的动过手。

@@ -1,14 +1,13 @@
 """运行时配置：LLM / Embedding / Rerank 提供者选择与本地端点。
 
 设计取舍：
-- 生产对应配置中心 / 环境注入；演示切片落 SQLite（app_settings），**切换即时生效、无需重启**。
+- 生产对应配置中心 / 环境注入；本项目落 PostgreSQL 的 `app_settings`，**切换即时生效、无需重启**。
 - .env 只作为「首次默认值」来源；之后以库表为准，可在「模型设置」页改。
 - 只允许白名单键与枚举值，避免任意键污染；未知键直接拒绝。
 """
 from __future__ import annotations
 
 import os
-import sqlite3
 import time
 
 from webapp import db
@@ -73,8 +72,11 @@ def get_all() -> dict[str, str]:
         for r in conn.execute("SELECT key, value FROM app_settings"):
             if r["key"] in ALLOWED:
                 out[r["key"]] = r["value"]
-    except sqlite3.OperationalError:
-        pass  # 表尚未初始化（独立脚本/首次启动前）：回落到默认值
+    except Exception:
+        # 表尚未初始化（独立脚本 / 首次启动前）：回落到默认值。
+        # 这里刻意捕获宽泛异常而不是 sqlite3.OperationalError——换库后错误类型变了，
+        # 但「读不到配置就用默认值」的意图不变；真正的连接错误会在别处先炸。
+        pass
     finally:
         conn.close()
     return out

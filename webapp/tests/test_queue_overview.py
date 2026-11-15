@@ -16,6 +16,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from webapp import db
+from webapp.tests._dbutil import columns
 from webapp.main import app
 
 
@@ -142,7 +143,7 @@ def test_admin_busy_keeps_details(client, admin):
 def test_users_department_column_exists(client):
     conn = db.get_conn()
     try:
-        cols = {r[1] for r in conn.execute("PRAGMA table_info(users)")}
+        cols = columns(conn, "users")
         admin_dept = conn.execute(
             "SELECT department FROM users WHERE username='admin'").fetchone()["department"]
     finally:
