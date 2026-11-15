@@ -259,6 +259,11 @@ def rate_check(*, path: str, user_id: str, department: str = "default", model: s
             r = rules.get(dim)
             if not r or not r["enabled"]:
                 continue
+            # model 维度只约束「真正调用模型」的接口（chat / settings）。
+            # 其余接口 model 为空，若退化成 "-" 共享桶，会把全站非 chat 请求
+            # 塞进同一个 600/60s（10 QPS）的桶里——这是容量天花板，不是业务配额。
+            if dim == "model" and not model:
+                continue
             lim, win = int(r["limit_count"]), int(r["window_s"])
             k = (dim, keys[dim])
             q = _WINDOWS[k]

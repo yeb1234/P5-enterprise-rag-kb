@@ -1,0 +1,131 @@
+# Prometheus 告警规则 · 企业级知识库（演示切片 / 生产化建议）
+# 用途：配合 docs/production/04-monitoring.md 使用
+# 指标契约（由后端 GET /metrics 输出，名称不可随意更改）：
+#   kb_http_requests_total{path,status}
+#   kb_http_request_duration_seconds_bucket{le}
+#   kb_rate_limit_hits_total{dimension}
+#   kb_queue_pending
+#   kb_budget_spend_cny
+#   kb_documents_by_status{status}
+#
+# 校验方式：
+#   promtool check rules docs/production/monitoring/alerts.yml
+# 无 promtool 时至少保证 YAML 可被解析（python -c "import yaml,sys;yaml.safe_load(open(...,encoding='utf-8'))"）。
+#
+# 说明：
+#   * severity 分三档：P1（立即人工介入）/ P2（工作时间处理）/ P3（趋势观察）。
+#   * 所有阈值均为「起步建议值」，需按真实流量基线校准；过敏感 = 告警疲劳 = 等于没有告警。
+#   * 预算阈值下方用 40 / 50 的默认上限推导（webapp 侧 check_budget 默认 limit_cny=50.0）；
+#     若你的全局预算上限不是 50，请同步改 KbBudgetUsageHigh 的阈值。
+groups:
+  - name: kb-availability
+    interval: 30s
+    rules:
+      # 1) 抓取目标掉线：最基础的「静默故障」告警，优先于任何业务指标
+      - alert: KbTargetDown
+        expr: up{job="kb-app"} == 0
+        for: 2m
+        labels:
+          severity: P1
+          component: scrape
+        annotations:
+          summary: "kb-app 抓取目标已离线超过 2 分钟"
+          description: "Prometheus 连续 2 分钟无法抓取 {{ $labels.instance }} 的 /metrics。先确认进程是否存活、端口是否被安全组/防火墙拦截、/metrics 是否仍注册。"
+
+      # 2) 5xx 错误率 > 5% 持续 5 分钟
+      - alert: KbHigh5xxRate
+        expr: |
+          (
+            sum(rate(kb_http_requests_total{status=~"5.."}[5m]))
+            /
+            clamp_min(sum(rate(kb_http_requests_total[5m])), 1e-9)
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: P1
+          component: http
+        annotations:
+          summary: "5xx 错误率 {{ $value | humanizePercentage }} 超过 5%（持续 5 分钟）"
+          description: "按 path/status 下钻：先看是单接口报错还是全站（`sum by (path,status)`）。若同时触发 KbServerBusySpike，优先按容量问题处理。"
+
+      # 3) P99 延迟 > 2s 持续 5 分钟
+      - alert: KbHighP99Latency
+        expr: |
+          histogram_quantile(
+            0.99,
+            sum by (le) (rate(kb_http_request_duration_seconds_bucket[5m]))
+          ) > 2
+        for: 5m
+        labels:
+          severity: P2
+          component: http
+        annotations:
+          summary: "P99 延迟 {{ $value | humanizeDuration }} 超过 2s（持续 5 分钟）"
+          description: "先区分是「外部模型调用慢」还是「本地处理慢」：看同时间段队列长度 kb_queue_pending 与上游超时日志。演示环境里 P99 常被首次冷启动拉高，需排除单次长尾。"
+
+  - name: kb-capacity
+    interval: 30s
+    rules:
+      # 4) 503 SERVER_BUSY 突增（并发闸快速失败）
+      - alert: KbServerBusySpike
+        expr: |
+          sum(rate(kb_http_requests_total{status="503"}[5m])) > 0.2
+        for: 5m
+        labels:
+          severity: P2
+          component: gateway
+        annotations:
+          summary: "503 响应速率 {{ $value | humanize }} req/s 突增（并发闸持续拒绝）"
+          description: "503 通常来自应用层并发闸（SERVER_BUSY）或上游负载均衡摘除。若与 KbHighP99Latency 同现，说明是容量不足而非故障；先扩并发上限或加副本，不要直接调大阈值为『消警』。"
+
+      # 5) 队列积压 > 100 持续 10 分钟
+      - alert: KbQueueBacklog
+        expr: kb_queue_pending > 100
+        for: 10m
+        labels:
+          severity: P2
+          component: queue
+        annotations:
+          summary: "队列积压 {{ $value }} 条，持续 10 分钟"
+          description: "对比入队速率与消费速率，判断是「突增」还是「消费者卡死」。若是消费者卡死，检查 worker 心跳与最近失败重试；若是突增，按容量策略扩容而不是无限重试。"
+
+      # 6) 限流命中量异常升高（不是错误，但要解释清楚）
+      - alert: KbRateLimitSurge
+        expr: |
+          sum by (dimension) (rate(kb_rate_limit_hits_total[5m])) > 1
+        for: 10m
+        labels:
+          severity: P3
+          component: gateway
+        annotations:
+          summary: "限流维度 {{ $labels.dimension }} 命中速率 {{ $value | humanize }} 次/s"
+          description: "限流命中本身不是故障：可能是正常防刷、也可能是真实需求增长或阈值过紧。先看是否符合业务预期，再决定「调阈值」还是「扩容」。连续多日为 P3 时应提级复盘。"
+
+  - name: kb-cost
+    interval: 60s
+    rules:
+      # 7) 预算使用率 > 80%（默认全局上限 50，即 > 40）
+      - alert: KbBudgetUsageHigh
+        expr: kb_budget_spend_cny > 40
+        for: 10m
+        labels:
+          severity: P3
+          component: budget
+        annotations:
+          summary: "预算已用 {{ $value }} CNY，超过默认上限 50 的 80%"
+          description: "核对用量归因（按用户/项目/模型），确认是正常增长还是异常放量。若策略为 warn 只留痕，需人工决定是否切 block 或调整上限；阈值 40 依赖默认上限 50，改动上限时同步改此规则。"
+
+  - name: kb-certificates
+    interval: 1m
+    rules:
+      # 8) 证书剩余有效期 < 14 天（依赖 blackbox exporter 的 probe_ssl_earliest_cert_expiry）
+      - alert: KbCertExpiringSoon
+        expr: |
+          probe_ssl_earliest_cert_expiry - time() < 14 * 24 * 3600
+        for: 30m
+        labels:
+          severity: P2
+          component: tls
+        annotations:
+          summary: "{{ $labels.instance }} 证书将在 {{ $value | humanizeDuration }} 内过期"
+          description: "免费 DV 证书常见 90 天有效期。先确认自动续期是否生效（certbot renew / 云厂商托管续期）；续期后 reload 反向代理。若剩余 < 3 天应提级为 P1 并立即人工更换。"
