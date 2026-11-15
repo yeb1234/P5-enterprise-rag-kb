@@ -25,9 +25,14 @@ docker rm -f kb-webapp kb-showcase >/dev/null 2>&1 || true
 # SQLite 已移除：webapp 必须连真 PostgreSQL。
 # 先确保基础设施起着：KB_PG_PORT=55432 … docker compose -f docker-compose.infra.yml up -d postgres
 DB_URL="${WEBAPP_DATABASE_URL:-postgresql://kb:kb_demo_only@kb-pg:5432/kb}"
+# 日志上限必须写在 `docker run` 上：`docker-compose.yml` 里的 x-logging 锚点
+# 只对 compose 起的服务生效，这两个容器是 `docker run` 起的，实测
+# `docker inspect` 的 LogConfig 是空的（json-file 默认**无上限**，会一直长到磁盘满）。
+LOG_OPTS="--log-opt max-size=10m --log-opt max-file=3"
 docker run -d --name kb-webapp \
   -p 127.0.0.1:8765:8765 \
   --network kb-infra_default \
+  $LOG_OPTS \
   -e WEBAPP_DATABASE_URL="$DB_URL" \
   -e WEBAPP_LLM_PROVIDER=offline \
   -e WEBAPP_EMBEDDING_PROVIDER=offline \
@@ -39,6 +44,7 @@ docker run -d --name kb-webapp \
 
 docker run -d --name kb-showcase \
   -p 127.0.0.1:8767:8767 \
+  $LOG_OPTS \
   -e PARSING_OFFLINE=1 \
   -e SHOWCASE_MAIN_SITE_URL=http://127.0.0.1:8765 \
   --restart unless-stopped \

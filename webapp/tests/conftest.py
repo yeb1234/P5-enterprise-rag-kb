@@ -37,6 +37,10 @@ os.environ.pop("WEBAPP_REDIS_URL", None)
 os.environ["WEBAPP_RATE_BACKEND"] = "memory"
 # P2 多模态已接通真实网关，单测必须显式关掉，避免图片用例消耗真实流量
 os.environ["PARSING_OFFLINE"] = "1"
+# 访问日志默认 INFO，一个用例动辄十几次 HTTP 调用，会把输出刷成 JSON 墙。
+# 静默到 WARNING；要验日志行为的用例自己把 `webapp.access` 调到 DEBUG
+# （见 test_logging.py），比全局开着更容易看清断言失败。
+os.environ.setdefault("WEBAPP_LOG_LEVEL", "WARNING")
 
 
 def _admin_conn():

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import math
 import os
 import re
@@ -17,6 +18,7 @@ from fastapi.responses import JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
 from webapp import db, observability as obs, queue as task_queue, security
+from webapp import logging_setup as logctx
 from webapp.ratelimit_dist import check_rate as distributed_rate_check
 from webapp.routers_admin import router as admin_router
 from webapp.routers_auth import router as auth_router
@@ -95,7 +97,9 @@ def _inflight_semaphore() -> asyncio.Semaphore:
 def _gateway_error(status: int, code: str, kind: str, message: str, detail: str,
                    headers: dict | None = None) -> JSONResponse:
     """网关层统一错误体：与 429 契约同形（code / kind / message / detail / trace_id）。"""
-    trace_id = uuid.uuid4().hex[:16]
+    # 复用请求级 trace_id（由 access_log 中间件放入 ContextVar），不另生成。
+    # 另生成会得到「响应头一个 id、日志里另一个 id」，看起来有追踪、实际串不起来。
+    trace_id = logctx.ensure_trace_id()
     merged = {"X-Trace-Id": trace_id}
     if headers:
         merged.update(headers)
@@ -278,7 +282,7 @@ async def _apply_guards(request: Request, call_next):
         dim = hit["dimension"]
         with _METRICS_LOCK:
             _METRIC_RL_HITS[dim] += 1
-        trace_id = uuid.uuid4().hex[:16]
+        trace_id = logctx.ensure_trace_id()
         # 统一错误契约：code / kind / message / detail / trace_id（既有字段一个不删）。
         body = {
             "code": RATE_CODES.get(dim, "RATE_LIMIT_EXCEEDED"),
@@ -348,10 +352,57 @@ async def lifespan(app: FastAPI):
         recovery.shutdown()
 
 
+async def access_log(request: Request, call_next):
+    """每请求一行 JSON 访问日志 + 递 trace_id。**最外层中间件**。
+
+    三件事一起做，因为它们必须共享同一个 trace_id：
+
+    1. 进入时定 id：优先用上游传的 `X-Trace-Id`（网关/前端已生成时不重复造），
+       经 `safe_trace_id()` 校验，不合法就换新的（防日志注入）；
+    2. 写进 ContextVar，`_gateway_error` / 429 契约 / 业务日志都从这里取；
+    3. 退出时把 id 写回响应头，并把结果打成一行日志。
+
+    **`path` 只取 `request.url.path`，绝不含 query string**：`/api/search/preview?q=`
+    会把用户原文带进日志（`routers_ops.py:89`）。审计需要原文的走 `audit_logs`，
+    那是显式设计、有权限过滤；运行日志不承担这个职责。
+
+    口径要说清：`latency_ms` 是**到响应头返回**的耗时，不是流式响应的总时长。
+    流式问答的实际生成长度差异很大，混在一个字段里会误导，所以不加进这条日志。
+
+    静默路径（`WEBAPP_ACCESS_LOG_QUIET_PATHS`，默认 `/`、`/health/live`、`/metrics`）
+    在状态码 < 400 时降到 DEBUG：Docker HEALTHCHECK 每 30 秒打一次 `/`，
+    不降级的话一天 2880 行纯噪声，真日志会被淹掉。
+    """
+    lg = logctx.get_logger("webapp.access")
+    trace_id = logctx.safe_trace_id(request.headers.get("x-trace-id"))
+    token = logctx.trace_id_var.set(trace_id)
+    started = time.perf_counter()
+    status = 500
+    try:
+        response = await call_next(request)
+        status = response.status_code
+        response.headers["X-Trace-Id"] = trace_id
+        return response
+    finally:
+        elapsed_ms = round((time.perf_counter() - started) * 1000, 2)
+        path = request.url.path
+        quiet = path in logctx.quiet_paths()
+        level = logging.DEBUG if (quiet and status < 400) else (
+            logging.ERROR if status >= 500 else logging.INFO)
+        lg.log(level, "request",
+               extra={"event": "request", "method": request.method, "path": path,
+                      "status": status, "latency_ms": elapsed_ms,
+                      "client": request.client.host if request.client else ""})
+        logctx.trace_id_var.reset(token)
+
+
 def create_app() -> FastAPI:
+    # 日志必须先配：否则 create_app 之后的第一条启动日志仍是纯文本，
+    # 且 uvicorn 自带的访问日志会一直带 query string 输出（PII）。
+    logctx.configure_logging()
     app = FastAPI(
         title="企业级知识库 · 可运行演示切片",
-        version="1.3.0",
+        version="1.3.2",
         description="注册登录 / 文档上传管理 / 流式问答 / badcase 采集闭环 / admin 完成度，离线可跑。",
         lifespan=lifespan,
         docs_url="/api-docs",   # 与前端「文档管理」概念区分，避免 /docs 混淆
@@ -368,6 +419,9 @@ def create_app() -> FastAPI:
     # 应用层网关闸门：请求体上限 → 限流（三维 + IP 附加）→ 全局并发闸。
     # 只对 /api/ 生效，静态资源直通；逻辑抽到模块级 gateway_guard，便于单测复用。
     app.middleware("http")(gateway_guard)
+    # 访问日志 + trace_id：**必须最后注册**（Starlette 后注册的在外层），
+    # 这样静态资源、`/`、`/metrics` 也都会被记录，且 trace_id 覆盖整条链路。
+    app.middleware("http")(access_log)
 
     app.include_router(auth_router)
     app.include_router(docs_router)
