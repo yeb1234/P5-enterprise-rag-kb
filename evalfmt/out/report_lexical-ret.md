@@ -1,6 +1,6 @@
 # 多格式文档评估报告 · lexical 模式（仅检索层）
 
-- 生成时间：2026-11-15T16:55:25Z
+- 生成时间：2026-11-15T18:41:13Z
 - 语料：10 份，覆盖 txt / md / csv / json / py / log / yaml / pdf / png / dxf
 - 数据隔离：独立 schema `eval_lexical`（跑前重建，不复用演示库）
 
@@ -57,8 +57,8 @@
 
 | 条件 | 策略级别 | 降级原因 | 识别到 | 识别率 | 耗时 |
 |---|---|---|---|---|---|
-| 离线（PARSING_OFFLINE=1） | multimodal | vision_unavailable | 未识别出内容 | **0.0%** | 71ms |
-| 视觉（真模型） | multimodal | — | 74119 / SN-74119 | **100.0%** | 2227ms |
+| 离线（PARSING_OFFLINE=1） | multimodal | vision_unavailable | 未识别出内容 | **0.0%** | 59ms |
+| 视觉（真模型） | multimodal | — | 74119 / SN-74119 | **100.0%** | 1759ms |
 
 ## 6. 口径与局限（面试如实说）
 

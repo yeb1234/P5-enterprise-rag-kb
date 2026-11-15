@@ -782,7 +782,7 @@ footer .fine{border-top:1px solid var(--border);padding-top:16px;line-height:1.8
 <!-- ============ 全面研究 ============ -->
 <section id="research">
   <div class="wrap">
-    <div class="sec-head"><span class="sec-num">05</span><h2>全面研究 · 七个子系统 × 三个视角</h2></div>
+    <div class="sec-head"><span class="sec-num">05</span><h2>全面研究 · 八个子系统 × 三个视角</h2></div>
     <p class="sec-desc">每个子系统都按 <b>架构拆解 / 竞品对照 / 评测口径</b> 三页展开：先用「架构拆解」讲清模块边界与失败路径，
       再用「竞品对照」说明它在现有产品版图里的位置与差距，最后用「评测口径」回答「凭什么说它是对的」。
       <b>竞品部分全部基于公开资料整理，没有做同条件实测</b>，因此只比能力结构、不比分数；评测部分的数字则只写本仓实跑过的。</p>
@@ -798,6 +798,7 @@ footer .fine{border-top:1px solid var(--border);padding-top:16px;line-height:1.8
           <button class="rbtn" data-p="5" aria-selected="false">安全 guardrails</button>
           <button class="rbtn" data-p="6" aria-selected="false">评测 evalbench</button>
           <button class="rbtn" data-p="7" aria-selected="false">演示 showcase</button>
+          <button class="rbtn" data-p="8" aria-selected="false">公开基准</button>
         </div>
         <div class="grp">
           <span class="lbl">视角</span>
@@ -1525,6 +1526,116 @@ footer .fine{border-top:1px solid var(--border);padding-top:16px;line-height:1.8
           没有并发压测（演示站是单用户场景）。</div>
         <div class="rfoot">复跑：<code>PARSING_OFFLINE=1 python showcase/verify_integration.py</code>（31 项 INTEGRATION_READY）· <code>python -m pytest showcase/tests -q</code>（12 项）</div>
       </div>
+
+      <!-- ===== P8 架构拆解 ===== -->
+      <div class="rpane" data-p="8" data-m="a">
+        <div class="phead"><span class="pnum">P8 · 架构</span><h4>公开基准：给「检索算法本身」做一次对照实验</h4>
+          <span class="ptag g">10 万篇全量实跑 · 测试集 1570 条</span></div>
+        <div class="chain">
+          <span class="n">下载<small>hf-mirror 3 个 parquet</small></span><span class="ar">→</span>
+          <span class="n">向量化<small>断点续跑 · 落盘</small></span><span class="ar">→</span>
+          <span class="n">BM25 基线<small>同数据同指标</small></span><span class="ar">→</span>
+          <span class="n">五组配置<small>前缀 / 融合</small></span><span class="ar">→</span>
+          <span class="n">三步扫参<small>只在调参集</small></span><span class="ar">→</span>
+          <span class="n">测试集报数<small>1570 条</small></span><span class="ar">→</span>
+          <span class="n">单文件 HTML</span>
+        </div>
+        <h5>为什么自建 9 题不够</h5>
+        <p>多格式评估能回答「上传→解析→检索→生成这条管道哪一层漏了」，回答不了
+          <b>「检索算法选得对不对」</b>。后者需要三个前提：公认数据集、同数据上的基线、调参/测试切分。
+          缺任何一个，数字都只能自说自话——尤其「只报向量分数、不给词法基线」，
+          面试官无法判断 0.34 是好还是差。</p>
+        <h5>数据与切分</h5>
+        <p><b>CmedqaRetrieval</b>（C-MTEB / MTEB 收录的中文医疗问答检索集）：
+          100,001 passage / 3,999 query / 7,449 个相关性标注对，<b>全量计算、不抽样</b>——
+          抽样会让召回率失真。按 query-id 的 md5 哈希切成 <b>2429 调参 / 1570 测试</b>，
+          不是随机种子：换机器、换 Python 版本切分完全一样，别人才能复现同一个分母。</p>
+        <h5>测试集结果（bge-m3 嵌入，走硅基流动）</h5>
+        <div class="tbl-wrap"><table class="table">
+          <thead><tr><th>配置</th><th>nDCG@10</th><th>Recall@1</th><th>Recall@10</th><th>MRR@10</th></tr></thead>
+          <tbody>
+            <tr><td>BM25（词法基线）</td><td class="num">16.29%</td><td class="num">9.23%</td><td class="num">19.73%</td><td class="num">0.1956</td></tr>
+            <tr><td><b>向量 bge-m3</b></td><td class="num"><b>33.93%</b></td><td class="num"><b>18.96%</b></td><td class="num"><b>42.93%</b></td><td class="num"><b>0.3675</b></td></tr>
+            <tr><td>向量 + 查询前缀</td><td class="num">31.05%</td><td class="num">17.04%</td><td class="num">38.85%</td><td class="num">0.3417</td></tr>
+            <tr><td>向量 + BM25 加权融合 w=0.85</td><td class="num">31.98%</td><td class="num">16.72%</td><td class="num">41.84%</td><td class="num">0.3416</td></tr>
+          </tbody>
+        </table></div>
+        <p>重排接在<b>纯向量候选</b>上（同一批 400 条 query）：不重排 32.79% → top20 <b>36.09%</b>。
+          注意这里的对照必须是「同子集」——拿 400 条子集的重排分数去减 1570 条全量的基线，
+          是两个分母相减，差出来的部分根本不是重排的功劳。</p>
+        <div class="note"><b>口径边界</b>：绝对分数与 C-MTEB 榜首<b>不可比</b>——嵌入走第三方 API、
+          重排只对候选 top-k 做、没有官方 corpus 清洗流程。能讲的只有
+          「同一套数据、同一套指标下的<b>相对差异</b>」，不是「我们打平了 SOTA」。</div>
+        <div class="rfoot">事实源：<code>evalfmt/out/publicbench.html</code> · <code>publicbench.json</code> · <code>evalfmt/README.md</code> §9</div>
+      </div>
+
+      <!-- ===== P8 竞品对照 ===== -->
+      <div class="rpane" data-p="8" data-m="b">
+        <div class="phead"><span class="pnum">P8 · 竞品</span><h4>MTEB / BEIR / LongBench：公开集测算法，自建集测管道</h4>
+          <span class="ptag a">公开资料整理 · 只用了 C-MTEB 一个</span></div>
+        <div class="tbl-wrap"><table class="table">
+          <thead><tr><th>评测集</th><th>给什么</th><th>缺什么</th><th>本项目怎么用</th></tr></thead>
+          <tbody>
+            <tr><td><b>C-MTEB</b>（中文 MTEB）</td><td>中文检索/排序/聚类多任务的官方榜单，带标准 qrels</td><td>通用语料，不含你的业务分布与权限结构</td><td><b>实际用了</b>：取其 CmedqaRetrieval 子集跑检索对照</td></tr>
+            <tr><td><b>BEIR</b></td><td>18 个英文检索数据集的零样本评测协议</td><td>英文；中文场景要另找替代</td><td>只借它的<b>协议思路</b>（同数据基线 + 分任务报数）</td></tr>
+            <tr><td><b>LongBench</b></td><td>长文本理解与检索，压 needle-in-haystack</td><td>偏「能不能读到」，不评「排得准不准」</td><td>未用；长文档检索是我明确的未做项</td></tr>
+            <tr><td><b>Ragas / Deepeval 的合成集</b></td><td>自动生成问题-答案对，省标注</td><td>合成问题往往比真实问法「太规整」</td><td>未用；宁可自建 9 题并<b>标明样本太少</b></td></tr>
+            <tr><td><b>本项目自建 9 题</b></td><td>覆盖 8 种格式 + PDF + 无字图片，含陷阱题与拒答</td><td>一题值 11 个百分点，只能证明链路通</td><td>专门回答「管道有没有漏」</td></tr>
+          </tbody>
+        </table></div>
+        <h5>最容易踩的坑：用测试集调参</h5>
+        <p>公开集自带 qrels，很容易「看一眼榜单、调一下参数、再报一次」，然后声称这是泛化效果。
+          本项目的强制约束是：<b>参数只在调参集上选，最终数字只报测试集</b>。
+          代价是调参只能看 2429 条、报数只能用 1570 条，两边都变小了；
+          收益是「这 33.93% 没被调参污染过」这句话站得住。</p>
+        <h5>为什么公开集和自建集都要有</h5>
+        <p>它们测的是两件不同的事：公开集证明<b>检索能打</b>，自建集证明<b>管道没漏</b>。
+          只有公开集，你说不清 PDF 能不能解析、内网 IP 会不会被误脱敏；
+          只有自建集，你给不出任何可对外比较的数字。两者都不能替代对方。</p>
+        <div class="note"><b>口径声明</b>：表中各评测集的能力描述来自公开文档，
+          本项目<b>只在 CmedqaRetrieval 上实跑过</b>，没有与其他评测集做同条件对比，不能声称「更准」。</div>
+        <div class="rfoot">对照对象：C-MTEB / BEIR / LongBench / Ragas（公开资料）；实跑仅 CmedqaRetrieval</div>
+      </div>
+
+      <!-- ===== P8 评测口径 ===== -->
+      <div class="rpane" data-p="8" data-m="c">
+        <div class="phead"><span class="pnum">P8 · 评测</span><h4>三个参数怎么收敛：两个是负结果</h4>
+          <span class="ptag g">扫参 → 调参集 → 测试集</span></div>
+        <h5>参数只在调参集上选，一次只动一个</h5>
+        <div class="tbl-wrap"><table class="table">
+          <thead><tr><th>参数</th><th>扫描结果（nDCG@10）</th><th>结论</th></tr></thead>
+          <tbody>
+            <tr><td>BM25 词项预算<br><span class="src">每条 query 参与打分的词项数</span></td>
+              <td>12 项 11.13% · 30 项 14.95% · <b>100 项 15.18%</b></td>
+              <td>取 <b>100</b>。原来只取 12 项，等于把基线砍弱 4 个点——<b>基线越弱，向量的增益越好看，那是自欺</b></td></tr>
+            <tr><td>融合权重<br><span class="src">向量在加权 RRF 里的比重</span></td>
+              <td>0.50 → 24.73% · 0.70 → 28.28% · 0.85 → 30.46%<br>（纯向量 = 33.93%，是这条曲线的终点）</td>
+              <td><b>不融合</b>。单调趋近纯向量，说明 BM25 在这份数据上只贡献噪声。hybrid 是行业标配，但配置由数据决定</td></tr>
+            <tr><td>重排深度<br><span class="src">送给 cross-encoder 的候选数</span></td>
+              <td>top20 <b>36.09%</b> · top50 36.02%<br>（同子集不重排基线 32.79%）</td>
+              <td>取 <b>top20</b>，但两档只差 <b>0.06 个点</b>——正确说法是「并列，按成本取浅的」，不是「调出了最优深度」</td></tr>
+          </tbody>
+        </table></div>
+        <h5>重排增益是 +3.30 个点，不是 +2.3</h5>
+        <p>一开始我拿重排在 400 条子集上的 36.09% 去减调参集全量的 33.75%，得出「+2.3 点」。
+          这是错的：分子和分母来自不同批 query，差出来的部分混进了子集本身的难易差异。
+          补上「同一批 400 条、不重排」的基线 32.79% 后，真实增益是 <b>+3.30 个点</b>。
+          <b>算错方向还是保守的，但错就是错</b>——换个数据集，这个错误可能把负收益报成正收益。</p>
+        <h5>过程中被指标抓出来的三个 bug</h5>
+        <ul>
+          <li><b>BM25 选词不确定</b>：用 <code>set()</code> 取词项、只按 df 排序，df 相同时顺序取决于 Python
+            字符串哈希的进程级随机种子 → 同一份数据跑出 0.1098 / 0.1105 两个 nDCG。
+            改成 <code>(df, 词项)</code> 全序，并加结构断言（断言「等于按全序取前 N 项」，不是「跑两遍看一样」——
+            后者是假绿，旧代码照样通过）。</li>
+          <li><b>429 不是「重试几次就过」</b>：服务端按时间窗限速，4 次重试合计 15 秒跨不过一个窗口，
+            结果是整批失败、20 分钟的任务在第 80% 判死刑。改成 429 单独给 13 次、退避封顶 30 秒。</li>
+          <li><b>并发不等于更快</b>：4 路只比单路快 1.4 倍，却把重试打满、整体更慢。降到 2 路反而稳定。</li>
+        </ul>
+        <div class="note"><b>一句话口径</b>：能说「同一套数据、同一套指标下，向量比词法强 17.6 个点，重排再提 3.3 个点」；
+          不能说「nDCG 0.34 接近 SOTA」；也不能说「hybrid 一定比纯向量好」——
+          这份数据就是反例，而且我是扫了权重才敢下这个结论。</div>
+        <div class="rfoot">复跑：<code>python -m evalfmt.publicbench download/embed/run</code> · 原始数字 <code>evalfmt/out/publicbench.json</code></div>
+      </div>
       </div>
     </div>
   </div>
@@ -1902,7 +2013,7 @@ footer .fine{border-top:1px solid var(--border);padding-top:16px;line-height:1.8
 </footer>
 
 <script>
-/* 「全面研究」章节的 7 项目 × 3 视角切换。
+/* 「全面研究」章节的 8 项目 × 3 视角切换。
    刻意不用任何框架与 CDN：本页要能离线双击打开、可断网投屏。 */
 (function () {
   var btns = document.querySelectorAll('.rbtn');

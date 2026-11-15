@@ -45,7 +45,7 @@
       "bytes": 193
     }
   ],
-  "started_at": "2026-11-15T16:57:08Z",
+  "started_at": "2026-11-15T18:39:48Z",
   "ingest": {
     "uploaded": 10,
     "ready": 8,
@@ -260,12 +260,12 @@
     "hallucination_rate": 0.0,
     "hallucination_tokens": [
       0,
-      26
+      23
     ],
     "hallucination_coverage": 0.75,
     "refusal_accuracy": 1.0,
     "trap_violation_rate": 0.0,
-    "avg_latency_s": 1.8271567225456238
+    "avg_latency_s": 2.896066168944041
   },
   "answers_detail": [
     {
@@ -278,43 +278,43 @@
       "unsupported": [],
       "refused": false,
       "degraded": false,
-      "latency_s": 2.69
+      "latency_s": 6.41
     },
     {
       "case": "Q02",
       "kind": "factual",
       "q": "错误码 E4711 代表什么问题？",
-      "answer": "错误码 E4711 表示**网关证书过期**（参考 1、参考 2）。\n\n处理动作：重签证书并下发后重启网关（参考 1）。常见现象为指示灯红色常亮，建议先检查证书有效期（参考 1）。",
+      "answer": "错误码 E4711 表示**网关证书过期**（参考 1 错误码对照表；参考 2 日志中亦记录为 `gateway certificate expired`）。\n\n处理动作：**重签证书并下发后重启网关**（参考 1）。另外，若指示灯红色常亮，多为 E4711，建议先检查证书有效期（参考 1 常见现象）。",
       "fact_hit": true,
       "hallucination": 0.0,
       "unsupported": [],
       "refused": false,
       "degraded": false,
-      "latency_s": 1.85
+      "latency_s": 2.14
     },
     {
       "case": "Q03",
       "kind": "factual",
       "q": "序列号 SN-88301 归属哪个部门？",
-      "answer": "序列号 SN-88301 归属**仓储部**（负责人：张伟，存放于 A区-03货架）。【参考 1】",
+      "answer": "序列号 SN-88301 归属**仓储部**（负责人：张伟，存放位置：A区-03货架）【参考 1】。",
       "fact_hit": true,
       "hallucination": 0.0,
       "unsupported": [],
       "refused": false,
       "degraded": false,
-      "latency_s": 2.8
+      "latency_s": 6.62
     },
     {
       "case": "Q04",
       "kind": "factual",
       "q": "网关代理服务监听的端口是多少？",
-      "answer": "网关代理服务（kx-gateway-agent）监听端口为 **18443**，监听地址为 0.0.0.0（参考 1）。该配置备注提示：端口变更需同步防火墙策略。",
+      "answer": "网关代理服务（kx-gateway-agent）监听端口为 **18443**，绑定地址为 0.0.0.0（参考 1）。参考 1 同时提示：端口变更需同步防火墙策略。",
       "fact_hit": true,
       "hallucination": 0.0,
       "unsupported": [],
       "refused": false,
       "degraded": false,
-      "latency_s": 1.81
+      "latency_s": 1.62
     },
     {
       "case": "Q05",
@@ -326,19 +326,19 @@
       "unsupported": [],
       "refused": false,
       "degraded": false,
-      "latency_s": 1.57
+      "latency_s": 6.91
     },
     {
       "case": "Q06",
       "kind": "factual",
       "q": "运行日志里 2026-11-05 凌晨报的 E4711 是什么错误？",
-      "answer": "E4711 表示**网关证书过期**（参考 1、参考 2）。\n\n- 日志中 2026-11-05 02:14:07 起连续报 `ERROR code=E4711 gateway certificate expired`，此前 02:12:44 还有 TLS 握手变慢（2100ms）的告警（参考 1）。\n- 处理动作：**重签证书并下发后重启网关**（参考 2）。\n- 相关现象：指示灯红色常亮多为 E4711，可先查证书有效期（参考 2）。",
+      "answer": "E4711 表示**网关证书过期**（参考 1、参考 2）。\n\n- 日志中 2026-11-05 02:14:07 起连续报 `ERROR code=E4711 gateway certificate expired`，此前 02:12:44 还有 TLS 握手变慢的告警（参考 1）。\n- 处理动作：**重签证书并下发后重启网关**（参考 2）。现场若指示灯红色常亮，也多为该错误，建议先查证书有效期（参考 2）。",
       "fact_hit": true,
       "hallucination": 0.0,
       "unsupported": [],
       "refused": false,
       "degraded": false,
-      "latency_s": 2.29
+      "latency_s": 2.15
     },
     {
       "case": "Q07",
@@ -350,31 +350,31 @@
       "unsupported": [],
       "refused": false,
       "degraded": false,
-      "latency_s": 1.75
+      "latency_s": 1.64
     },
     {
       "case": "Q08",
       "kind": "factual",
       "q": "技术规范里的防护等级是多少？",
-      "answer": "技术规范中给出的防护等级是 **IP54**（参考 1 · 08-技术规范.pdf，Rev.B）。\n\n注意：参考 2 的产品说明书标注为 IP44，与规范不一致，建议以技术规范 Rev.B 为准，或向文档维护方确认。",
+      "answer": "技术规范中给出的防护等级是 **IP54**（参考 1 · 08-技术规范.pdf，Rev.B）。\n\n注意：产品说明书（参考 2）中写的是 IP44，与规范不一致，建议以技术规范 Rev.B 为准，并请确认说明书是否需要更新。",
       "fact_hit": true,
       "hallucination": 0.0,
       "unsupported": [],
       "refused": false,
       "degraded": false,
-      "latency_s": 2.35
+      "latency_s": 1.68
     },
     {
       "case": "Q09",
       "kind": "factual",
       "q": "技术规范里设备的尺寸是多少？",
-      "answer": "根据【参考 1 · 08-技术规范.pdf】，KX-2400 的尺寸为 **320 × 210 × 95 mm**（长×宽×高）。\n\n补充提示：参考 3 的产品说明书中未给出尺寸，且其防护等级标注为 IP44，与参考 1 的 IP54 不一致，建议以技术规范 Rev.B 为准，并核实说明书版本。",
+      "answer": "根据【参考 1 · 08-技术规范.pdf】，KX-2400（Rev.B）的机械尺寸为 **320 × 210 × 95 mm**，净重 3.6 kg，支持壁挂支架或 DIN 导轨安装。\n\n注：参考 3 的产品说明书未给出尺寸数据；参考 2、4 与尺寸无关。",
       "fact_hit": true,
       "hallucination": 0.0,
       "unsupported": [],
       "refused": false,
       "degraded": false,
-      "latency_s": 2.35
+      "latency_s": 3.43
     },
     {
       "case": "N01",
@@ -386,7 +386,7 @@
       "unsupported": [],
       "refused": true,
       "degraded": true,
-      "latency_s": 0.16
+      "latency_s": 0.22
     },
     {
       "case": "N02",
@@ -398,19 +398,19 @@
       "unsupported": [],
       "refused": true,
       "degraded": true,
-      "latency_s": 0.27
+      "latency_s": 0.2
     },
     {
       "case": "T01",
       "kind": "trap",
       "q": "MX-9900 的整机保修期是多久？",
-      "answer": "知识库中未找到 MX-9900 的相关内容。现有资料仅涉及 KX-2400、KX-2100 等型号（参考 1、2），其中 KX-2400 的整机保修期为 24 个月（参考 1），但无法据此推断 MX-9900 的保修期。建议您补充 MX-9900 的产品说明书或售后政策文档。",
-      "fact_hit": true,
+      "answer": "知识库中未找到 MX-9900 的相关内容，现有资料仅涉及 KX-2400、KX-2100 等型号，无法确认 MX-9900 的整机保修期。建议补充 MX-9900 的产品说明书或售后政策文档。",
+      "fact_hit": false,
       "hallucination": 0.0,
       "unsupported": [],
       "refused": true,
       "degraded": false,
-      "latency_s": 2.04
+      "latency_s": 1.73
     }
   ],
   "image": [
@@ -421,20 +421,20 @@
       "text": "[图片结构事实 · 非视觉理解]\n格式=png 尺寸=760x420 字节=14487 熵=7.836\n探测方式=header+pillow（header_only 表示只解析了容器头）\n色彩模式=RGB 亮度范围=239 疑似空白页=False\n结论：P0 规则层只解析容器头，不识别图片内容；需由质量门禁升级到 P2 多模态层或 P1 OCR。\n\n[图片结构事实 · 非视觉理解]\n格式=png 尺寸=760x420 字节=14487 熵=7.836\n探测方式=header+pillow（header_only 表示只解析了容器头）\n色彩模式=RGB 亮度范围=239 疑似空白页=False\n结论：P0 规则层只解析容器头，不识别图片内容；需由质量门禁升级到 P2 多模态层或 P1 OCR。\n[多模态兜底已跳过] 原因：PARSING_OFFLINE=1，已按总离线开关跳过视觉调用。",
       "facts_hit": [],
       "facts_total": 2,
-      "latency_ms": 71
+      "latency_ms": 74
     },
     {
       "offline": false,
       "level": "multimodal",
       "degraded": null,
-      "text": "1) 文档/图片类型：铭牌/标签设计图（肉眼可见的矩形边框与文字排版）。\n2) 可见标题与文字：右上角蓝色文字“NAME PLATE”；中央深蓝色大字“74119”；左下角红色文字“SN-74119”（均为肉眼可见）。\n3) 表格结构（行列）：无表格结构。\n4) 关键数值与颜色：数值“74119”与“SN-74119”；颜色包含浅蓝色背景条、深蓝色标题与主数字、红色序列号文字、黑色边框（肉眼可见）。\n5) 不确定的部分：无（图片内容清晰，未显示其他信息）。",
+      "text": "1) 文档/图片类型：铭牌（NAME PLATE）样式的标识图。\n2) 可见标题与文字：右上角蓝色文字“NAME PLATE”；框内大号深蓝色数字“74119”；框内下方红色文字“SN-74119”。\n3) 表格结构（行列）：无表格结构。\n4) 关键数值与颜色：数值“74119”与“SN-74119”；颜色包括浅蓝色顶栏、深蓝色标题文字、深蓝色大号数字、红色小号文字、黑色边框。\n5) 不确定的部分：无（以上文字与数值均为肉眼可见）。",
       "facts_hit": [
         "74119",
         "SN-74119"
       ],
       "facts_total": 2,
-      "latency_ms": 1688
+      "latency_ms": 1722
     }
   ],
-  "finished_at": "2026-11-15T16:58:02Z"
+  "finished_at": "2026-11-15T18:40:51Z"
 }
