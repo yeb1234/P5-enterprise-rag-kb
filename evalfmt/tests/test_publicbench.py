@@ -101,11 +101,18 @@ def test_render_html_with_synthetic_report():
         "rrf_sweep": [dict(_METRIC, weight=w) for w in (0.5, 0.7, 0.85)],
         "rerank_depth": 20,
         "rerank_rows": {"20": dict(_METRIC, depth=20, rerank_failures=0, seconds=99.0)},
+        "rerank_baseline": dict(_METRIC, **{"ndcg@10": 0.32}),
+        "rerank_depth_gap": 0.06, "rerank_depth_tie": True,
+        "latency": {"bm25_ms": 85.0, "dense_batched_ms": 2.6, "dense_single_ms": 9.1,
+                    "rerank_ms": 372.5, "probes": 20, "rerank_ok": 20},
         "elapsed_s": 1234, "generated_at": "2026-11-16T00:00:00Z",
     }
     page = run.render_html(report)
     assert "<svg" in page and "CmedqaRetrieval" in page
     assert "无收益" in page or "有效" in page       # 结论句必须给出明确判断
+    # 延迟表必须来自现场探针，不能是缓存跑的 0.0s
+    assert "372.5 ms" in page and "现场真调 API 的计时" in page
+    assert "按成本取浅的" in page                    # 并列时不许说成「最优深度」
     # 重排为空时也不能崩，且不能把 Python 的 {} 漏到页面上
     report["rerank_rows"] = {}
     page2 = run.render_html(report)

@@ -119,7 +119,7 @@
       "queries": 400,
       "config": "bm25·terms=30",
       "terms": 30,
-      "seconds": 5.8
+      "seconds": 6.5
     },
     {
       "recall@1": 0.08904166666666667,
@@ -131,7 +131,7 @@
       "queries": 400,
       "config": "bm25·terms=100",
       "terms": 100,
-      "seconds": 34.0
+      "seconds": 38.3
     }
   ],
   "rrf_weight": 0.85,
@@ -213,6 +213,14 @@
     "queries": 400,
     "config": "向量 bge-m3（同子集·不重排）"
   },
-  "elapsed_s": 83.0,
-  "generated_at": "2026-11-15T18:33:05Z"
+  "latency": {
+    "probes": 20,
+    "bm25_ms": 110.31,
+    "dense_single_ms": 12.6,
+    "dense_batched_ms": 2.57,
+    "rerank_ms": 357.37,
+    "rerank_ok": 20
+  },
+  "elapsed_s": 103.1,
+  "generated_at": "2026-11-15T18:52:14Z"
 }

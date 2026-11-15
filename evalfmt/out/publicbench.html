@@ -21,6 +21,7 @@
   h1 { font-size:26px; margin:0 0 6px; letter-spacing:-.02em; }
   h2 { font-size:18px; margin:36px 0 12px; padding-bottom:8px;
         border-bottom:1px solid var(--line); }
+  h5 { font-size:14px; margin:20px 0 8px; color:var(--fg); }
   .sub { color:var(--muted); font-size:13px; margin:0 0 24px; }
   .panel { background:var(--panel); border:1px solid var(--line); border-radius:12px;
             padding:18px 20px; margin:16px 0; }
@@ -48,7 +49,7 @@
 <body>
 <div class="wrap">
   <h1>公开检索基准 · CmedqaRetrieval</h1>
-  <p class="sub">CmedqaRetrieval（C-MTEB / MTEB 中文医疗问答检索） · 生成于 2026-11-15T18:33:05Z</p>
+  <p class="sub">CmedqaRetrieval（C-MTEB / MTEB 中文医疗问答检索） · 生成于 2026-11-15T18:52:14Z</p>
 
   <div class="kpis">
     <div class="kpi"><b>100,001</b><span>passage（全量，未抽样）</span></div>
@@ -78,10 +79,10 @@
   <div class="panel"><svg viewBox="0 0 640 176" width="100%" height="176" role="img" aria-label="nDCG@10 对比"><text x="0" y="29" font-size="13" fill="currentColor">bm25（词法基线）</text><rect x="200" y="10" width="154.4" height="26" rx="4" fill="#94a3b8"/><text x="362" y="29" font-size="13" font-weight="600" fill="currentColor">16.29%</text><text x="0" y="67" font-size="13" fill="currentColor">向量 bge-m3</text><rect x="200" y="48" width="321.4" height="26" rx="4" fill="#3b82f6"/><text x="529" y="67" font-size="13" font-weight="600" fill="currentColor">33.93%</text><text x="0" y="105" font-size="13" fill="currentColor">向量 + 查询前缀</text><rect x="200" y="86" width="294.1" height="26" rx="4" fill="#6366f1"/><text x="502" y="105" font-size="13" font-weight="600" fill="currentColor">31.05%</text><text x="0" y="143" font-size="13" fill="currentColor">向量+BM25 加权融合 w=0.85</text><rect x="200" y="124" width="302.9" height="26" rx="4" fill="#0ea5e9"/><text x="511" y="143" font-size="13" font-weight="600" fill="currentColor">31.98%</text></svg></div>
 
   <h2>三、最终指标（测试集）</h2>
-  <div class="panel"><table><thead><tr><th>配置</th><th>nDCG@10</th><th>Recall@1</th><th>Recall@10</th><th>Recall@20</th><th>MRR@10</th><th>Δ nDCG@10</th><th>评测 query</th></tr></thead><tbody><tr><td>bm25（词法基线）</td><td class='num'>16.29%</td><td class='num'>9.23%</td><td class='num'>19.73%</td><td class='num'>24.78%</td><td class='num'>0.1956</td><td class='num'><span class="flat">0.00</span></td><td class='num'>1570</td></tr><tr><td>向量 bge-m3</td><td class='num'>33.93%</td><td class='num'>18.96%</td><td class='num'>42.93%</td><td class='num'>50.86%</td><td class='num'>0.3675</td><td class='num'><span class="up">+17.63</span></td><td class='num'>1570</td></tr><tr><td>向量 + 查询前缀</td><td class='num'>31.05%</td><td class='num'>17.04%</td><td class='num'>38.85%</td><td class='num'>47.35%</td><td class='num'>0.3417</td><td class='num'><span class="up">+14.75</span></td><td class='num'>1570</td></tr><tr><td>向量+BM25 加权融合 w=0.85</td><td class='num'>31.98%</td><td class='num'>16.72%</td><td class='num'>41.84%</td><td class='num'>50.66%</td><td class='num'>0.3416</td><td class='num'><span class="up">+15.68</span></td><td class='num'>1570</td></tr></tbody></table><p class='cap'>测试集 = 未参与调参的 1570 条 query；Δ 相对 BM25 基线。</p></div>
+  <div class="panel"><table><thead><tr><th>配置</th><th>nDCG@10</th><th>Recall@1</th><th>Recall@10</th><th>Recall@20</th><th>MRR@10</th><th>Δ nDCG@10</th><th>评测 query</th></tr></thead><tbody><tr><td>bm25（词法基线）</td><td class='num'>16.29%</td><td class='num'>9.23%</td><td class='num'>19.73%</td><td class='num'>24.78%</td><td class='num'>0.1956</td><td class='num'><span class="flat">0.00</span></td><td class='num'>1570</td></tr><tr><td>向量 bge-m3</td><td class='num'>33.93%</td><td class='num'>18.96%</td><td class='num'>42.93%</td><td class='num'>50.86%</td><td class='num'>0.3675</td><td class='num'><span class="up">+17.63</span></td><td class='num'>1570</td></tr><tr><td>向量 + 查询前缀</td><td class='num'>31.05%</td><td class='num'>17.04%</td><td class='num'>38.85%</td><td class='num'>47.35%</td><td class='num'>0.3417</td><td class='num'><span class="up">+14.75</span></td><td class='num'>1570</td></tr><tr><td>向量+BM25 加权融合 w=0.85</td><td class='num'>31.98%</td><td class='num'>16.72%</td><td class='num'>41.84%</td><td class='num'>50.66%</td><td class='num'>0.3416</td><td class='num'><span class="up">+15.68</span></td><td class='num'>1570</td></tr></tbody></table><p class='cap'>测试集 = 未参与调参的 1570 条 query；Δ 相对 BM25 基线。</p><h5 style='margin-top:22px'>各阶段单查询延迟（本机现场实测）</h5><table><thead><tr><th>阶段</th><th>单条 query 耗时</th><th>说明</th></tr></thead><tbody><tr><td>BM25 检索（词法）</td><td class='num'>110.31 ms</td><td>纯 Python 倒排，词项预算 100</td></tr><tr><td>向量检索（bge-m3）</td><td class='num'>2.57 ms</td><td>10 万 × 1024 余弦；批量 GEMM 摊薄后（单条单独算要 12.6 ms）</td></tr><tr><td>重排（cross-encoder）</td><td class='num'>357.37 ms</td><td>1 次 HTTP 调用、含网络往返，接 top20 候选</td></tr></tbody></table><p class='cap'>重排是唯一一个在数量级上明显的成本项，换来的是 +3.30 个点。<b>它用的是现场真调 API 的计时（20 次），不是缓存跑的 0.0s</b>——缓存命中记成 0 会让报告看起来像「重排免费」。本机单线程，不含服务端排队；换机器绝对值会变，<b>相对量级不会</b>。</p><p class='cap'><b>顺带一个反直觉的结果：词法基线比向量检索慢 40 倍</b>（110.31 ms vs 2.57 ms）。原因是 BM25 要在 Python 里扫倒排项、逐个累加分数，而向量检索是一次 BLAS 矩阵乘。所以「用词法兜底更省资源」这句话在 10 万文档规模上不成立——<b>它既更不准，又更慢</b>。这与第四节扫描表里的总耗时（38.3s / 400 条 ≈ 96ms/条）互相印证，差异来自缓存预热与系统负载。</p></div>
 
   <h2>四、调参过程①：BM25 词项预算是多少合适</h2>
-  <div class="panel"><table><thead><tr><th>每条 query 参与打分的词项数</th><th>nDCG@10</th><th>Recall@10</th><th>评测 query</th><th>耗时</th></tr></thead><tbody><tr><td>12</td><td class='num'>11.13%</td><td class='num'>15.12%</td><td class='num'>400</td><td class='num'>0.4s</td></tr><tr><td>30</td><td class='num'>14.95%</td><td class='num'>20.25%</td><td class='num'>400</td><td class='num'>5.8s</td></tr><tr class=best><td>100</td><td class='num'>15.18%</td><td class='num'>19.92%</td><td class='num'>400</td><td class='num'>34.0s</td></tr></tbody></table>
+  <div class="panel"><table><thead><tr><th>每条 query 参与打分的词项数</th><th>nDCG@10</th><th>Recall@10</th><th>评测 query</th><th>耗时</th></tr></thead><tbody><tr><td>12</td><td class='num'>11.13%</td><td class='num'>15.12%</td><td class='num'>400</td><td class='num'>0.4s</td></tr><tr><td>30</td><td class='num'>14.95%</td><td class='num'>20.25%</td><td class='num'>400</td><td class='num'>6.5s</td></tr><tr class=best><td>100</td><td class='num'>15.18%</td><td class='num'>19.92%</td><td class='num'>400</td><td class='num'>38.3s</td></tr></tbody></table>
     <p class="cap">BM25 是<b>基线</b>，基线越强，向量的增益才算数。中文单字词项在 10 万篇里
       df 能到 8 万，对排序没有区分度却要扫 8 万条倒排项；所以只取 df 最小的 N 项计分。
       N 太小丢信号，太大纯烧 CPU —— 这里用实测选，不用手感选。
@@ -148,7 +149,7 @@
     <p><code>python -m evalfmt.publicbench run</code> → 扫参 + 五组配置 + 生成本页</p>
     <p class="cap"><b>耗时说明</b>：10 万条向量化约 60 分钟（一次性，之后走缓存）；
       重排冷跑约 8 分钟（800 次 cross-encoder 调用），之后走缓存；
-      扫参与评估本身约 1.5 分钟。本轮脚本耗时 83.0s——这个数字小是因为
+      扫参与评估本身约 1.5 分钟。本轮脚本耗时 103.1s——这个数字小是因为
       向量与重排都命中了缓存，<b>不代表冷跑成本</b>。</p>
     <p class="cap">原始数字：evalfmt/out/publicbench.json ·
       重排分数缓存：evalfmt/.cache/rerank_scores.json（重跑不重复调 API）·

@@ -424,6 +424,8 @@ def main(argv: list[str] | None = None) -> int:
     p_run = sub.add_parser("run")
     p_run.add_argument("--top-k", type=int, default=100)
     p_run.add_argument("--rerank-queries", type=int, default=300)
+    p_run.add_argument("--latency-probes", type=int, default=20,
+                       help="延迟探针现场真调重排 API 的次数")
     args = ap.parse_args(argv)
 
     if args.cmd == "download":
