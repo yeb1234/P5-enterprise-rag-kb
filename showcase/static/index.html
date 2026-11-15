@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="color-scheme" content="light" />
+<title>解析工作台 · 左分析 / 右入库 JSON（演示切片）</title>
+<!--
+  演示切片 · 非生产实现（showcase/static/index.html）
+  事实源：docs/showcase/03-phase2-spec.md §5 / 02-architecture.md §4·§5 / 01-scope.md §3.4·§4·§6
+  零外部依赖：无 CDN、无外链字体、无外链脚本；相对引用 ./style.css 与 ./app.js，可 file:// 双击打开看占位态。
+  所有展示数据一律来自同源真实 API 响应；加载前为占位态，绝不内嵌/伪造 JSON。
+-->
+<link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+
+<!-- ============ 页头：同一个 run_id 证明左右同源 ============ -->
+<header class="topbar">
+  <div class="brand">
+    <span class="mark">KB</span>
+    <div class="brand-txt">
+      <b>解析工作台</b>
+      <small>左分析 / 右入库 JSON · 企业级知识库 showcase 演示切片</small>
+    </div>
+  </div>
+
+  <div class="head-meta">
+    <div class="runid-box" title="页头 run_id，左右两区引用同一值证明同源">
+      <span class="k">run_id</span>
+      <code id="run-id">— 等待真实响应 —</code>
+    </div>
+    <div class="ext-box" title="runtime.external_request_count：离线演示应为 0">
+      <span class="k">外部请求</span>
+      <b id="external-count">—</b>
+    </div>
+  </div>
+
+  <div class="head-actions">
+    <div class="seg" role="group" aria-label="两档一键切换">
+      <button id="sample-simple" type="button" class="seg-btn is-active">简单档 · PDF</button>
+      <button id="sample-complex" type="button" class="seg-btn">复杂档 · 图片</button>
+    </div>
+    <a id="guide-link" class="guide-link" href="../../docs/showcase/aliyun-guide.html" target="_blank" rel="noopener">打开上线指导 ↗</a>
+  </div>
+</header>
+
+<!-- ============ 同源校验 + 复杂档固定回放声明 ============ -->
+<div class="subbar">
+  <span id="source-check" class="source-check">同源校验：等待 A5 响应</span>
+  <span class="cur-sample">当前样本：<code id="sample-name">—</code></span>
+  <span class="grow"></span>
+  <label class="manual-pick" title="兼容兜底：若后端未把 showcase/samples/ 挂载为静态目录，可手动选择本地已落盘的真实样本文件（simple.pdf / complex.png）。文件字节真实、由后端真实解析，前端不伪造任何数据。">
+    手动载入真实样本（兜底）
+    <input id="sample-file" type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.gif,.bmp,.txt" />
+  </label>
+  <span class="tri-inline" aria-label="关键能力三态标注">
+    <span class="chip done">离线解析 · 已实现</span>
+    <span class="chip done">四出口脱敏 · 已实现</span>
+    <span class="chip design">在线填真值 / 收费适配器 · 只设计</span>
+    <span class="chip none">实时在线识别 / 压测 SLO · 未做</span>
+  </span>
+</div>
+
+<div id="replay-banner" class="replay-banner" hidden>
+  <b>视觉结果为离线回放，非实时在线识别。</b>
+  <span>复杂档 visual 结果来自预先留存的真实解析产物（showcase/samples 离线回放），本轮不发起任何外部视觉调用；「选出 Pro 档」仅表示路由决策，<b>不等于调用了 Pro 模型</b>。</span>
+</div>
+
+<!-- ============ 全局状态 / 错误码条（失败绝不静默） ============ -->
+<div id="status-bar" class="statusbar" role="status" aria-live="polite">
+  <span class="dot"></span>
+  <span id="status-text">占位态：尚未发起分析。所有展示数据来自同源真实 API 响应，未加载任何示例 JSON。</span>
+  <span id="status-code" class="status-code" hidden></span>
+</div>
+
+<!-- ============ 主体：左参数栏 sticky + 左右分栏工作区 ============ -->
+<div class="layout">
+
+  <aside class="sidebar" aria-label="参数面板">
+    <div class="side-head">
+      <h2>参数面板</h2>
+      <span class="side-sub">7 类全可改 · 改完重新 POST /api/analyze</span>
+    </div>
+
+    <form id="params-form" autocomplete="off">
+      <div class="field">
+        <label for="p-strategy">P1 · 解析策略 <span class="tag-en">strategy</span></label>
+        <select id="p-strategy">
+          <option value="auto">auto（质量门禁自动升级）</option>
+          <option value="local_only">local_only（P0 零依赖）</option>
+          <option value="ocr_api">ocr_api（P1 收费，未接通）</option>
+          <option value="multimodal">multimodal（P2 视觉）</option>
+          <option value="off">off（只登记不解析）</option>
+        </select>
+        <small>改变左区解析路径与策略标记。</small>
+      </div>
+
+      <div class="field">
+        <label for="p-confidence-min">P2 · 置信度阈值 <span class="tag-en">confidence_min</span></label>
+        <input id="p-confidence-min" type="number" min="0" max="1" step="0.05" value="0.75" />
+        <small>调高 → 低置信块增多 → 右区标记与升级原因同步变化。</small>
+      </div>
+
+      <div class="field-grid">
+        <div class="field">
+          <label for="p-chunk-size">P3 · 分块大小 <span class="tag-en">chunk_size_chars</span></label>
+          <input id="p-chunk-size" type="number" min="1" max="65536" step="1" value="800" />
+        </div>
+        <div class="field">
+          <label for="p-chunk-overlap">P3 · 重叠 <span class="tag-en">chunk_overlap_chars</span></label>
+          <input id="p-chunk-overlap" type="number" min="0" max="65535" step="1" value="80" />
+        </div>
+      </div>
+      <small class="field-note">改分块大小 / 重叠 → 右区 chunks[] 数量、chunk_id 列表与相邻块重叠文本同步变化（最直观的一镜）。</small>
+
+      <div class="field-grid">
+        <div class="field">
+          <label for="p-vision-ratio">P4 · 视觉预算上限 <span class="tag-en">vision_escalation_ratio</span></label>
+          <input id="p-vision-ratio" type="number" min="0" max="1" step="0.01" value="0.10" />
+        </div>
+        <div class="field">
+          <label for="p-vision-slots">P4 · 最小槽位 <span class="tag-en">vision_min_slots</span></label>
+          <input id="p-vision-slots" type="number" min="0" max="10000" step="1" value="1" />
+        </div>
+      </div>
+      <small class="field-note">熔断上限，不是随机分流；预算耗尽会在 trace[] 留痕，不假装升级成功。</small>
+
+      <div class="field">
+        <label for="p-tier-override">P5 · LLM 档位覆盖 <span class="tag-en">llm_tier_override</span></label>
+        <select id="p-tier-override">
+          <option value="">null（自动，按难度评分 + 滞回）</option>
+          <option value="standard">standard</option>
+          <option value="pro">pro</option>
+          <option value="fallback">fallback</option>
+        </select>
+        <small>只影响路由决策与快照单文件，本轮一律不发起外部 LLM 调用。</small>
+      </div>
+
+      <div class="field">
+        <label for="p-redact" class="check-label">
+          <input id="p-redact" type="checkbox" checked />
+          <span>P6 · 是否脱敏 <span class="tag-en">redact_enabled</span></span>
+        </label>
+        <small>开 → 四出口（ingest/context/output/audit）脱敏后文本才进 chunks[].text。</small>
+      </div>
+
+      <div class="field">
+        <label for="p-ingest-format">P7 · 入库格式 <span class="tag-en">ingest_format</span></label>
+        <select id="p-ingest-format">
+          <option value="compact">compact（精简）</option>
+          <option value="full">full（全字段）</option>
+        </select>
+        <small>切换右区 JSON 字段集合；full 档含完整 RouteSnapshot / guardrails / manifest。</small>
+      </div>
+
+      <div id="params-hash" class="params-hash">params_hash：等待 GET /api/params</div>
+      <div id="strategy-warning" class="strategy-warning" hidden></div>
+
+      <div class="btn-row">
+        <button id="btn-analyze" type="submit" class="btn primary">重新分析</button>
+        <button id="btn-reset" type="button" class="btn">恢复默认</button>
+      </div>
+    </form>
+
+    <div class="side-block">
+      <h3>同参双跑对拍 <span class="side-sub">V5 现场证据</span></h3>
+      <p class="side-tip">连续发两次同参 A5。因双阈值滞回（连续 2 次命中才升 Pro），两次的 <code>run_id</code> / <code>llm_route</code> 会随档位变化，这属于「<b>改档必变</b>」的正确行为，不是 JSON 不确定性缺陷。逐字节一致性判定采用<b>剔除 llm_route 等路由快照字段后的规范化投影</b>（等效于 compact 档口径），并在下方写清比较口径。</p>
+      <div class="btn-row">
+        <button id="btn-compare" type="button" class="btn">同参双跑对拍</button>
+        <button id="btn-mutate" type="button" class="btn">改参重跑</button>
+      </div>
+      <div id="compare-result" class="compare-result">未运行。先跑一次分析建立基线。</div>
+    </div>
+
+    <div class="side-block legend">
+      <h3>诚实边界 <span class="side-sub">三态</span></h3>
+      <ul>
+        <li><span class="chip done">已实现</span> parsing 三级策略与质量门禁、guardrails 四出口、真实样本与离线解析产物。</li>
+        <li><span class="chip design">只设计</span> 收费 OCR 适配器（available=False）、在线填真值的 LLM 快照字段、Pro 档真实模型与单价、阿里云实际部署。</li>
+        <li><span class="chip none">未做</span> 实时在线视觉调用作为默认路径、playwright 录屏、真实压测 / 质量基线 / 监控 SLO。</li>
+      </ul>
+      <p class="side-tip">本页为<b>演示切片、非生产实现</b>；离线回放 ≠ 实时识别；「选出 Pro 档」≠「调用了 Pro 模型」。</p>
+      <p class="side-tip"><b>滞回防抖动</b>：双阈值 + 连续 2 次命中才升 Pro，因此复杂档单次 A5 是 standard，同档位再跑一次才 pro。这是专业卖点，不是「单次即 Pro」。</p>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="panes">
+
+      <!-- ===== 左：解析分析 AnalysisView ===== -->
+      <section class="pane" aria-label="解析分析 AnalysisView">
+        <div class="pane-head">
+          <h2>解析分析 <span class="pane-en">AnalysisView</span></h2>
+          <span class="same-source">run_id <code id="analysis-run-id">—</code></span>
+        </div>
+
+        <div id="analysis-placeholder" class="placeholder">
+          <div class="ph-icon">◧</div>
+          <b>占位态 · 等待真实 API 响应</b>
+          <p>选择档位或点「重新分析」后，本区逐页显示 level / confidence / signals / blocks / trace，并给出 summary 与 budget。数据来源为 <code>POST /api/analyze</code> 的 <code>analysis</code> 字段，未加载任何示例数据。</p>
+        </div>
+
+        <div id="analysis-body" class="analysis-body" hidden>
+          <div id="analysis-summary" class="a-block"></div>
+          <div id="analysis-route" class="a-block"></div>
+          <div id="analysis-summaryblock" class="a-block"></div>
+          <div id="analysis-budget" class="a-block"></div>
+          <div id="analysis-warnings" class="a-block"></div>
+          <div class="a-block-title">逐页结果 · pages[]</div>
+          <div id="analysis-pages" class="pages"></div>
+        </div>
+      </section>
+
+      <!-- ===== 右：入库 JSON IngestDocument ===== -->
+      <section class="pane" aria-label="入库 JSON IngestDocument">
+        <div class="pane-head">
+          <h2>入库 JSON <span class="pane-en">IngestDocument</span></h2>
+          <span class="same-source">run_id <code id="ingest-run-id">—</code></span>
+        </div>
+
+        <div class="json-toolbar">
+          <button id="btn-copy-json" type="button" class="btn tiny">复制</button>
+          <button id="btn-expand-all" type="button" class="btn tiny">全部展开</button>
+          <button id="btn-collapse-all" type="button" class="btn tiny">全部折叠</button>
+          <span id="json-format-note" class="json-format-note">等待真实响应</span>
+        </div>
+
+        <div id="field-nav" class="field-nav" aria-label="关键字段导航"></div>
+
+        <div id="ingest-placeholder" class="placeholder">
+          <div class="ph-icon">◨</div>
+          <b>占位态 · 等待真实 API 响应</b>
+          <p>此处渲染 <code>POST /api/analyze</code> 返回的 <code>ingest</code> 整棵 JSON 树（语法着色 + 可折叠 + 可复制），含 run_id / schema_version / llm_route / chunks[] / trace[] / guardrails / manifest。<b>空占位字段会显式标注「空占位」，不隐藏、不填假值。</b></p>
+        </div>
+
+        <div id="json-view" class="json-view" hidden></div>
+
+        <div class="snapshot-block">
+          <button id="btn-snapshot" type="button" class="btn snapshot-btn">快照单文件 · 展开 RouteSnapshot 全部字段 ▾</button>
+          <div id="snapshot-status" class="snapshot-status">未展开。点击后读取 GET /api/manifest/{run_id}；若该接口未接通，回退展示 A5 响应内嵌的 llm_route 并如实标注。</div>
+          <div id="snapshot-route" class="snapshot-route" hidden></div>
+          <div id="snapshot-view" class="json-view" hidden></div>
+        </div>
+      </section>
+
+    </div>
+
+    <footer class="footer">
+      <div><b>数据来源与口径</b>：本页所有结果来自同源 <code>GET /api/params</code> / <code>GET /api/strategies</code> / <code>GET /api/samples</code> / <code>POST /api/analyze</code> / <code>GET /api/manifest/{run_id}</code> 的真实响应；错误体统一为 <code>{code, message, trace_id}</code>，失败在状态条显示错误码而非静默。</div>
+      <div><b>当前系统口径</b>：多用户多部门 · 单组织 + 部门树逻辑隔离；多租户仅作为未来研发方向写入文档，本页不涉及。<b>本页用途</b>：离线可跑的解析链路演示切片，可量化结论以验收报告为准。</div>
+    </footer>
+  </main>
+</div>
+
+<script src="./app.js"></script>
+</body>
+</html>

@@ -21,4 +21,7 @@ demo/out/
 webapp/out/
 *.jsonl.tmp
 evalbench/cache/
+# showcase 运行产物（manifest / ingest JSON）不入库，保留目录占位
+showcase/out/*
+!showcase/out/.gitkeep
 

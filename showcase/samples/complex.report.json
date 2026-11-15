@@ -1,0 +1,131 @@
+{
+  "doc_id": "DEMO-COMPLEX",
+  "filename": "complex.png",
+  "strategy": "auto",
+  "page_count": 1,
+  "budget": {
+    "total_pages": 1,
+    "ratio": 0.1,
+    "slots": 1,
+    "used": 1,
+    "remaining": 0
+  },
+  "summary": {
+    "by_level": {
+      "multimodal": 1
+    },
+    "upgrades": 1,
+    "budget_blocked": 0,
+    "degraded": 1,
+    "total_latency_ms": 7
+  },
+  "traces": [
+    {
+      "doc_id": "DEMO-COMPLEX",
+      "filename": "complex.png",
+      "page_no": 1,
+      "strategy": "auto",
+      "level": "multimodal",
+      "confidence": 0.35,
+      "latency_ms": 7,
+      "upgraded_from": "local",
+      "budget_blocked": false,
+      "reason": "vision_unavailable_fallback",
+      "degraded": "vision_unavailable",
+      "notes": [
+        "图片容器头解析（P0 层不调用视觉，交由质量门禁升级）",
+        "熵=7.615（高熵通常意味着压缩位图）",
+        "内容未识别，需 OCR 或视觉层级",
+        "ocr_api 未配置，跳过（契约 __TBC__）",
+        "图片容器头解析（P0 层不调用视觉，交由质量门禁升级）",
+        "熵=7.615（高熵通常意味着压缩位图）",
+        "内容未识别，需 OCR 或视觉层级"
+      ]
+    }
+  ],
+  "results": [
+    {
+      "text": "[图片结构事实 · 非视觉理解]\n格式=png 尺寸=900x1200 字节=22378 熵=7.615\n探测方式=header+pillow（header_only 表示只解析了容器头）\n色彩模式=RGB 亮度范围=14 疑似空白页=False\n结论：P0 规则层只解析容器头，不识别图片内容；需由质量门禁升级到 P2 多模态层或 P1 OCR。\n\n[图片结构事实 · 非视觉理解]\n格式=png 尺寸=900x1200 字节=22378 熵=7.615\n探测方式=header+pillow（header_only 表示只解析了容器头）\n色彩模式=RGB 亮度范围=14 疑似空白页=False\n结论：P0 规则层只解析容器头，不识别图片内容；需由质量门禁升级到 P2 多模态层或 P1 OCR。\n[多模态兜底已跳过] 原因：PARSING_OFFLINE=1，已按总离线开关跳过视觉调用。",
+      "blocks": [
+        {
+          "block_type": "image",
+          "text": "[图片结构事实 · 非视觉理解]\n格式=png 尺寸=900x1200 字节=22378 熵=7.615\n探测方式=header+pillow（header_only 表示只解析了容器头）\n色彩模式=RGB 亮度范围=14 疑似空白页=False\n结论：P0 规则层只解析容器头，不识别图片内容；需由质量门禁升级到 P2 多模态层或 P1 OCR。",
+          "page_no": 1,
+          "section_path": "",
+          "cells": null,
+          "facts": {
+            "format": "png",
+            "width": 900,
+            "height": 1200,
+            "bit_depth": 8,
+            "color_type": 2,
+            "bytes": 22378,
+            "entropy": 7.615,
+            "probe": "header+pillow",
+            "pillow_mode": "RGB",
+            "dpi": null,
+            "luma_range": 14,
+            "near_blank": false
+          },
+          "confidence": 0.35
+        },
+        {
+          "block_type": "image",
+          "text": "[图片结构事实 · 非视觉理解]\n格式=png 尺寸=900x1200 字节=22378 熵=7.615\n探测方式=header+pillow（header_only 表示只解析了容器头）\n色彩模式=RGB 亮度范围=14 疑似空白页=False\n结论：P0 规则层只解析容器头，不识别图片内容；需由质量门禁升级到 P2 多模态层或 P1 OCR。\n[多模态兜底已跳过] 原因：PARSING_OFFLINE=1，已按总离线开关跳过视觉调用。",
+          "page_no": 1,
+          "section_path": "",
+          "cells": null,
+          "facts": {
+            "format": "png",
+            "width": 900,
+            "height": 1200,
+            "bit_depth": 8,
+            "color_type": 2,
+            "bytes": 22378,
+            "entropy": 7.615,
+            "probe": "header+pillow",
+            "pillow_mode": "RGB",
+            "dpi": null,
+            "luma_range": 14,
+            "near_blank": false
+          },
+          "confidence": 0.35
+        }
+      ],
+      "signals": {
+        "text_chars": 0,
+        "text_density": 0.0,
+        "image_ratio": 1.0,
+        "table_cells": 0,
+        "table_complete": true,
+        "ocr_needed": true,
+        "confidence": 0.35,
+        "notes": [
+          "图片容器头解析（P0 层不调用视觉，交由质量门禁升级）",
+          "熵=7.615（高熵通常意味着压缩位图）",
+          "内容未识别，需 OCR 或视觉层级"
+        ]
+      },
+      "level": "multimodal",
+      "degraded": "vision_unavailable",
+      "latency_ms": 7,
+      "source": "vision:structured-fallback",
+      "upstream": {
+        "fallback": "vision:structured-fallback"
+      }
+    }
+  ],
+  "note": "P1 收费 OCR 未接通，契约字段保持 __TBC__；P2 已接通 Discovery 网关的视觉能力（deepseek-v4.1-flash-1017，双图对照实测通过）。auto 策略仅在质量门禁命中且预算闸门允许时才调用 P2；设置 PARSING_OFFLINE=1 可全程零外部请求",
+  "producer": {
+    "script": "showcase/samples/make_samples.py",
+    "offline": true,
+    "parser": "parsing.ParseRouter",
+    "non_replay_fields": [
+      "latency_ms",
+      "created_at",
+      "run_id",
+      "generated_at"
+    ],
+    "note": "本产物由真实解析链路生成；复杂档为离线降级回放，不是实时视觉识别"
+  }
+}

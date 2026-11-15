@@ -1,0 +1,129 @@
+{
+  "budget": {
+    "ratio": 0.1,
+    "remaining": 0,
+    "slots": 1,
+    "total_pages": 1,
+    "used": 1
+  },
+  "doc_id": "DEMO-COMPLEX",
+  "filename": "complex.png",
+  "note": "P1 收费 OCR 未接通，契约字段保持 __TBC__；P2 已接通 Discovery 网关的视觉能力（deepseek-v4.1-flash-1017，双图对照实测通过）。auto 策略仅在质量门禁命中且预算闸门允许时才调用 P2；设置 PARSING_OFFLINE=1 可全程零外部请求",
+  "page_count": 1,
+  "producer": {
+    "non_replay_fields": [
+      "latency_ms",
+      "created_at",
+      "run_id",
+      "generated_at"
+    ],
+    "note": "本产物由真实解析链路生成；复杂档为离线降级回放，不是实时视觉识别",
+    "offline": true,
+    "parser": "parsing.ParseRouter",
+    "script": "showcase/samples/make_samples.py"
+  },
+  "results": [
+    {
+      "blocks": [
+        {
+          "block_type": "image",
+          "cells": null,
+          "confidence": 0.35,
+          "facts": {
+            "bit_depth": 8,
+            "bytes": 22378,
+            "color_type": 2,
+            "dpi": null,
+            "entropy": 7.615,
+            "format": "png",
+            "height": 1200,
+            "luma_range": 14,
+            "near_blank": false,
+            "pillow_mode": "RGB",
+            "probe": "header+pillow",
+            "width": 900
+          },
+          "page_no": 1,
+          "section_path": "",
+          "text": "[图片结构事实 · 非视觉理解]\n格式=png 尺寸=900x1200 字节=22378 熵=7.615\n探测方式=header+pillow（header_only 表示只解析了容器头）\n色彩模式=RGB 亮度范围=14 疑似空白页=False\n结论：P0 规则层只解析容器头，不识别图片内容；需由质量门禁升级到 P2 多模态层或 P1 OCR。"
+        },
+        {
+          "block_type": "image",
+          "cells": null,
+          "confidence": 0.35,
+          "facts": {
+            "bit_depth": 8,
+            "bytes": 22378,
+            "color_type": 2,
+            "dpi": null,
+            "entropy": 7.615,
+            "format": "png",
+            "height": 1200,
+            "luma_range": 14,
+            "near_blank": false,
+            "pillow_mode": "RGB",
+            "probe": "header+pillow",
+            "width": 900
+          },
+          "page_no": 1,
+          "section_path": "",
+          "text": "[图片结构事实 · 非视觉理解]\n格式=png 尺寸=900x1200 字节=22378 熵=7.615\n探测方式=header+pillow（header_only 表示只解析了容器头）\n色彩模式=RGB 亮度范围=14 疑似空白页=False\n结论：P0 规则层只解析容器头，不识别图片内容；需由质量门禁升级到 P2 多模态层或 P1 OCR。\n[多模态兜底已跳过] 原因：PARSING_OFFLINE=1，已按总离线开关跳过视觉调用。"
+        }
+      ],
+      "degraded": "vision_unavailable",
+      "level": "multimodal",
+      "signals": {
+        "confidence": 0.35,
+        "image_ratio": 1.0,
+        "notes": [
+          "图片容器头解析（P0 层不调用视觉，交由质量门禁升级）",
+          "熵=7.615（高熵通常意味着压缩位图）",
+          "内容未识别，需 OCR 或视觉层级"
+        ],
+        "ocr_needed": true,
+        "table_cells": 0,
+        "table_complete": true,
+        "text_chars": 0,
+        "text_density": 0.0
+      },
+      "source": "vision:structured-fallback",
+      "text": "[图片结构事实 · 非视觉理解]\n格式=png 尺寸=900x1200 字节=22378 熵=7.615\n探测方式=header+pillow（header_only 表示只解析了容器头）\n色彩模式=RGB 亮度范围=14 疑似空白页=False\n结论：P0 规则层只解析容器头，不识别图片内容；需由质量门禁升级到 P2 多模态层或 P1 OCR。\n\n[图片结构事实 · 非视觉理解]\n格式=png 尺寸=900x1200 字节=22378 熵=7.615\n探测方式=header+pillow（header_only 表示只解析了容器头）\n色彩模式=RGB 亮度范围=14 疑似空白页=False\n结论：P0 规则层只解析容器头，不识别图片内容；需由质量门禁升级到 P2 多模态层或 P1 OCR。\n[多模态兜底已跳过] 原因：PARSING_OFFLINE=1，已按总离线开关跳过视觉调用。",
+      "upstream": {
+        "fallback": "vision:structured-fallback"
+      }
+    }
+  ],
+  "strategy": "auto",
+  "summary": {
+    "budget_blocked": 0,
+    "by_level": {
+      "multimodal": 1
+    },
+    "degraded": 1,
+    "total_latency_ms": 7,
+    "upgrades": 1
+  },
+  "traces": [
+    {
+      "budget_blocked": false,
+      "confidence": 0.35,
+      "degraded": "vision_unavailable",
+      "doc_id": "DEMO-COMPLEX",
+      "filename": "complex.png",
+      "level": "multimodal",
+      "notes": [
+        "图片容器头解析（P0 层不调用视觉，交由质量门禁升级）",
+        "熵=7.615（高熵通常意味着压缩位图）",
+        "内容未识别，需 OCR 或视觉层级",
+        "ocr_api 未配置，跳过（契约 __TBC__）",
+        "图片容器头解析（P0 层不调用视觉，交由质量门禁升级）",
+        "熵=7.615（高熵通常意味着压缩位图）",
+        "内容未识别，需 OCR 或视觉层级"
+      ],
+      "page_no": 1,
+      "reason": "vision_unavailable_fallback",
+      "strategy": "auto",
+      "upgraded_from": "local"
+    }
+  ]
+}
