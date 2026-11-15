@@ -4,6 +4,7 @@
 **开发框架骨架**（学习+面试+逐步生产化），A/B/C 三档，**面试别把 A 档说成 C 档**。栈固定 React/FastAPI/PG/Milvus/Redis + 外部 DeepSeek。
 用户学 FastAPI+DB（后 SpringBoot）：注释讲**设计取舍**，文档必分「已实现/只设计/未做」。v1.0.0 三态定版 ≠ 可上线；未做 18 项（20 项中 2 项已闭环）见 `docs/production/07-remaining-work.md`，§11 已分档「值得做 1 / 只值得说 17」。
 **向量层已切 pgvector**（v1.3.0）：`embedding vector(1024)` + HNSW，一条 SQL 完成过滤+排序；143 候选 69ms→**2.2ms**。`vec` 文本列保留回滚（`WEBAPP_VECTOR_BACKEND=python`）。Milvus 三件套进 `profiles:["milvus"]` 默认不起，`verify_infra` 默认跳过。论证见 `docs/production/08-vector-store-decision.md`。
+**连接层已接 SQLAlchemy Engine 池化**（v1.3.1）：只接池不接 ORM（138 处按 SQL 文本写，改 ORM 是重写）。`close()`=还池，`connect+close` 0.42ms；端到端 18.59→**3.77ms**。口径别混：**32× 是「算得少」，18× 是「连得省」**。
 v1.1.0 `evalfmt/`；v1.2.0 公开基准（tag `v1.2.0`）。回归全绿：六个包 pytest + backend + eval + evalbench 全过；e2e 33/33；demo 16/16。
 应用层 `webapp/`(8765, admin/admin123) + `backend/` + `frontend/` + `eval/`/`evalbench/`；六个纯函数包与 `demo/`(冻结区) 见 README。
 
@@ -36,6 +37,7 @@ nDCG@10：BM25 16.29% → **bge-m3 33.93%**；前缀 31.05%、融合 w=0.85 31.9
 ## 已验证的坑
 网关末尾 `choices: []` 纯 usage 块要跳过；内嵌面板拦 `window.open`→改同标签 `<a>`；
 旁路 `except: pass` 会把「功能已坏」伪装成「什么都没发生」；同名 bge-m3 跨实现同文本余弦仅 **0.977**（同端点重调 0.99996）→ 缓存 key 必带实现前缀。**扩展是库级、装不进 schema**：测试 search_path 必须带 public，否则 `vector` 类型与 `<=>` 都解析不到；官方 postgres 镜像加扩展只能换镜像（apk 装的是 PG18 的包）。
+**池化会让会话级 `SET` 跨借用人存活**（实测 `SHOW search_path` 变 `pg_catalog`）：`connect_args.options` 只在建连时生效、管不住它；`WEBAPP_DB_SCHEMA` 下必须 checkout 再补一条 `SET` 复核（1.4ms，生产不设 schema 则零开销）。`postgresql://` 在 SQLAlchemy 里走 psycopg2 → 必须 `postgresql+psycopg://`。
 **三条已证伪误报别再写**：内联处理器全有定义 / 两个 Dockerfile 都在 / `npm run build` 通过。
 
 ## 命令与三查
