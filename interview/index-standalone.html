@@ -363,6 +363,7 @@ footer .fine{border-top:1px solid var(--border);padding-top:16px;line-height:1.8
           <tr><td>LLM 路由分流</td><td>6 项难度信号加权评分、双阈值滞回（0.60/0.40）、连续 2 次才切档</td><td>实算：简单档 <code>0.005 → standard</code>，复杂档 <code>0.735</code> 命中升档方向，连续 2 次后 <code>→ pro</code></td><td><span class="chip">已实现（演示级）</span></td></tr>
           <tr><td>Pro 档兜底</td><td>解析难度变大且连续命中时路由到 Pro 档；<b>演示不发起外部 LLM 调用</b></td><td>快照里 <code>consecutive_hits 1/2 → 2/2</code>、<code>tier=pro</code>、<code>trigger=difficulty_threshold</code></td><td><span class="chip">已实现（决策层）</span></td></tr>
           <tr><td>快照单文件</td><td>每次选择一个 <code>out/&lt;run_id&gt;.manifest.json</code>，与入库 JSON 双向摘要互引、原子落盘</td><td>展开快照看 15 字段，空占位显式显示</td><td><span class="chip">只设计 → 本轮实现中</span></td></tr>
+          <tr><td>队列可观测</td><td>普通用户也能看全局队列：哪个部门、哪个用户短码、积压多少；文件名与邮箱仅 admin 可见</td><td>任务中心「按用户积压 / 按部门」表</td><td><span class="chip">已实现（演示级）</span></td></tr>
           <tr><td>PII 四出口</td><td>入库前 / 进模型前 / 输出前 / 日志导出前共用一套规则</td><td>实跑四出口命中数 <code>[2,2,2,2]</code></td><td><span class="chip">已实现（规则级）</span></td></tr>
           <tr><td>收费解析 API</td><td>可插拔 profile + 离线兜底；<b>未开通、未付费</b></td><td>A4 显示「未接通，跳过」</td><td><span class="chip">只设计</span></td></tr>
           <tr><td>阿里云实际上线</td><td>注册 / 实名 / 备案 / 支付的逐步指导 HTML</td><td><a href="../docs/showcase/aliyun-guide.html"><code>aliyun-guide.html</code></a></td><td><span class="chip">未做（指导已交付）</span></td></tr>
@@ -1020,6 +1021,7 @@ footer .fine{border-top:1px solid var(--border);padding-top:16px;line-height:1.8
       <code>docs/showcase/02-architecture.md</code>
       <code>docs/showcase/03-phase2-spec.md</code>
       <code>docs/showcase/aliyun-guide.html</code>
+      <code>docs/queue-observability.md</code>
       <code>showcase/samples/make_samples.py</code>
       <code>showcase/make_video.py</code>
       <code>interview/showcase-demo.mp4</code>
