@@ -40,6 +40,7 @@ SQLite 风格的 `?` 占位符。把运行时换成 PostgreSQL 时，如果逐�
 from __future__ import annotations
 
 import os
+import pathlib
 import re
 from datetime import date, datetime, timezone
 from decimal import Decimal
@@ -47,9 +48,38 @@ from typing import Any, Iterable, Mapping, Sequence
 
 DEFAULT_DSN = "postgresql://kb:kb_demo_only@127.0.0.1:5432/kb"
 
+_ENV_LOADED = False
+
+
+def load_dotenv() -> None:
+    """把项目根 `.env` 里**尚未存在**的键补进 os.environ（幂等、零依赖）。
+
+    为什么放在这里：`pgkit.dsn()` 是连接串的唯一出口，脚本（迁移/自检）和测试都走它。
+    如果只在 webapp 内部读 .env，`python scripts/xxx.py` 就会因为拿不到 DSN 而连到
+    标准 5432——本机 5432 是别的项目的库，报出来是「密码错误」，非常误导。
+    """
+    global _ENV_LOADED
+    if _ENV_LOADED:
+        return
+    _ENV_LOADED = True
+    path = pathlib.Path(__file__).resolve().parent / ".env"
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return
+    for ln in lines:
+        ln = ln.strip()
+        if not ln or ln.startswith("#") or "=" not in ln:
+            continue
+        k, v = ln.split("=", 1)
+        k, v = k.strip(), v.strip().strip('"').strip("'")
+        if k and k not in os.environ:
+            os.environ[k] = v
+
 
 def dsn() -> str:
-    """连接的唯一来源。`WEBAPP_DATABASE_URL` 优先，便于测试指向独立 schema。"""
+    """连接的唯一来源：环境变量 → 项目根 .env → 标准 5432 默认值。"""
+    load_dotenv()
     return (os.environ.get("WEBAPP_DATABASE_URL")
             or os.environ.get("DATABASE_URL")
             or DEFAULT_DSN)

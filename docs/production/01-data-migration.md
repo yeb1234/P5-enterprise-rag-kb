@@ -306,10 +306,15 @@ Docker Hub 直连不通（`dialing registry-1.docker.io` 超时）。逐个源�
 | `milvusdb/milvus:v2.5.10` | **`docker.m.daocloud.io/…`**（约 3.5 分钟） | Docker Hub 直连超时 |
 | `coreos/etcd:v3.5.16` | **`quay.m.daocloud.io/…`** | Docker Hub 直连超时 |
 | `postgres:16-alpine` / `redis:7-alpine` | `docker.m.daocloud.io/…`（本机已有） | — |
-| `minio/minio` | **没找到可用源** | daocloud **denied**（该仓库被挡）；`1panel.live` manifest 可解析但 **blob 稳定 403**；`1ms.run` / `hub.rat.dev` / `dockerproxy.net` 均 `no such manifest`（镜像已迁 quay，旧 tag 不在 Docker Hub 上） |
+| `minio/minio` | **`swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/minio/minio:…`** ✅ | daocloud **denied**；`1panel.live` blob 稳定 403；`1panel.top` 是 Cloudflare **每日限额**（UTC 午夜重置）；`1ms.run` / `hub.rat.dev` / `dockerproxy.net` 均 `no such manifest`（MinIO 已迁 quay，旧 tag 不在 Docker Hub 上） |
 
-**MinIO 拉不到怎么办**：不要为了一个对象存储把整条链路卡死。Milvus 2.5 standalone 支持
-`common.storageType: local`，用本地磁盘代替对象存储。本项目把 minio 放进 `profiles: ["minio"]`，
+**MinIO 最终找到了能拉的源**：华为云 SWR 的 `ddn-k8s` 公共镜像仓库
+（`swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/minio/minio:<tag>`）。
+这一条建议记住：**国内找一个镜像时，"镜像站" 之外还有云厂商的公共镜像仓库**，
+它们往往镜像了 Docker Hub 的主流仓库，且不像免费加速站那样限流或屏蔽仓库。
+
+**但 local 的逃生方案仍然保留**：Milvus 2.5 standalone 支持 `common.storageType: local`，
+用本地磁盘代替对象存储。本项目把 minio 放进 `profiles: ["minio"]`，
 并把 `depends_on` 标成 `required: false`，于是：
 
 ```bash
@@ -324,8 +329,17 @@ docker compose -f docker-compose.infra.yml --profile minio up -d
 ```
 
 **这是明知的妥协，不是设计**：`local` 存储只支持 standalone 单副本，没有对象存储的
-共享与扩容能力。生产必须 minio 或云对象存储。写在这里是为了「本机能跑通」，
-不是为了「这样就够了」。
+共享与扩容能力。生产必须 minio 或云对象存储。
+
+**实测两条路径都能跑通**（同一套脚本、同一套断言）：
+
+| 存储模式 | 启动方式 | 向量迁移结果 |
+|---|---|---|
+| `local`（无 minio） | `KB_MILVUS_STORAGE=local … up -d etcd milvus` | 83 条 / 幽灵 0 / 漏迁 0 / 5-5 回查 |
+| `minio`（生产形态） | `--profile minio … up -d` | 83 条 / 幽灵 0 / 漏迁 0 / 5-5 回查 |
+
+**换存储时必须重建 collection**——见 §9 的「元数据与对象存储不一致」那一条，这是个会让人
+误以为「Milvus 挂了」的坑。
 
 ### 8.2 建表（PG 首次启动自动执行）
 
@@ -455,6 +469,7 @@ python scripts/verify_infra.py \
 | 拉镜像超时 `dialing registry-1.docker.io` | `up` 卡在 Pulling 后失败 | Docker Hub 不可达 | 镜像名同样参数化（`KB_PG_IMAGE` 等），用本机已有的 `docker.m.daocloud.io/library/postgres:16-alpine` |
 | `minio/minio` 三个源都拿不到 | daocloud `denied`；1panel manifest 通了但 blob `403`；1ms/rat.dev/proxy.net `no such manifest` | MinIO 官方镜像已迁 quay，Docker Hub 上那些 tag 不存在；部分镜像站按仓库屏蔽 | Milvus 改 `KB_MILVUS_STORAGE=local`（standalone）；minio 放 `profiles: ["minio"]` + `depends_on.required: false`，不让可选依赖卡死启动 |
 | 权限 expr 看着对但没生效 | 收窄后条数没变 | 只验「连上了」，没验「过滤发生了」 | 加两条反证：错 tenant 必须 0 条；按 `doc_id` 收窄后文档数必须变少 |
+| **换对象存储后 Milvus「卡住不响应」** | `migrate_vectors` 在 `col.load()` 处无限等待；`utility.has_collection` 仍返回 true | **元数据在 etcd、数据在对象存储，两边分开持久化**。把 `storageType` 从 `local` 换成 `minio`（或清空过 bucket）后，etcd 里 collection 还在、底层 segment 已不存在，`ensure_collection()` 因 `has_collection` 为真直接 return，随后 `load()` 等一个永远不会就绪的段 | 加 `--reset-collection`：先 `utility.drop_collection` 再重建。（`utility.*` 需要先 `connections.connect`，否则报 `should create connection first`） |
 | `num_entities` 重跑后翻倍 | 以为 upsert 插了重复行 | 它是**近似值且含已删未压实墓碑**，upsert = delete + insert | 用 `query(count(*))` 取精确存活数，并把墓碑数一起打印 |
 
 **列集合比对脚本**（每次改 `pg_init.sql` 都该跑一遍，比人眼看靠谱）：

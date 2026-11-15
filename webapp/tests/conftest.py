@@ -30,6 +30,11 @@ os.environ["WEBAPP_DB_SCHEMA"] = TEST_SCHEMA
 os.environ["WEBAPP_LLM_PROVIDER"] = "offline"
 os.environ["WEBAPP_EMBEDDING_PROVIDER"] = "offline"
 os.environ["WEBAPP_RERANK_PROVIDER"] = "off"
+# **单测不能继承机器本地的运行时配置**：本机 .env 里可能配了真 Redis / 真 Milvus，
+# 若让用例顺着用，同一套测试在不同机器上行为不同（本机有 Redis 就走 Redis 路径，
+# 没 Redis 就走内存路径）。这里显式钉死为内存后端，需要 Redis 的用例自己 monkeypatch。
+os.environ.pop("WEBAPP_REDIS_URL", None)
+os.environ["WEBAPP_RATE_BACKEND"] = "memory"
 # P2 多模态已接通真实网关，单测必须显式关掉，避免图片用例消耗真实流量
 os.environ["PARSING_OFFLINE"] = "1"
 

@@ -41,9 +41,12 @@ import time
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 BACKEND = ROOT / "backend"
+# 直接 `python scripts/xxx.py` 时 sys.path[0] 是 scripts/，项目根不可见
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 DEFAULT_MODEL = "external:BAAI/bge-m3"
-DEFAULT_PG = "postgresql://kb:kb_demo_only@127.0.0.1:5432/kb"
+
 
 
 # ---------------------------------------------------------------------------
@@ -138,11 +141,13 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="向量迁移：chunk_embeddings → Milvus")
     ap.add_argument("--model", default=DEFAULT_MODEL, help="只迁这一个嵌入命名空间")
     ap.add_argument("--milvus-uri", default="http://127.0.0.1:19530")
-    ap.add_argument("--pg-dsn", default=DEFAULT_PG)
+    ap.add_argument("--pg-dsn", default=None, help="默认读 WEBAPP_DATABASE_URL / .env")
     ap.add_argument("--tenant", default="default", help="Milvus partition key 取值（单组织演示填 default）")
     ap.add_argument("--batch", type=int, default=200)
     ap.add_argument("--verify-top1", type=int, default=20,
                     help="迁完回查条数（断言自己在 top-k 且 score≈1），0 表示跳过")
+    ap.add_argument("--reset-collection", action="store_true",
+                    help="先 drop 掉 collection 再重建（换对象存储 / 改 schema 后必须用）")
     ap.add_argument("--apply", action="store_true", help="真正写入；不加则为 dry-run")
     ap.add_argument("--dry-run", action="store_true", help="显式只读（与 --apply 同时给出时以只读为准）")
     args = ap.parse_args(argv)
@@ -151,6 +156,9 @@ def main(argv: list[str] | None = None) -> int:
         print("[WARN] 同时给了 --apply 与 --dry-run，按只读处理", file=sys.stderr)
         args.apply = False
 
+    if not args.pg_dsn:
+        import pgkit
+        args.pg_dsn = pgkit.dsn()
     print(f"来源：PostgreSQL {args.pg_dsn}")
     print(f"命名空间：{args.model}")
 
@@ -190,6 +198,17 @@ def main(argv: list[str] | None = None) -> int:
 
     store = get_vector_store()
     started = time.time()
+    if args.reset_collection:
+        # 为什么需要这一步：Milvus 的元数据在 etcd、数据在对象存储，两边是**分开持久化**的。
+        # 换了 storageType（local → minio）或清空过 bucket 之后，etcd 里仍然认为 collection
+        # 存在，但底层 segment 已经没了 —— 此时 ensure_collection() 会直接 return（因为
+        # has_collection 为真），随后 load() 会一直卡住，看起来像「Milvus 挂了」。
+        from pymilvus import connections, utility
+        # utility.* 需要一条已建立的连接；ensure_collection() 内部才连，这里要自己先连
+        connections.connect(alias="default", uri=args.milvus_uri, timeout=10)
+        if utility.has_collection(store.collection_name, using="default"):
+            utility.drop_collection(store.collection_name, using="default")
+            print(f"已 drop 旧 collection：{store.collection_name}（元数据与对象存储对齐）")
     store.ensure_collection()
 
     written = 0

@@ -29,6 +29,9 @@ import uuid
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+# 直接 `python scripts/xxx.py` 时 sys.path[0] 是 scripts/，项目根不可见
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 # 子进程用 sys.executable 直接跑本文件，`webapp` 包不在默认搜索路径上；
 # 显式注入项目根，避免 "No module named 'webapp'"（子进程的 cwd 不一定等于项目根）。
 CHILD_ENV_EXTRA = {"PYTHONPATH": str(ROOT) + os.pathsep + os.environ.get("PYTHONPATH", "")}
@@ -281,15 +284,22 @@ def main(argv: list[str] | None = None) -> int:
     warnings.filterwarnings("ignore", message=".*ORM-style PyMilvus API.*")
 
     ap = argparse.ArgumentParser(description="本机基础设施自检（PG / Redis / Milvus）")
-    ap.add_argument("--pg-dsn", default="postgresql://kb:kb_demo_only@127.0.0.1:55432/kb")
-    ap.add_argument("--redis-url", default="redis://127.0.0.1:56379/0")
-    ap.add_argument("--milvus-uri", default="http://127.0.0.1:19530")
+    ap.add_argument("--pg-dsn", default=None, help="默认读 WEBAPP_DATABASE_URL / .env")
+    ap.add_argument("--redis-url", default=None, help="默认读 WEBAPP_REDIS_URL / .env")
+    ap.add_argument("--milvus-uri", default=None, help="默认读 MILVUS_URI / .env")
     ap.add_argument("--tenant", default="default")
     ap.add_argument("--skip-pg", action="store_true")
     ap.add_argument("--skip-redis", action="store_true")
     ap.add_argument("--skip-milvus", action="store_true")
     ap.add_argument("--limit", type=int, default=3, help="限流共享验证用的窗口上限")
     args = ap.parse_args(argv)
+
+    # 默认值统一走环境变量 / 项目 .env：脚本里不写死任何本机端口。
+    import pgkit
+
+    args.pg_dsn = args.pg_dsn or pgkit.dsn()
+    args.redis_url = args.redis_url or os.environ.get("WEBAPP_REDIS_URL") or "redis://127.0.0.1:6379/0"
+    args.milvus_uri = args.milvus_uri or os.environ.get("MILVUS_URI") or "http://127.0.0.1:19530"
 
     started = time.time()
     report: dict = {"pg": None, "redis": None, "milvus": None}

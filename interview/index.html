@@ -1664,8 +1664,10 @@ footer .fine{border-top:1px solid var(--border);padding-top:16px;line-height:1.8
     </div>
     <p class="tbl-note"><b>边界</b>：Celery 映射仍只设计；<code>webapp/rag.py</code> 主链路仍从 PG 的 <code>chunk_embeddings</code> 文本列读向量，
       <b>尚未真正切到 Milvus 召回</b>——本次做的是「数据迁到位 + 过滤能证明」。
-      Milvus 用 <code>storageType=local</code> 起（minio 镜像在国内几个源都拿不到），
-      这是 standalone 妥协，生产必须对象存储。本组数字全部来自 <code>scripts/verify_infra.py</code>
+      Milvus 的对象存储两条路都实测过：<code>storageType=local</code>（不需要 minio）与
+      <code>--profile minio</code>（生产形态，minio 镜像最终从华为云 SWR 的 <code>ddn-k8s</code> 公共仓库拉到）。
+      换存储时必须 <code>--reset-collection</code>，否则 etcd 元数据与对象存储会不一致、<code>load()</code> 永久挂住。
+      本组数字全部来自 <code>scripts/verify_infra.py</code>
       与两个迁移脚本的一条命令，可复跑；但它验的是<b>正确性</b>，不是吞吐。</p>
   </div>
 </section>
