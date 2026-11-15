@@ -1456,7 +1456,25 @@
       return null;
     };
   }
+
+  /* 双向导航：指向「完整功能首页」（webapp，默认 8765）。
+   * 先给同主机名 + 8765 的即时回退，再异步读 A1 的 links.main_site 覆盖；
+   * 部署到单域名/反代时由 SHOWCASE_MAIN_SITE_URL 环境变量指定，不硬编码域名。 */
+  function bindMainSiteLink() {
+    var a = document.getElementById('main-site-link');
+    if (!a) return;
+    a.href = location.protocol + '//' + location.hostname + ':8765';
+    fetch(API.health, { headers: { 'Accept': 'application/json' } })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (h) {
+        var url = h && h.links && h.links.main_site;
+        if (url) a.href = url;
+      })
+      .catch(function () { /* 保持回退地址，绝不阻塞主流程 */ });
+  }
+
   function boot() {
+    bindMainSiteLink();
     bindEvents();
     writeFormParams(clone(DEFAULT_PARAMS));
     updateStrategyWarning();

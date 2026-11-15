@@ -210,6 +210,14 @@ function switchView(view) {
 }
 function refreshCurrentView() { const l = LOADERS[S.view]; if (l) l(); }
 
+/* 双向导航：打开专门的解析工作台（showcase，默认 8767）。
+ * 同主机名 + 端口，部署时可用 window.WEBAPP_SHOWCASE_URL 覆盖。 */
+function openShowcase() {
+  const url = window.WEBAPP_SHOWCASE_URL
+    || (location.protocol + '//' + location.hostname + ':8767');
+  window.open(url, '_blank', 'noopener');
+}
+
 /* ---------------- 外观（语言 / 主题色 / 明暗） ---------------- */
 const THEME_COLORS = {
   indigo: '#6366f1', teal: '#14b8a6', violet: '#8b5cf6',

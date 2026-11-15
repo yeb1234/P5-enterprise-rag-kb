@@ -1,0 +1,44 @@
+# webapp 演示切片镜像：登录 / 文档管理 / 流式问答 / 评测 / badcase / 内容安全。
+# 只 COPY webapp 与它依赖的纯函数包；不 COPY backend/ eval/ demo/。
+# 密钥只从环境变量注入：本文件不含任何密钥值，也不读取 .env。
+#
+# 国内网络构建（可选）：
+#   docker build -f webapp/Dockerfile -t kb-webapp:dev \
+#     --build-arg BASE_IMAGE=docker.m.daocloud.io/library/python:3.11-slim \
+#     --build-arg PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple .
+ARG BASE_IMAGE=python:3.11-slim
+FROM ${BASE_IMAGE}
+ARG PIP_INDEX_URL=https://pypi.org/simple
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+RUN pip install --no-cache-dir -i ${PIP_INDEX_URL} \
+      "fastapi>=0.110" \
+      "uvicorn>=0.29" \
+      "python-multipart>=0.0.9" \
+      "pypdf>=4.0" \
+      "Pillow>=10.0"
+
+# 纯函数包（依赖方向 webapp/ -> parsing/ guardrails/ cache/ knowledge/）
+COPY parsing/ ./parsing/
+COPY guardrails/ ./guardrails/
+COPY cache/ ./cache/
+COPY knowledge/ ./knowledge/
+
+# 演示切片本体（含静态前端与 out/ 事实源）
+COPY webapp/ ./webapp/
+
+# 运行期数据目录（SQLite 与上传）；挂 volume 可持久化
+RUN mkdir -p /app/.data/webapp/uploads /app/webapp/out
+
+EXPOSE 8765
+
+# 首页返回 200 即视为就绪（webapp 无独立 health 路由）
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD python -c "import urllib.request; r=urllib.request.urlopen('http://127.0.0.1:8765/', timeout=4); exit(0 if r.status == 200 else 1)"
+
+# 默认离线：不读 .env 的密钥值，也不发起真实模型调用
+CMD ["python", "-m", "uvicorn", "webapp.main:app", "--host", "0.0.0.0", "--port", "8765"]

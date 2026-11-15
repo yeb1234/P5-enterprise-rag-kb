@@ -265,6 +265,13 @@ def health() -> dict:
             "discovery": _env_present("DISCOVERY_API_KEY"),
             "ocr_api": _env_present("PARSING_OCR_API_KEY"),
         },
+        # 双向导航：完整功能首页（webapp，默认 8765）。部署时用环境变量覆盖，
+        # 留空则由前端回退到「同主机名 + 8765」。
+        "links": {
+            "main_site": os.environ.get("SHOWCASE_MAIN_SITE_URL", ""),
+            "main_site_label": "完整功能首页（登录 / 文档管理 / 流式问答 / 评测 / badcase）",
+            "fallback_port": 8765,
+        },
         "note": "只回布尔，不回密钥值",
     }
 
