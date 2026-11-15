@@ -50,8 +50,8 @@ def _admin_conn():
 def _prepare_schema():
     """整轮测试开始前建空 schema 并建表；结束后删掉。
 
-    必须在任何 webapp 导入/连接之前建好，否则 pgkit 的 `SET search_path` 会指向
-    一个不存在的 schema 直接报错。
+    必须在任何 webapp 导入/连接之前建好，否则 pgkit 的 `connect_args` 里那条
+    `-c search_path=...` 会指向一个不存在的 schema 直接报错。
     """
     with _admin_conn() as raw:
         with raw.cursor() as cur:

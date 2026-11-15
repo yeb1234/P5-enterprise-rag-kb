@@ -25,7 +25,8 @@ RUN pip install --no-cache-dir -i ${PIP_INDEX_URL} \
       "python-multipart>=0.0.9" \
       "pypdf>=4.0" \
       "Pillow>=10.0" \
-      "psycopg[binary]>=3.1"
+      "psycopg[binary]>=3.1" \
+      "SQLAlchemy>=2.0,<2.1"
 
 # 中立基础设施模块：webapp/ 与 cache/ 共用同一套 PG 连接与占位符翻译
 COPY pgkit.py ./pgkit.py
