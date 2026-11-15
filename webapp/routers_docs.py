@@ -39,6 +39,12 @@ def upload(file: UploadFile = File(...), user: dict = Depends(get_current_user))
         conn.close()
     # 进入繁忙调度（进程内信号量即 Celery+Redis 的演示替身）
     queue.enqueue(doc_id, file.filename)
+    # 数据版本递增：旧检索缓存 key 含旧 data_version，自然失效（懒失效）
+    try:
+        from webapp import recovery
+        recovery.bump_data_version("document_upload")
+    except Exception:
+        pass
     db.log_action(user["username"], user["role"], "upload", file.filename,
                   f"size={size}B, 进入分析队列")
     return get_doc(doc_id)
@@ -97,11 +103,20 @@ def delete_doc(doc_id: str, user: dict = Depends(get_current_user)):
             raise HTTPException(status_code=404, detail="文档不存在")
         if user["role"] != "admin" and row["owner_id"] != user["id"]:
             raise HTTPException(status_code=403, detail="无权删除该文档")
+        # 先清向量缓存再删分块，避免留下 chunk_id 已不存在的幽灵向量
+        conn.execute(
+            "DELETE FROM chunk_embeddings WHERE chunk_id IN "
+            "(SELECT id FROM chunks WHERE doc_id=?)", (doc_id,))
         conn.execute("DELETE FROM chunks WHERE doc_id=?", (doc_id,))
         conn.execute("DELETE FROM documents WHERE id=?", (doc_id,))
         conn.commit()
     finally:
         conn.close()
+    try:
+        from webapp import recovery
+        recovery.bump_data_version("document_delete")
+    except Exception:
+        pass
     # 清理磁盘文件（软删的真实落地）
     for p in rag.UPLOAD_DIR.glob(f"{doc_id}_*"):
         try:
@@ -113,8 +128,19 @@ def delete_doc(doc_id: str, user: dict = Depends(get_current_user)):
 
 
 @router.get("/system/busy")
-def system_busy():
-    return queue.get_busy_state()
+def system_busy(user: dict = Depends(get_current_user)):
+    """队列实时状态。
+
+    安全修复：此前该端点**无鉴权**且直接返回 filename，未登录即可探测正在处理的
+    文档名。现在必须登录；普通用户只拿计数与提示，文件名明细仅 admin 可见。
+    """
+    state = queue.get_busy_state()
+    if user["role"] != "admin":
+        state["active"] = []
+        state["queued"] = []
+        state["redacted"] = True
+        state["note"] = "普通用户只看计数；文件名与队列明细仅 admin 可见"
+    return state
 
 
 @router.get("/eval-tasks")

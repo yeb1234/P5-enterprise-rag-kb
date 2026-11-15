@@ -14,6 +14,7 @@ import time
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
+from guardrails import RULE_VERSION, default as guard_default
 from webapp import db, rag, security
 from webapp.deps import get_current_user
 from webapp.schemas import ChatIn
@@ -41,6 +42,9 @@ def _source_dict(h: dict) -> dict:
         "retrieval_mode": h.get("retrieval_mode"),
         "rerank": h.get("rerank"),
         "text": h.get("text"),
+        # 新鲜度治理开启时带上（关闭时为 None），供来源卡片与 meta 事件展示
+        "freshness": h.get("freshness"),
+        "effective_score": h.get("effective_score"),
     }
 
 
@@ -56,13 +60,63 @@ def _row_to_source(r) -> dict:
 async def chat_stream(
     body: ChatIn, request: Request, user: dict = Depends(get_current_user)
 ):
+    # 配额隔离：进模型前先查预算（用户级优先，回退全局）。
+    # policy=block 且本人已超额 → 结构化拒绝，绝不在超支情况下静默继续消耗额度；
+    # 用户 A 超支不影响用户 B（各自按 usage_events.user_id 聚合）。
+    from webapp import observability as obs
+
+    budget = obs.check_budget(actor=user["username"], role=user["role"],
+                              user_id=user["id"])
+    if not budget["allowed"]:
+        # 结构化拒绝 + 审计留痕：不在超支时静默继续消耗额度。
+        # 流式端点用 SSE **首个 error 事件**告知（前端本就按 event 解析，比裸 JSON 更契合），
+        # 同时写审计台账，便于事后追责与成本核对。
+        tid = security.new_id()[:16]
+        db.log_action(user["username"], user["role"], "budget_block", f"chat/{tid}",
+                      f"scope={budget['scope']} spend={budget['spend_cny']} "
+                      f"limit={budget['limit_cny']} policy={budget['policy']}")
+        blocked = {
+            "ok": False,
+            "reason": "budget_exceeded",
+            "trace_id": tid,
+            "budget": {
+                "scope": budget["scope"],
+                "overridden": budget["overridden"],
+                "spend_cny": budget["spend_cny"],
+                "limit_cny": budget["limit_cny"],
+                "remaining_cny": budget["remaining_cny"],
+                "policy": budget["policy"],
+            },
+        }
+
+        async def _blocked_gen():
+            yield _sse("error", blocked)
+
+        return StreamingResponse(
+            _blocked_gen(),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no",
+                     "Connection": "keep-alive"},
+        )
     conv_id = body.conversation_id or security.new_id()
+    g = guard_default()
+    # 检索必须用原文：脱敏后的问题会破坏词法召回，顺序是「先检索、后脱敏」。
     retrieved = rag.retrieve(body.question)
     degraded = len(retrieved) == 0
     degrade_reason = "retrieval_empty" if degraded else None
     state = {"degraded": degraded, "degrade_reason": degrade_reason}
-    # 把检索命中的来源整形成可序列化负载，随 meta/done 下发，并在流结束落库（溯源真值）
-    sources = [_source_dict(h) for h in retrieved]
+
+    # 进模型前出口（GATE_CONTEXT）：问题与检索片段在送进 LLM / 落库之前统一脱敏。
+    q_result = g.context(body.question or "")
+    safe_question = q_result.text
+    db.record_safety_event(q_result, f"chat:{conv_id[:8]}")
+    sources_raw = [_source_dict(h) for h in retrieved]
+    sources, src_report = g.sources(sources_raw)
+    for r in src_report.results:
+        db.record_safety_event(r, f"chat:{conv_id[:8]}")
+    # sources 的字段与 _source_dict 完全同构，直接作为送进模型的上下文，
+    # 保证「来源卡片 / chat_sources / 模型输入」读到的是同一份脱敏文本。
+    safe_hits = sources
 
     async def gen():
         yield _sse(
@@ -78,18 +132,23 @@ async def chat_stream(
             },
         )
         full: list[str] = []
+        # 输出前出口（GATE_OUTPUT）：逐 token 过流式闸，跨 chunk 的标识符整串扣住。
+        # 刻意保持「一个原始 token 对应一个 SSE 包」、index 仍用原始索引，
+        # 否则断线续传 resume_from 的连续性契约会被打乱；被扣住的尾部由 done.tail 补齐。
+        sr = g.stream()
         alive = True
-        for i, item in enumerate(rag.stream_answer(body.question, retrieved, body.resume_from, state)):
+        for i, item in enumerate(rag.stream_answer(safe_question, safe_hits, body.resume_from, state)):
             if await request.is_disconnected():
                 alive = False
                 break
-            full.append(item["token"])
+            safe_token = sr.push(item["token"])
+            full.append(safe_token)
             yield (
                 "data: "
                 + json.dumps(
                     {
                         "index": item["index"],
-                        "token": item["token"],
+                        "token": safe_token,
                         "degraded": item["degraded"],
                         "degrade_reason": item["degrade_reason"],
                     },
@@ -99,6 +158,13 @@ async def chat_stream(
             )
             if i % 40 == 0:
                 yield ": ping\n\n"  # SSE 保活心跳
+        tail = sr.flush()
+        full.append(tail)
+        answer = "".join(full)
+        if sr.by_kind:
+            db.record_safety_counts("output", sr.by_kind, f"chat:{conv_id[:8]}",
+                                    blocked=sr.blocked, action="mask",
+                                    rule_version=RULE_VERSION)
         if alive:
             # 流式过程中可能触发 model_error 降级，以 state 的最终值为准
             final_degraded = state["degraded"]
@@ -107,18 +173,34 @@ async def chat_stream(
                 "done",
                 {
                     "conversation_id": conv_id,
-                    "answer": "".join(full),
+                    "answer": answer,
+                    "tail": tail,
                     "degraded": final_degraded,
                     "degrade_reason": final_reason,
                     "retrieved": len(retrieved),
                     "sources": sources,
+                    "safety": sr.summary(),
                 },
             )
             # 流正常收尾才落库；断线续传也会走到这里，靠 conv_id 去重避免重复写
-            _persist(conv_id, user["id"], body.question, "".join(full), final_degraded, sources)
+            _persist(conv_id, user["id"], safe_question, answer, final_degraded, sources)
             db.log_action(user["username"], user["role"], "chat", conv_id[:8],
                           f"retrieved={len(retrieved)}, sources={len(sources)}, "
                           f"degraded={final_degraded}, reason={final_reason}")
+            # 旁路记录 token 用量：估算口径明确标注，任何异常都不影响本次问答
+            try:
+                from webapp import observability as obs
+                cfg = obs.get_config()["config"]
+                prompt_text = safe_question + "\n" + "\n".join(
+                    str(s.get("text") or "") for s in sources)
+                obs.record_usage(
+                    project=cfg.get("project", "default"),
+                    department_id=cfg.get("department", "default"),
+                    user_id=user["id"], call_type="chat", model=rag.get_model_label(),
+                    prompt_text=prompt_text, completion_text=answer,
+                    estimated=True, detail=f"conv={conv_id[:8]} degraded={final_degraded}")
+            except Exception:
+                pass
 
     return StreamingResponse(
         gen(),
@@ -146,13 +228,13 @@ def _persist(conv_id: str, user_id: str, question: str, answer: str, degraded: b
         conn.execute(
             "INSERT INTO chat_logs(id,conversation_id,user_id,role,content,degraded,created_at)"
             " VALUES (?,?,?,?,?,?,?)",
-            (security.new_id(), conv_id, user_id, "user", question, 0, now),
+            (security.new_id(), conv_id, user_id, "user", question, False, now),
         )
         assistant_id = security.new_id()
         conn.execute(
             "INSERT INTO chat_logs(id,conversation_id,user_id,role,content,degraded,created_at)"
             " VALUES (?,?,?,?,?,?,?)",
-            (assistant_id, conv_id, user_id, "assistant", answer, 1 if degraded else 0, now),
+            (assistant_id, conv_id, user_id, "assistant", answer, bool(degraded), now),
         )
         # 溯源落库：把本次回答引用的分块写成 chat_sources，关联助手消息 id
         for i, s in enumerate(sources or []):

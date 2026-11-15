@@ -1,0 +1,59 @@
+# 两个演示页面一起跑：完整功能首页（8765） + 解析工作台（8767）。
+#
+#   docker compose -f docker-compose.showcase.yml up -d --build
+#   首页      http://127.0.0.1:8765   完整功能（登录 / 文档 / 问答 / 评测 / badcase / 安全）
+#   解析工作台 http://127.0.0.1:8767   左侧分析 / 右侧入库 JSON / 参数可调 / LLM 路由快照
+#
+# 说明：
+# - 与项目根 docker-compose.yml 的 11 服务主干**互不影响**，这是独立的最小演示单元。
+# - 只绑 127.0.0.1，不对外暴露；上公网需自行改绑定并加反代与鉴权。
+# - 密钥不写入本文件；如需真实模型，用 `-e` 或 `.env` 注入到对应服务。
+name: kb-showcase-demo
+
+services:
+  webapp:
+    build:
+      context: .
+      dockerfile: webapp/Dockerfile
+      args:
+        BASE_IMAGE: ${BASE_IMAGE:-docker.m.daocloud.io/library/python:3.11-slim}
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}
+    image: kb-webapp:dev
+    container_name: kb-webapp
+    ports:
+      - "127.0.0.1:8765:8765"
+    environment:
+      WEBAPP_LLM_PROVIDER: offline
+      WEBAPP_EMBEDDING_PROVIDER: offline
+      WEBAPP_RERANK_PROVIDER: off
+      PARSING_OFFLINE: "1"
+      # 前端用 location.hostname + 8767 回退，这里仅作服务端可见的说明性配置
+      WEBAPP_SHOWCASE_URL: http://127.0.0.1:8767
+      # SQLite 已移除：必须连真 PostgreSQL（kb-infra 里的 kb-pg）
+      WEBAPP_DATABASE_URL: ${WEBAPP_DATABASE_URL:-postgresql://kb:kb_demo_only@kb-pg:5432/kb}
+    volumes:
+      - kb-webapp-data:/app/.data
+    networks:
+      - default
+      - kb-infra
+    restart: unless-stopped
+
+  showcase:
+    build:
+      context: .
+      dockerfile: showcase/Dockerfile
+      args:
+        BASE_IMAGE: ${BASE_IMAGE:-docker.m.daocloud.io/library/python:3.11-slim}
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}
+    image: kb-showcase:dev
+    container_name: kb-showcase
+    ports:
+      - "127.0.0.1:8767:8767"
+    environment:
+      PARSING_OFFLINE: "1"
+      # A1 /api/health 的 links.main_site 会下发给前端；留空则回退到同主机名 + 8765
+      SHOWCASE_MAIN_SITE_URL: http://127.0.0.1:8765
+    restart: unless-stopped
+
+volumes:
+  kb-webapp-data:

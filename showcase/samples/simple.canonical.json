@@ -1,0 +1,84 @@
+{
+  "budget": {
+    "ratio": 0.1,
+    "remaining": 1,
+    "slots": 1,
+    "total_pages": 1,
+    "used": 0
+  },
+  "doc_id": "DEMO-SIMPLE",
+  "filename": "simple.pdf",
+  "note": "P1 收费 OCR 未接通，契约字段保持 __TBC__；P2 已接通 Discovery 网关的视觉能力（deepseek-v4.1-flash-1017，双图对照实测通过）。auto 策略仅在质量门禁命中且预算闸门允许时才调用 P2；设置 PARSING_OFFLINE=1 可全程零外部请求",
+  "page_count": 1,
+  "producer": {
+    "non_replay_fields": [
+      "latency_ms",
+      "created_at",
+      "run_id",
+      "generated_at"
+    ],
+    "note": "本产物由真实解析链路生成；复杂档为离线降级回放，不是实时视觉识别",
+    "offline": true,
+    "parser": "parsing.ParseRouter",
+    "script": "showcase/samples/make_samples.py"
+  },
+  "results": [
+    {
+      "blocks": [
+        {
+          "block_type": "paragraph",
+          "cells": null,
+          "confidence": 1.0,
+          "facts": null,
+          "page_no": 1,
+          "section_path": "",
+          "text": "Product Manual  /  Chapter 1 Setup\nPress the power button for 3 seconds to start the device.\nOpen Settings - Network, select Wi-Fi and finish pairing.\nTable: item=A value=42 ; item=B value=57\nChapter 2 FAQ: If the answer is empty, check the uploaded documents.\nContact: support@example.com  |  Staff ID: EMP-20260118\nSection 1.1 Indicator states: blue blinking means pairing mode is active.\nSection 1.2 Indicator states: solid green means the network is connected.\nSection 1.3 To reset the device, hold the button for at least 10 seconds.\nSection 1.4 After reset, all local settings return to factory defaults.\nSection 1.5 The default administrator account must be changed on first use.\nSection 1.6 Firmware updates are delivered over the air once per quarter.\nSection 1.7 Do not power off the device while a firmware update is running.\nSection 2.1 Upload a document from the Documents page before asking questions.\nSection 2.2 The parser extracts text, tables and page structure into chunks.\nSection 2.3 Each answer carries citations back to the original chunk ids.\nSection 2.4 If retrieval is empty, the assistant returns an honest fallback.\nSection 2.5 Badcase records can be exported by an administrator for review.\nSection 3.1 Sensitive identifiers are redacted before indexing and logging.\nSection 3.2 The four redaction gates share one rule set and one version tag.\nSection 3.3 Cache keys include authorization, data and policy version fields.\nSection 3.4 Restart recovery rebuilds volatile state from the truth layer.\nSection 4.1 This manual is a synthetic sample for offline demonstration only.\nSection 4.2 No real personal data appears in this generated document."
+        }
+      ],
+      "degraded": null,
+      "level": "local",
+      "signals": {
+        "confidence": 1.0,
+        "image_ratio": 0.0,
+        "notes": [
+          "PDF 文本层（pypdf 逐页提取）"
+        ],
+        "ocr_needed": false,
+        "table_cells": 0,
+        "table_complete": true,
+        "text_chars": 1673,
+        "text_density": 0.5577
+      },
+      "source": "local:rules+pypdf",
+      "text": "Product Manual  /  Chapter 1 Setup\nPress the power button for 3 seconds to start the device.\nOpen Settings - Network, select Wi-Fi and finish pairing.\nTable: item=A value=42 ; item=B value=57\nChapter 2 FAQ: If the answer is empty, check the uploaded documents.\nContact: support@example.com  |  Staff ID: EMP-20260118\nSection 1.1 Indicator states: blue blinking means pairing mode is active.\nSection 1.2 Indicator states: solid green means the network is connected.\nSection 1.3 To reset the device, hold the button for at least 10 seconds.\nSection 1.4 After reset, all local settings return to factory defaults.\nSection 1.5 The default administrator account must be changed on first use.\nSection 1.6 Firmware updates are delivered over the air once per quarter.\nSection 1.7 Do not power off the device while a firmware update is running.\nSection 2.1 Upload a document from the Documents page before asking questions.\nSection 2.2 The parser extracts text, tables and page structure into chunks.\nSection 2.3 Each answer carries citations back to the original chunk ids.\nSection 2.4 If retrieval is empty, the assistant returns an honest fallback.\nSection 2.5 Badcase records can be exported by an administrator for review.\nSection 3.1 Sensitive identifiers are redacted before indexing and logging.\nSection 3.2 The four redaction gates share one rule set and one version tag.\nSection 3.3 Cache keys include authorization, data and policy version fields.\nSection 3.4 Restart recovery rebuilds volatile state from the truth layer.\nSection 4.1 This manual is a synthetic sample for offline demonstration only.\nSection 4.2 No real personal data appears in this generated document.",
+      "upstream": {}
+    }
+  ],
+  "strategy": "auto",
+  "summary": {
+    "budget_blocked": 0,
+    "by_level": {
+      "local": 1
+    },
+    "degraded": 0,
+    "total_latency_ms": 56,
+    "upgrades": 0
+  },
+  "traces": [
+    {
+      "budget_blocked": false,
+      "confidence": 1.0,
+      "degraded": null,
+      "doc_id": "DEMO-SIMPLE",
+      "filename": "simple.pdf",
+      "level": "local",
+      "notes": [
+        "PDF 文本层（pypdf 逐页提取）"
+      ],
+      "page_no": 1,
+      "reason": "local_ok",
+      "strategy": "auto",
+      "upgraded_from": null
+    }
+  ]
+}

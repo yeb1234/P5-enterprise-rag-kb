@@ -74,3 +74,31 @@ def verify_token(token: str) -> dict | None:
 
 def new_id() -> str:
     return uuid.uuid4().hex
+
+
+def _strip_brackets(addr: str) -> str:
+    """把 "[2001:db8::1]" / "[2001:db8::1]:443" 规范成 "2001:db8::1"。"""
+    if addr.startswith("["):
+        end = addr.find("]")
+        if end != -1:
+            return addr[1:end].strip()
+    return addr
+
+
+def client_ip(host: str, forwarded_for: str | None, trusted: set[str]) -> str:
+    """解析可信客户端 IP（纯函数，可单测；用于按 IP 限流，不可被伪造头绕过）。
+
+    安全要点：
+    - 只有直连对端 ``host`` 属于 ``trusted``（本机反代 / 云负载均衡回源地址）时，
+      才采信 ``X-Forwarded-For`` 的**第一个**地址（最左 = 真实客户端）；
+    - 否则一律用直连 ``host``，客户端自带伪造 XFF 无法换一个限流 key；
+    - 多级代理取最左；空白 / 缺失回退 host；``[IPv6]`` / ``[IPv6]:port`` 剥成纯 IPv6；
+    - host 缺失时返回 "unknown"，避免空串成为共享桶。
+    """
+    peer = (host or "").strip()
+    if not peer or peer not in trusted or not forwarded_for:
+        return peer or "unknown"
+    first = forwarded_for.split(",", 1)[0].strip()
+    if not first:
+        return peer
+    return _strip_brackets(first) or peer

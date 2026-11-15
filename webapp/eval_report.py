@@ -4,8 +4,9 @@
 前置：.env 已配置 DISCOVERY_API_KEY / RERANK_API_KEY（硅基流动，嵌入与重排共用）。
 
 设计取舍（面试可讲）：
-- **隔离临时库**：进程启动前设置 WEBAPP_DB_PATH，避免污染演示库；app_settings 为空，
-  因此生效配置直接来自 .env 的 DEFAULTS——测的就是「开箱即用的目标配置」，而非手工改过的库表。
+- **隔离独立 schema**：进程启动前设置 WEBAPP_DB_SCHEMA 到一个临时 schema，避免污染演示库；
+  app_settings 为空，因此生效配置直接来自 .env 的 DEFAULTS——测的就是「开箱即用的目标配置」，
+  而非手工改过的库表。SQLite 已移除，隔离方式从「临时文件」换成「schema」。
 - **走真实外部 API**：本脚本不 mock 任何模型调用。若某个外部服务不可用，按项目的降级口径
   如实记录 degraded / unavailable，而不是跳过或伪造数字。
 - **TestClient 走真实 HTTP 语义**：路由、鉴权、SSE、落库全链路与浏览器一致，只是不占端口。
@@ -19,7 +20,6 @@ from __future__ import annotations
 import json
 import os
 import sys
-import tempfile
 import time
 from pathlib import Path
 
@@ -31,11 +31,14 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path = [p for p in sys.path if not p or Path(p).resolve() != _SCRIPT_DIR]
 sys.path.insert(0, str(ROOT))
 
-# 必须在 import webapp 之前设置：db.DB_PATH 在模块加载时确定
-_TMP_DB = Path(tempfile.gettempdir()) / f"kb_eval_{os.getpid()}.db"
-os.environ["WEBAPP_DB_PATH"] = str(_TMP_DB)
+# 必须在任何连接建立之前设置：pgkit 在 connect() 时按 WEBAPP_DB_SCHEMA 切 search_path。
+# 用独立 schema 而不是独立库，省掉建库/授权，隔离强度一样（public 完全看不见）。
+_TMP_SCHEMA = f"kb_eval_{os.getpid()}"
+os.environ["WEBAPP_DB_SCHEMA"] = _TMP_SCHEMA
 
 from fastapi.testclient import TestClient  # noqa: E402
+
+import pgkit
 
 from webapp import db, providers, rag, settings  # noqa: E402
 from webapp.envfile import load_env  # noqa: E402
@@ -304,7 +307,26 @@ def collect() -> dict:
     return report
 
 
+def _ensure_schema() -> None:
+    """建临时 schema（幂等）。必须先建，pgkit 才能 SET search_path 过去。"""
+    import psycopg
+
+    with psycopg.connect(pgkit.dsn(), autocommit=True, connect_timeout=5) as raw:
+        with raw.cursor() as cur:
+            cur.execute(f'DROP SCHEMA IF EXISTS "{_TMP_SCHEMA}" CASCADE')
+            cur.execute(f'CREATE SCHEMA "{_TMP_SCHEMA}"')
+
+
+def _drop_schema() -> None:
+    import psycopg
+
+    with psycopg.connect(pgkit.dsn(), autocommit=True, connect_timeout=5) as raw:
+        with raw.cursor() as cur:
+            cur.execute(f'DROP SCHEMA IF EXISTS "{_TMP_SCHEMA}" CASCADE')
+
+
 def main() -> None:
+    _ensure_schema()
     db.init_db()
     seed_corpus()
     report = collect()
@@ -312,10 +334,10 @@ def main() -> None:
     path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps(report, ensure_ascii=False, indent=2))
     print(f"\n[report] {path}")
-    # 清理隔离库
+    # 清理隔离 schema（失败不影响报告本身）
     try:
-        _TMP_DB.unlink(missing_ok=True)
-    except OSError:
+        _drop_schema()
+    except Exception:
         pass
 
 

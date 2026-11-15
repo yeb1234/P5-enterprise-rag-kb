@@ -1,0 +1,569 @@
+{
+  "groups": [
+    {
+      "model": "deepseek-v4.1-flash-1017",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "grounded_extraction",
+      "dimension": "answer_accuracy",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "deepseek-v4.1-flash-1017",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "grounded_extraction",
+      "dimension": "answer_economy",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "deepseek-v4.1-flash-1017",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "grounded_extraction",
+      "dimension": "faithfulness",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "deepseek-v4.1-flash-1017",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "grounded_extraction",
+      "dimension": "format_compliance",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "deepseek-v4.1-flash-1017",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "grounded_extraction",
+      "dimension": "rejection_correctness",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "deepseek-v4.1-flash-1017",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "information_integration",
+      "dimension": "answer_accuracy",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "deepseek-v4.1-flash-1017",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "information_integration",
+      "dimension": "answer_economy",
+      "mean": 0.0,
+      "n": 3
+    },
+    {
+      "model": "deepseek-v4.1-flash-1017",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "information_integration",
+      "dimension": "faithfulness",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "deepseek-v4.1-flash-1017",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "information_integration",
+      "dimension": "format_compliance",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "deepseek-v4.1-flash-1017",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "information_integration",
+      "dimension": "rejection_correctness",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "deepseek-v4.1-flash-1017",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "negative_rejection",
+      "dimension": "answer_economy",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "deepseek-v4.1-flash-1017",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "negative_rejection",
+      "dimension": "faithfulness",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "deepseek-v4.1-flash-1017",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "negative_rejection",
+      "dimension": "format_compliance",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "deepseek-v4.1-flash-1017",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "negative_rejection",
+      "dimension": "rejection_correctness",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "deepseek-v4.1-flash-1017",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "noise_robustness",
+      "dimension": "answer_accuracy",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "deepseek-v4.1-flash-1017",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "noise_robustness",
+      "dimension": "answer_economy",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "deepseek-v4.1-flash-1017",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "noise_robustness",
+      "dimension": "faithfulness",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "deepseek-v4.1-flash-1017",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "noise_robustness",
+      "dimension": "format_compliance",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "deepseek-v4.1-flash-1017",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "noise_robustness",
+      "dimension": "rejection_correctness",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "kimi-k2.6",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "grounded_extraction",
+      "dimension": "answer_accuracy",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "kimi-k2.6",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "grounded_extraction",
+      "dimension": "answer_economy",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "kimi-k2.6",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "grounded_extraction",
+      "dimension": "faithfulness",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "kimi-k2.6",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "grounded_extraction",
+      "dimension": "format_compliance",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "kimi-k2.6",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "grounded_extraction",
+      "dimension": "rejection_correctness",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "kimi-k2.6",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "information_integration",
+      "dimension": "answer_accuracy",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "kimi-k2.6",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "information_integration",
+      "dimension": "answer_economy",
+      "mean": 0.0,
+      "n": 3
+    },
+    {
+      "model": "kimi-k2.6",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "information_integration",
+      "dimension": "faithfulness",
+      "mean": 0.6667,
+      "n": 3
+    },
+    {
+      "model": "kimi-k2.6",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "information_integration",
+      "dimension": "format_compliance",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "kimi-k2.6",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "information_integration",
+      "dimension": "rejection_correctness",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "kimi-k2.6",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "negative_rejection",
+      "dimension": "answer_economy",
+      "mean": 0.3333,
+      "n": 3
+    },
+    {
+      "model": "kimi-k2.6",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "negative_rejection",
+      "dimension": "faithfulness",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "kimi-k2.6",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "negative_rejection",
+      "dimension": "format_compliance",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "kimi-k2.6",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "negative_rejection",
+      "dimension": "rejection_correctness",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "kimi-k2.6",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "noise_robustness",
+      "dimension": "answer_accuracy",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "kimi-k2.6",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "noise_robustness",
+      "dimension": "answer_economy",
+      "mean": 0.6667,
+      "n": 3
+    },
+    {
+      "model": "kimi-k2.6",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "noise_robustness",
+      "dimension": "faithfulness",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "kimi-k2.6",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "noise_robustness",
+      "dimension": "format_compliance",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "kimi-k2.6",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "noise_robustness",
+      "dimension": "rejection_correctness",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "minimax-m3",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "grounded_extraction",
+      "dimension": "answer_accuracy",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "minimax-m3",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "grounded_extraction",
+      "dimension": "answer_economy",
+      "mean": 0.6667,
+      "n": 3
+    },
+    {
+      "model": "minimax-m3",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "grounded_extraction",
+      "dimension": "faithfulness",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "minimax-m3",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "grounded_extraction",
+      "dimension": "format_compliance",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "minimax-m3",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "grounded_extraction",
+      "dimension": "rejection_correctness",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "minimax-m3",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "information_integration",
+      "dimension": "answer_accuracy",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "minimax-m3",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "information_integration",
+      "dimension": "answer_economy",
+      "mean": 0.0,
+      "n": 3
+    },
+    {
+      "model": "minimax-m3",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "information_integration",
+      "dimension": "faithfulness",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "minimax-m3",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "information_integration",
+      "dimension": "format_compliance",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "minimax-m3",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "information_integration",
+      "dimension": "rejection_correctness",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "minimax-m3",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "negative_rejection",
+      "dimension": "answer_economy",
+      "mean": 0.0,
+      "n": 3
+    },
+    {
+      "model": "minimax-m3",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "negative_rejection",
+      "dimension": "faithfulness",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "minimax-m3",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "negative_rejection",
+      "dimension": "format_compliance",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "minimax-m3",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "negative_rejection",
+      "dimension": "rejection_correctness",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "minimax-m3",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "noise_robustness",
+      "dimension": "answer_accuracy",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "minimax-m3",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "noise_robustness",
+      "dimension": "answer_economy",
+      "mean": 0.3333,
+      "n": 3
+    },
+    {
+      "model": "minimax-m3",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "noise_robustness",
+      "dimension": "faithfulness",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "minimax-m3",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "noise_robustness",
+      "dimension": "format_compliance",
+      "mean": 1.0,
+      "n": 3
+    },
+    {
+      "model": "minimax-m3",
+      "prompt_version": "v1_baseline",
+      "params_id": "A",
+      "task_category": "noise_robustness",
+      "dimension": "rejection_correctness",
+      "mean": 1.0,
+      "n": 3
+    }
+  ],
+  "by_model": {
+    "deepseek-v4.1-flash-1017": {
+      "per_category": {
+        "grounded_extraction": 1.0,
+        "information_integration": 1.0,
+        "negative_rejection": 1.0,
+        "noise_robustness": 1.0
+      },
+      "overall": 1.0,
+      "avg_latency_ms": 11404.7
+    },
+    "kimi-k2.6": {
+      "per_category": {
+        "grounded_extraction": 1.0,
+        "information_integration": 1.0,
+        "negative_rejection": 1.0,
+        "noise_robustness": 1.0
+      },
+      "overall": 1.0,
+      "avg_latency_ms": 4144.2
+    },
+    "minimax-m3": {
+      "per_category": {
+        "grounded_extraction": 1.0,
+        "information_integration": 1.0,
+        "negative_rejection": 1.0,
+        "noise_robustness": 1.0
+      },
+      "overall": 1.0,
+      "avg_latency_ms": 2325.4
+    }
+  },
+  "scored_records": 36,
+  "skipped_records": 0,
+  "run_id": "RUN-60d21360c41e",
+  "label": "v1-baseline (rescored) (rescored)",
+  "mode": "live",
+  "comparable": true,
+  "git": {
+    "branch": "eval/v1-baseline",
+    "commit": "b66d116",
+    "commit_full": "b66d116b0a101dd420e4c6332dd9b77eb8785a9a",
+    "dirty": true,
+    "captured_at": "2026-11-12T11:34:44Z"
+  },
+  "n_records": 36,
+  "status_counts": {
+    "ok": 36
+  },
+  "rescored_from": "RUN-c2b5dcf2bd41",
+  "scoring_revision": "METRICS@1.2.0",
+  "records_changed": 36
+}

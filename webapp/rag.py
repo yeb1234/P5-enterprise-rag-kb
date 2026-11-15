@@ -77,6 +77,20 @@ def analyze_document(doc_id: str) -> None:
                 "演示仅支持 txt/md/csv/json/py 等纯文本提取，该格式暂未解析",
             )
             return
+        # 入库前出口（GATE_INGEST）：分块之前一次性脱敏。晚一步做就晚了——
+        # chunks 是检索、向量缓存、来源卡片、chat_sources 的共同真值源，
+        # 只要原文进了 chunks，后面每一层都会把它带出去。
+        try:
+            from guardrails import default as guard_default
+            g = guard_default()
+            ingest_result = g.ingest(text)
+            text = ingest_result.text
+            if ingest_result.hit_count:
+                db.record_safety_event(ingest_result, f"upload:{doc_id[:8]}")
+        except Exception:
+            # fail-closed：脱敏不可用时宁可整份不入库，也不能把原文写进知识库
+            _set_error(conn, doc_id, "内容安全脱敏不可用，已阻断本次入库（fail-closed）")
+            return
         chunks = chunk_text(text)
         conn.execute("DELETE FROM chunks WHERE doc_id=?", (doc_id,))
         for idx, c in enumerate(chunks):
@@ -178,6 +192,50 @@ def _semantic_rank(question: str, candidates: list[dict], cfg: dict) -> list[dic
     return candidates
 
 
+FRESHNESS_NOTE_OFF = {"freshness": "off"}
+
+
+def _freshness_enabled() -> bool:
+    return os.environ.get("WEBAPP_FRESHNESS_ENABLED", "0").strip().lower() in (
+        "1", "true", "yes", "on")
+
+
+def _apply_freshness(hits: list[dict]) -> tuple[list[dict], dict]:
+    """可选叠加新鲜度重排。默认关闭，避免打断既有 33 项端到端自测。
+
+    诚实边界：这里只在 `top_k` 之内重排，不做召回前硬过滤；
+    生产应在 SQL / Milvus expr 阶段先排除「未来生效」与「已过期」文档，
+    否则过期内容仍会占用候选名额。治理层任何异常都不得打断检索主链路。
+    """
+    if not _freshness_enabled():
+        return hits, FRESHNESS_NOTE_OFF
+    try:
+        from knowledge import FreshnessPolicy, meta_from_row, rerank
+        conn = db.get_conn()
+        try:
+            rows = conn.execute("SELECT * FROM documents").fetchall()
+        finally:
+            conn.close()
+        metas = {}
+        for r in rows:
+            d = dict(r)
+            d["doc_id"] = r["id"]
+            d["scope"] = d.get("scope_json")
+            metas[r["id"]] = meta_from_row(d)
+        p = FreshnessPolicy(
+            half_life_days=float(os.environ.get("WEBAPP_FRESHNESS_HALF_LIFE_DAYS", 90)),
+            expired_action=os.environ.get("WEBAPP_FRESHNESS_EXPIRED_ACTION", "demote"),
+        )
+        ordered, results = rerank(hits, metas, policy=p)
+        return ordered, {
+            "freshness": "on", "policy": p.as_dict(),
+            "excluded": [r.doc_id for r in results if r.excluded],
+            "note": "仅在 top_k 内重排；生产应在召回前做硬过滤",
+        }
+    except Exception as e:
+        return hits, {"freshness": f"unavailable:{type(e).__name__}"}
+
+
 def retrieve(question: str, top_k: int = TOP_K, with_meta: bool = False):
     """检索：**词法门禁（保证不相关不硬凑）→ 向量排序 → 可选 rerank**。
 
@@ -240,6 +298,7 @@ def retrieve(question: str, top_k: int = TOP_K, with_meta: bool = False):
                 h["score"] = round(h.get("_rerank", 0), 4)
             rerank_note = "applied:" + rp
 
+    hits, freshness_meta = _apply_freshness(hits)
     out = []
     for c in hits:
         out.append({
@@ -248,12 +307,15 @@ def retrieve(question: str, top_k: int = TOP_K, with_meta: bool = False):
             "chunk_id": c["chunk_id"], "doc_id": c["doc_id"], "idx": c["idx"],
             "snippet": (c["text"] or "").strip().replace("\n", " ")[:180],
             "retrieval_mode": mode, "rerank": rerank_note,
+            "freshness": c.get("freshness"),
+            "effective_score": c.get("effective_score"),
         })
     meta = {
         "retrieval_mode": mode,
         "fallback_reason": fallback_reason,
         "rerank": rerank_note,
         "embedding_model": emb["name"],
+        "freshness": freshness_meta,
     }
     return (out, meta) if with_meta else out
 
@@ -283,7 +345,7 @@ def search_debug(question: str, top_k: int = TOP_K) -> dict:
         "hits": hits,
         "degraded": degraded,
         "degrade_reason": "retrieval_empty" if degraded else None,
-        "permission_filter": "documents.status='ready'（演示切片单租户；生产为 tenant_id + ACL 在召回前过滤）",
+        "permission_filter": "documents.status='ready'（演示切片单库；生产为部门树 + decide() 在召回前过滤）",
         "rerank": meta["rerank"],
         "retrieval_mode": meta["retrieval_mode"],
         "fallback_reason": meta["fallback_reason"],

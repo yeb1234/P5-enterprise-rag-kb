@@ -34,6 +34,15 @@ class TestScoring(unittest.TestCase):
         self.assertEqual(scoring.score_sample(answer, "3 秒")["rejection_correctness"], 1.0)
         self.assertEqual(scoring.score_sample(answer, "资料不足，无法回答")["rejection_correctness"], 0.0)
 
+    def test_rejection_paraphrase_regression(self):
+        """v1 实测暴露的假阴性：正确拒答但不含任何单一标记词。"""
+        paraphrase = "您提供的资料内容与所问问题无关，这些资料均不涉及相关内容，因此我无法基于上述资料回答该问题。"
+        self.assertTrue(scoring.is_rejection(paraphrase))
+        abstain = {"key_facts": [], "forbidden_facts": [], "expected_behavior": "abstain"}
+        self.assertEqual(scoring.score_sample(abstain, paraphrase)["rejection_correctness"], 1.0)
+        # 正常结论中含「资料」但无否定词，不得误判为拒答
+        self.assertFalse(scoring.is_rejection("根据资料 [P01]，长按复位键 3 秒。"))
+
     def test_faithfulness_flags_noise_leak(self):
         s = {"key_facts": ["3 秒"], "forbidden_facts": ["24 个月", "延保"], "expected_behavior": "answer"}
         self.assertEqual(scoring.score_sample(s, "长按 3 秒；延保 24 个月")["faithfulness"], 0.0)
@@ -44,6 +53,12 @@ class TestScoring(unittest.TestCase):
         self.assertEqual(scoring.score_sample(s, "<mm:think>考虑一下</mm:think>3 秒")["format_compliance"], 0.0)
         self.assertEqual(scoring.score_sample(s, "")["format_compliance"], 0.0)
         self.assertEqual(scoring.score_sample(s, "3 秒")["format_compliance"], 1.0)
+
+    def test_economy_distinguishes_verbose_answer(self):
+        s = {"key_facts": ["3 秒"], "forbidden_facts": [], "expected_behavior": "answer"}
+        self.assertEqual(scoring.score_sample(s, "长按 3 秒。")["answer_economy"], 1.0)
+        self.assertEqual(scoring.score_sample(s, "根据资料：\n\n- **复位键**：3 秒\n- **频段**：2.4GHz")["answer_economy"], 0.0)
+        self.assertIn("answer_economy", scoring.SCORE_DIMS)
 
     def test_aggregate_groups_by_model_category(self):
         records = []

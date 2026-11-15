@@ -13,11 +13,29 @@ import time
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 
+from guardrails import default as guard_default, export_rows
 from webapp import db, security
 from webapp.deps import get_current_user, require_admin
 from webapp.schemas import BadcaseCreate, BadcaseUpdate
 
 router = APIRouter(prefix="/api/badcases", tags=["badcases"])
+
+# badcase 里最可能带用户输入（也最容易被导出）的字段
+_TEXT_FIELDS = ("question", "answer", "issue_desc", "source")
+
+
+def _safe_fields(d: dict, source: str) -> dict:
+    """写入 / 回显前统一过 audit 出口；只改字符串字段，None 保持原语义。"""
+    g = guard_default()
+    out = dict(d)
+    for k in _TEXT_FIELDS:
+        v = out.get(k)
+        if not isinstance(v, str) or not v:
+            continue
+        r = g.audit(v)
+        out[k] = r.text
+        db.record_safety_event(r, source)
+    return out
 
 
 def _now() -> str:
@@ -78,11 +96,17 @@ def create_badcase(body: BadcaseCreate, user: dict = Depends(get_current_user)):
             raise HTTPException(status_code=400, detail="关联的评估任务不存在")
         bid = security.new_id()
         now = _now()
+        # 采集即脱敏：badcase 是「会被 admin 查看并导出」的数据，库里就不该存明文
+        safe = _safe_fields(
+            {"question": body.question, "answer": body.answer,
+             "issue_desc": body.issue_desc, "source": body.source},
+            f"badcase:{bid[:8]}",
+        )
         conn.execute(
             "INSERT INTO badcases(id,eval_task_id,question,answer,verdict,issue_desc,source,status,created_by,created_at,updated_at)"
             " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-            (bid, body.eval_task_id, body.question, body.answer, body.verdict,
-             body.issue_desc, body.source, "pending", user["id"], now, now),
+            (bid, body.eval_task_id, safe["question"], safe["answer"], body.verdict,
+             safe["issue_desc"], safe["source"], "pending", user["id"], now, now),
         )
         conn.commit()
         row = conn.execute("SELECT * FROM badcases WHERE id=?", (bid,)).fetchone()
@@ -104,7 +128,8 @@ def list_badcases(
     limit: int = Query(200, le=2000),
     _: dict = Depends(require_admin),
 ):
-    return _query(
+    # 兼容升级前已落库的明文数据：回显前再过一次（已脱敏文本不会二次命中）
+    return [_safe_fields(r, "badcase:list") for r in _query(
         {
             "eval_task_id": eval_task_id,
             "status": status,
@@ -114,7 +139,7 @@ def list_badcases(
             "q": q,
         },
         limit=limit,
-    )
+    )]
 
 
 @router.patch("/{badcase_id}")
@@ -123,7 +148,9 @@ def update_badcase(badcase_id: str, body: BadcaseUpdate, _: dict = Depends(requi
     if body.verdict is not None:
         fields.append("verdict=?"); params.append(body.verdict)
     if body.issue_desc is not None:
-        fields.append("issue_desc=?"); params.append(body.issue_desc)
+        r = guard_default().audit(body.issue_desc)
+        db.record_safety_event(r, f"badcase:{badcase_id[:8]}")
+        fields.append("issue_desc=?"); params.append(r.text)
     if body.status is not None:
         fields.append("status=?"); params.append(body.status)
     if not fields:
@@ -155,7 +182,9 @@ def export_badcases(
     q: str | None = None,
     _: dict = Depends(require_admin),
 ):
-    rows = _query(
+    # 日志与导出前出口（GATE_AUDIT）：CSV / JSON 都走同一份规则，
+    # 不因格式不同而绕过。库里已是脱敏文本，这里是第二道兜底。
+    rows = export_rows(_query(
         {
             "eval_task_id": eval_task_id,
             "status": status,
@@ -164,7 +193,7 @@ def export_badcases(
             "end": end,
             "q": q,
         }
-    )
+    ), fields=_TEXT_FIELDS)
     db.log_action(_["username"], _["role"], "export", f"{format}",
                   f"按当前筛选导出 {len(rows)} 条")
     if format == "json":

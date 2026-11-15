@@ -66,7 +66,9 @@ def load_runs() -> list[dict]:
 def load_comparisons() -> list[dict]:
     out = []
     for p in sorted((ROOT / "iterations" / "comparisons").glob("*.json")):
-        out.append(json.loads(p.read_text(encoding="utf-8")))
+        c = json.loads(p.read_text(encoding="utf-8"))
+        c.setdefault("name", p.stem)
+        out.append(c)
     return out
 
 
@@ -76,7 +78,8 @@ def metric_table(runs: list[dict], final_run: dict | None) -> str:
     groups = final_run["summary"]["groups"]
     models = sorted({g["model"] for g in groups})
     cats = sorted({g["task_category"] for g in groups})
-    dims = ("answer_accuracy", "rejection_correctness", "faithfulness", "format_compliance")
+    dims = ("answer_accuracy", "rejection_correctness", "faithfulness",
+            "format_compliance", "answer_economy")
     idx = {(g["model"], g["task_category"], g["dimension"]): g["mean"] for g in groups}
     rows = []
     for cat in cats:
@@ -101,7 +104,13 @@ def main() -> int:
     probe_path = ROOT / "out" / "models_probe.json"
     probe = json.loads(probe_path.read_text(encoding="utf-8")) if probe_path.exists() else {}
     live_runs = [r for r in runs if r["summary"].get("comparable")]
-    final_arg = next((a.split("=", 1)[1] for a in sys.argv[1:] if a.startswith("--final-run=")), "")
+    argv = sys.argv[1:]
+    final_arg = ""
+    for i, a in enumerate(argv):
+        if a.startswith("--final-run="):
+            final_arg = a.split("=", 1)[1]
+        elif a == "--final-run" and i + 1 < len(argv):
+            final_arg = argv[i + 1]
     final = (next((r for r in live_runs if r["dir"] == final_arg), None)
              if final_arg else (live_runs[-1] if live_runs else None))
 
@@ -131,22 +140,24 @@ def main() -> int:
     # 前后对照
     cmp_rows = []
     for c in comparisons:
+        name = esc(c.get("name"))
         if c.get("kind") == "across_runs":
             d = c.get("mean_primary_delta")
             cls = "up" if (d or 0) > 0 else ("down" if (d or 0) < 0 else "flat")
             cmp_rows.append(
-                f"<tr><td>{esc(c.get('baseline_label'))}</td><td><code>{esc(c.get('baseline_run'))}</code></td>"
-                f"<td>{esc(c.get('candidate_label'))}</td><td><code>{esc(c.get('candidate_run'))}</code></td>"
+                f"<tr><td><code>{name}</code></td>"
+                f"<td><code>{esc(c.get('baseline_run'))}</code><br><span class='note'>{esc(c.get('baseline_label'))}</span></td>"
+                f"<td><code>{esc(c.get('candidate_run'))}</code><br><span class='note'>{esc(c.get('candidate_label'))}</span></td>"
                 f"<td class='num {cls}'>{'+' if (d or 0)>0 else ''}{esc(d)}</td>"
                 f"<td>{esc(c.get('candidate_git', {}).get('branch'))}</td></tr>")
         else:
             cmp_rows.append(
-                f"<tr><td>{esc(c.get('label'))}（组内）</td><td><code>{esc(c.get('run'))}</code></td>"
-                f"<td colspan=2>{esc(c.get('compared_by'))}: {esc(', '.join(c.get('variants', [])))}</td>"
+                f"<tr><td><code>{name}</code></td><td><code>{esc(c.get('run'))}</code></td>"
+                f"<td>{esc(c.get('compared_by'))}: {esc(', '.join(c.get('variants', [])))}</td>"
                 f"<td class='flat'>—</td><td>{esc(c.get('git', {}).get('branch'))}</td></tr>")
-    cmp_table = ("<table><thead><tr><th>基线轮次</th><th>基线 run</th><th>候选轮次</th><th>候选 run</th>"
-                 "<th>主指标均值变化</th><th>候选分支</th></tr></thead>"
-                 f"<tbody>{''.join(cmp_rows) or '<tr><td colspan=6>暂无对照</td></tr>'}</tbody></table>")
+    cmp_table = ("<table><thead><tr><th>对照名</th><th>基线 run / 轮次</th><th>候选 run / 轮次</th>"
+                 "<th>主指标均值变化</th><th>分支</th></tr></thead>"
+                 f"<tbody>{''.join(cmp_rows) or '<tr><td colspan=5>暂无对照</td></tr>'}</tbody></table>")
 
     # 模型差异
     probe_rows = []
@@ -191,11 +202,20 @@ def main() -> int:
         "<span class='badge warn'>非质量基线 · 不构成准确率承诺</span></div>",
         "<div class='grid'>",
         f"<div class='kpi'><b>{len(runs)}</b><span>评估 run（含离线）</span></div>",
-        f"<div class='kpi'><b>{ok_records}/{total_records}</b><span>live 有效记录 / 全部记录</span></div>",
+        f"<div class='kpi'><b>{ok_records}/{total_records}</b><span>live 有效记录 / 全部 run 记录</span></div>",
         f"<div class='kpi'><b>{len(models)}</b><span>参与评估的模型</span></div>",
         f"<div class='kpi'><b>{len(branches)}</b><span>迭代分支</span></div>",
         f"<div class='kpi'><b>{len(comparisons)}</b><span>前后对照</span></div>",
         "</div>",
+        "<div class='card'><h3>收敛后的最终配置（Demo 默认）</h3><ul>"
+        "<li>提示词：<code>v2_grounded</code>（grounding + 显式拒答出口 + 简短结论 + 引用编号）</li>"
+        "<li>参数：<code>B</code>（<code>temperature=0</code>、<code>passage_num=5</code>、<code>noise_rate=0.6</code>、<code>max_tokens=512</code>）</li>"
+        "<li>默认模型：<code>minimax-m3</code>（全维度 1.000 / 平均 1.16 s）；"
+        "<code>deepseek-v4.1-flash-1017</code> 质量相同但延迟高 8.4 倍；"
+        "<code>kimi-k2.6</code> 因复述 prompt 不推荐用于该配置</li>"
+        "<li>最终 run：<code>" + esc(final["dir"] if final else "—") + "</code></li>"
+        "</ul><p class='note'>收敛路径：v1 基线 → 提示词 v2（economy 0.25→1.00）→ 参数 B（可复现性）"
+        " → 按模型适配与选型。每步的前后对照与结论见第 3 节。</p></div>",
         "<h2>1. 分支 ↔ 版本 ↔ 评估结果对应</h2>", trace,
         "<p class='note'>每个 run 的 <code>config_snapshot.json</code> 记录分支、commit、提示词/参数哈希与样本哈希，可精确追溯。</p>",
         "<h2>2. 按任务类别与评估维度分别给结论</h2>",
@@ -240,7 +260,7 @@ def main() -> int:
         "final_run": final["dir"] if final else None,
         "n_runs": len(runs), "live_runs": [r["dir"] for r in live_runs],
         "models": models, "branches": branches,
-        "comparisons": [{"kind": c.get("kind"), "label": c.get("label") or c.get("candidate_label"),
+        "comparisons": [{"name": c.get("name"), "kind": c.get("kind"),
                          "mean_primary_delta": c.get("mean_primary_delta")} for c in comparisons],
         "by_model_final": final["summary"].get("by_model") if final else None,
     }

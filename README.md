@@ -8,10 +8,76 @@ React + FastAPI + PostgreSQL + Milvus + Redis/Celery + 外部 DeepSeek 的**可�
 > `docs/agent-extension.md`、`docs/operations.md`、`docs/learning-roadmap.md`、
 > `docs/next-version-messaging-and-plugins.md`（v0.2 消息层职责重划与插件清单）、
 > **`docs/evaluation-report.md`**（真实外部模型配置下的评估测试报告 · 面试讲解版）。
+>
+> **真实 API 评估工作台**：`evalbench/`（独立体系，多提示词/多参数/多模型对比、逐轮 Git 分支收敛）；
+> 运行与结论见 `evalbench/README.md`，结果展示页 `evalbench/out/index.html`。
+> 它**不修改** `eval/` 冻结对象，`eval/` 的 `__TBC__` / `NOT_COMPARABLE` 口径保持不变。
+>
+> **企业级就绪改造（限流 / 权限 / 成本 / 验收标准）**：`docs/enterprise-readiness.md`；
+> **中型公司知识库能力清单（含来源核实与 Top10 建议）**：`docs/kb-capability-checklist.md`；
+> **整体改进日志（版本坐标、改动清单、缺陷修正、验证快照）**：`docs/CHANGELOG.md`。
+> 演示切片前端已支持中英文切换、6 套主题色 × 明/暗模式，并新增「评估测试」可观测子页。
+>
+> **当前组织口径（2026-11-14）**：单组织 + 多用户多部门，**暂不实现多租户**；多租户仅作为未来研发方向。
+> webapp 演示切片的成本 / 限流统计维度已对齐为 `department`，backend 的 `tenant_id` / `TenantRepository`
+> 是历史命名技术债（完整 13 步清理方案见 `docs/org-model-change-plan.md`，**方案已定、代码尚未改造**）。
+> LLM 默认 `deepseek-v4.1-flash-1017`（Discovery 网关）+ **低思考 / 快速档**，可在「模型设置」页切换推理强度。
+>
+> **本轮复核产物（11 份 Markdown）**：改动总纲 `docs/change-manifest.md`（含最终状态回填）、
+> 架构复核 `docs/architecture-review.md`、限流与安全 `docs/rate-limit-and-security-review.md`、
+> 成本指标 `docs/cost-metrics-spec.md`、插件选型 `docs/plugin-selection.md`、
+> 能力优先级 `docs/capability-priority.md`、前端检查 `docs/frontend-audit.md`、
+> 验收报告 `docs/acceptance-report.md`、部署与腾讯云方案 `docs/deployment-guide.md`、
+> Git 规范 `docs/git-conventions.md`、安全前中后置与低思考档 `docs/llm-safety-positions.md`。
+> **独立面试演示页**：`interview/index.html`（单文件、零外部依赖，可直接双击打开）。
+> 部署编排见 `docker-compose.yml`，提交前检查清单见 `docs/git-conventions.md`。
+>
+> **可插拔文档解析（2026-11-14 新增，重点）**：入口 `parsing/README.md`。
+> 三级策略 `自研 P0 / 收费 OCR P1 / 多模态兜底 P2` 可在前端「解析实验室」切换，
+> 质量门禁决定逐页升级、预算闸门把最贵链路限制在 10% 的页（上限/熔断线，非随机分流），
+> 每页留下可核对的解析轨迹。原理资料 `docs/parsing/01–07`，交付话术 `docs/PARSING-DELIVERY.md`，
+> 待补 API 清单 `docs/parsing/07-api-contracts.md`。
+> **2026-11-14 实测纠正**：网关 `/models` 的 `input_modalities` 显示 10 个模型中 **6 个支持 image**，
+> P2 多模态已接通 `deepseek-v4.1-flash-1017` 并经双图对照实测跑通；P1 收费 OCR 仍未接通、字段保持 `__TBC__`。
+> `PARSING_OFFLINE=1` 可一键全离线，未接通或失败时优雅降级并标 `degraded`。见 `docs/parsing/07-api-contracts.md`。
+> 独立解析服务：`docker compose --profile parsing up -d --build parser`（默认 11 服务不受影响）。
+>
+> **知识治理（2026-11-14 新增，面试高频）**：入口 `knowledge/README.md`，交付话术 `docs/KNOWLEDGE-DELIVERY.md`。
+> 两块能力：**入库新鲜度**（时间衰减 `0.5^(年龄/半衰期)` + `valid_from` / `expires_at` / `scope` 适用性门控 +
+> 过期三档处置 + 排序前后对照）与**事实冲突检测**（claim 级规则抽取、防误报、冲突图按簇裁决、
+> `EvidenceRecord` 结构化证据）。前端「知识治理」视图可改策略并看到排序翻转与裁决日志；
+> 内置合成场景 `DEMO-FRESHNESS-CONFLICT-001` 不写业务库、零外部调用。
+> 调研 / 候选功能 / 面试问答 / 设计取舍见 `docs/knowledge/01–04`；23 项离线单测在 `knowledge/tests/`。
+> 真实检索链的新鲜度重排**默认关闭**（`WEBAPP_FRESHNESS_ENABLED=1` 开启），生成层注入证据记录仍为只设计。
+>
+> **缓存与重启稳定性（2026-11-14 新增）**：入口 `cache/README.md`，交付话术 `docs/CACHE-DELIVERY.md`。
+> 双层缓存 `L1 内存 LRU + L2 PostgreSQL`、13 段缓存 key（含授权快照 / 数据版本 / 策略版本）、
+> 懒失效（版本递增让旧 key 自然不命中）、TTL / 负缓存 / 抖动 / 容量淘汰；
+> 启动自检 7 项（孤儿任务幂等重投、幽灵向量对账、过期缓存清理、策略从 `runtime_state` 恢复），
+> 前端「缓存与恢复」视图可现场做缓存演示与模拟重启。调研与设计见 `docs/cache-recovery/01–02`，
+> 19 项离线单测在 `cache/tests/`。**真·进程重启演练**（隔离库启停两次）结论见 `docs/CACHE-DELIVERY.md` §3。
+> 检索结果缓存默认不接主问答链路；答案缓存 / 语义缓存仍未做。
+>
+> **内容安全 / PII 防护（2026-11-14 新增，面试高频）**：入口 `guardrails/README.md`，
+> 交付话术 `docs/CONTENT-SAFETY-DELIVERY.md`。**一层统一规则贯穿四个出口**：
+> 入库前（分块前脱敏，异常 fail-closed 阻断入库）、进模型前（检索用原文、送 LLM 前脱敏）、
+> 输出前（SSE 流式闸 + `done.tail` 补齐，不改包数以保住续传索引契约）、
+> 日志与导出前（`log_action` 的 target/detail + badcase 采集/列表/CSV/JSON）。
+> 检测走「格式 → 校验位 → 上下文 → 置信度」四级链：身份证过 ISO 7064 MOD 11-2、
+> 银行卡过 Luhn、中文姓名/工号/护照靠字段名词门控，**4 条防误报负向对照零命中**。
+> 命中台账 `safety_events` 只存类别与数量、不存原文。前端「内容安全 / PII」页可一键演示
+> 规则样本、四出口链路与流式跨界验证。调研与实现对照见 `docs/content-safety/01–02`；
+> 27 项包单测在 `guardrails/tests/`、11 项 API 单测在 `webapp/tests/test_safety_api.py`。
+> **边界**：规则级检测不是模型级 NER；backend 骨架未接本包；可逆 token 默认关闭；
+> 默认哈希盐是演示占位值，生产必须换密钥管理。配置一律 `GUARDRAILS_*` 前缀。
+>
+> **通用开发规约（可复制到别的项目）**：`docs/HARNESS.md`（YEBSPEC@1.0，Y1–Y22 规则 + 最小文件骨架 + 交付前闸门）。
 
 > **想直接看界面？** 另有一个「拿来即可演示」的可运行切片 `webapp/`：
-> `python -m uvicorn webapp.main:app --port 8765`，浏览器打开 `http://127.0.0.1:8765`，
-> 用 `admin / admin123` 登录即可看到完整功能。说明见 `webapp/README.md`。
+> 先 `docker compose -f docker-compose.infra.yml up -d postgres` 起真 PostgreSQL，
+> 再 `WEBAPP_DATABASE_URL=… python -m uvicorn webapp.main:app --port 8765`，
+> 浏览器打开 `http://127.0.0.1:8765`，用 `admin / admin123` 登录。
+> **SQLite 已完全移除**，`webapp/` 现在跑在真 PG 上。说明见 `webapp/README.md`。
 
 ---
 

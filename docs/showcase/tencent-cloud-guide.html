@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>腾讯云加固指导 · 多用户场景的分层加固与三处限流</title>
+<style>
+:root{--bg:#fff;--canvas:#f6f8fa;--bd:#d0d7de;--fg:#1f2328;--muted:#57606a;--blue:#0969da;--blue-bg:#ddf4ff;--green:#1a7f37;--green-bg:#dafbe1;--red:#cf222e;--red-bg:#ffebe9;--amber:#9a6700;--amber-bg:#fff8c5;--purple:#8250df;--purple-bg:#fbefff;--code:#f6f8fa}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
+code,pre,.mono{font-family:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono","Courier New",monospace}
+.wrap{display:grid;grid-template-columns:268px minmax(0,1fr);max-width:1260px;margin:0 auto}
+.side{position:sticky;top:0;height:100vh;overflow:auto;border-right:1px solid var(--bd);background:var(--canvas);padding:22px 16px}
+.side h2{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 12px}
+.side a{display:block;padding:5px 9px;margin:2px 0;border-radius:6px;color:var(--fg);text-decoration:none;font-size:13.5px}
+.side a:hover{background:#eaeef2;color:var(--blue)}
+.side .sub{padding-left:20px;font-size:12.5px;color:var(--muted)}
+.side .tip{margin-top:18px;padding:10px;border:1px solid var(--bd);border-radius:6px;background:#fff;font-size:12px;color:var(--muted)}
+main{padding:30px 40px 80px;min-width:0}
+h1{font-size:27px;border-bottom:1px solid var(--bd);padding-bottom:14px;margin:0 0 12px}
+h2{font-size:21px;border-bottom:1px solid var(--bd);padding-bottom:8px;margin:42px 0 16px;scroll-margin-top:16px}
+h3{font-size:16.5px;margin:26px 0 10px;scroll-margin-top:16px}
+p{margin:9px 0}
+a{color:var(--blue)}
+.lead{color:var(--muted);font-size:14px}
+.badges{margin:10px 0 18px}
+.b{display:inline-block;font-size:11.5px;font-weight:600;line-height:1.5;padding:2px 9px;border-radius:999px;border:1px solid transparent;margin:2px 5px 2px 0;white-space:nowrap}
+.b-you{background:var(--red-bg);color:var(--red);border-color:#ff818266}
+.b-ok{background:var(--green-bg);color:var(--green);border-color:#4ac26b66}
+.b-new{background:var(--blue-bg);color:var(--blue);border-color:#54aeff66}
+.b-est{background:var(--purple-bg);color:var(--purple);border-color:#c297ff66}
+.b-warn{background:var(--amber-bg);color:var(--amber);border-color:#d4a72c66}
+.b-no{background:#eaeef2;color:var(--muted);border-color:var(--bd)}
+.box{border:1px solid var(--bd);border-left:4px solid var(--blue);border-radius:6px;padding:12px 16px;margin:16px 0;background:var(--canvas)}
+.box.danger{border-left-color:var(--red);background:var(--red-bg)}
+.box.warn{border-left-color:var(--amber);background:var(--amber-bg)}
+.box.ok{border-left-color:var(--green);background:var(--green-bg)}
+.box .t{font-weight:700;margin-bottom:4px}
+.box p{margin:5px 0;font-size:14px}
+table{border-collapse:collapse;width:100%;margin:14px 0;font-size:13.5px}
+th,td{border:1px solid var(--bd);padding:8px 11px;text-align:left;vertical-align:top}
+th{background:var(--canvas);font-weight:600}
+tr:nth-child(even) td{background:#fbfcfd}
+td code,th code{font-size:12.5px;background:var(--code);padding:1px 5px;border-radius:4px}
+.code{position:relative;margin:12px 0;border:1px solid var(--bd);border-radius:6px;background:var(--code);overflow:hidden}
+.code .bar{display:flex;justify-content:space-between;align-items:center;padding:5px 12px;background:#eaeef2;border-bottom:1px solid var(--bd);font-size:12px;color:var(--muted)}
+.code button{font:inherit;font-size:12px;cursor:pointer;border:1px solid var(--bd);background:#fff;color:var(--fg);border-radius:5px;padding:2px 10px}
+.code button:hover{background:var(--blue-bg);border-color:var(--blue);color:var(--blue)}
+pre{margin:0;padding:12px 14px;overflow:auto;font-size:12.8px;line-height:1.6;white-space:pre}
+/* 分层加固图 */
+.layers{margin:16px 0;border:1px solid var(--bd);border-radius:8px;overflow:hidden}
+.layer{display:grid;grid-template-columns:150px minmax(0,1fr);align-items:stretch;border-bottom:1px solid var(--bd)}
+.layer:last-child{border-bottom:none}
+.layer .who{background:var(--canvas);padding:11px 13px;font-weight:700;font-size:13.5px;border-right:1px solid var(--bd);display:flex;flex-direction:column;justify-content:center}
+.layer .who small{font-weight:400;color:var(--muted);font-size:11.5px;margin-top:3px}
+.layer .what{padding:11px 14px;font-size:13.5px}
+.layer .what b{color:var(--fg)}
+.layer .what .tag{display:inline-block;font-size:11px;padding:1px 7px;border-radius:999px;margin-left:6px;border:1px solid var(--bd);color:var(--muted);background:#fff}
+.layer.l1{border-left:4px solid #8250df}.layer.l2{border-left:4px solid #cf222e}.layer.l3{border-left:4px solid #bc4c00}
+.layer.l4{border-left:4px solid #0969da}.layer.l5{border-left:4px solid #1a7f37}
+.arrow{text-align:center;color:var(--muted);font-size:12px;padding:2px 0;background:var(--canvas);border-bottom:1px solid var(--bd)}
+/* 矩阵 */
+.matrix td:first-child{font-weight:600;white-space:nowrap}
+/* 检查单 */
+.checks{list-style:none;padding:0;margin:10px 0}
+.checks li{padding:5px 0 5px 26px;position:relative;font-size:14px;border-bottom:1px dashed #eaeef2}
+.checks input{position:absolute;left:2px;top:9px;width:15px;height:15px}
+.checks .grp{font-weight:700;color:var(--muted);font-size:12px;letter-spacing:.05em;padding:10px 0 3px;border:none;list-style:none}
+footer{margin-top:44px;border-top:1px solid var(--bd);padding-top:14px;font-size:12.5px;color:var(--muted)}
+@media(max-width:880px){.wrap{grid-template-columns:1fr}.side{position:static;height:auto;border-right:none;border-bottom:1px solid var(--bd)}main{padding:20px}.layer{grid-template-columns:1fr}.layer .who{border-right:none;border-bottom:1px solid var(--bd)}}
+@media print{.side{display:none}.wrap{grid-template-columns:1fr}.code button{display:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav class="side">
+  <h2>目录</h2>
+  <a href="#s0">0 · 边界与三条硬事实</a>
+  <a href="#s1">1 · 分层加固图</a>
+  <a href="#s2">2 · 三处限流的分工（核心）</a>
+  <a href="#s2" class="sub">2.1 分工表</a>
+  <a href="#s2" class="sub">2.2 应用层现状与缺口</a>
+  <a href="#s2" class="sub">2.3 两层都要有</a>
+  <a href="#s3">3 · 多用户加固矩阵</a>
+  <a href="#s4">4 · 腾讯云部署步骤</a>
+  <a href="#s5">5 · 费用估算表</a>
+  <a href="#s6">6 · 上线检查单</a>
+  <a href="#s7">7 · 与阿里云方案对比</a>
+  <a href="#s8">8 · 边界声明与来源</a>
+  <div class="tip">单文件离线页 · 零外部 CDN / 字体 / 脚本。代码块右上角「复制」可一键复制。文中网址仅为文字说明。</div>
+</nav>
+
+<main>
+<h1>腾讯云加固指导 · 多用户场景的分层加固与三处限流</h1>
+<div class="badges">
+  <span class="b b-no">部署指导</span>
+  <span class="b b-warn">非上线证明</span>
+  <span class="b b-new">多用户场景</span>
+  <span class="b b-est">费用均为估算</span>
+  <span class="b b-you">含需你本人操作</span>
+  <span class="b b-ok">应用层已有三维限流</span>
+</div>
+<p class="lead">用户原话：「针对多用户，和能在腾讯云上面做加固，网关限流什么的」。本页聚焦<b>多用户场景下的分层加固</b>与<b>三处限流的分工</b>（云 API 网关 / CLB / WAF / 应用层），不重复《阿里云上线指导》里的注册与备案流程；两份可对照阅读。</p>
+
+<h2 id="s0">0 · 边界与三条硬事实（先看这段）</h2>
+<div class="box danger">
+  <div class="t">最显眼的一条：腾讯云 API 网关「共享实例」有单服务 500 QPS 硬上限，超限会「丢请求」而不是「排队」</div>
+  <p>共享实例单服务上限约 <b>500 QPS</b>、请求体 ≤ <b>16MB</b>、<b>不支持 VPC</b>；达到 QPS 上限时请求可能被丢弃（不是排队等）。演示够用；只要你有稳定高并发或要接 VPC/专线/WAF/EIAM，就必须上<b>专享实例</b>。这一点在 §2 与 §5 反复标注。</p>
+</div>
+<div class="box warn">
+  <div class="t">三条必须先讲清的事实（避免把设计说成已实现）</div>
+  <p>① 本页引用的是主理人 <b>2026-11-15 联网核实的公开信息</b>，规格与价格<b>以腾讯云控制台实时价为准</b>，全文金额为「估算 + 假设前提」，<b>不是账单、不是报价</b>。<br>
+  ② 本页是<b>部署与加固指导，不是上线证明</b>；未做等保测评、WAF 规则调优、真实压测、DDoS 高防、数据合规审批。<br>
+  ③ 页面里的「已实现 / 仅预留 / 未做」逐条标注，并按 <code>webapp</code> 与 <code>backend</code> <b>两列分列不合并</b>：<span class="b b-ok">已实现</span> 有代码 + 实测可查，<span class="b b-warn">仅预留</span> 是接口/占位存在但无调用点，<span class="b b-no">未做</span> 是既无代码也无设计。<b>webapp 演示切片本轮已完成五项网关加固，backend 骨架同名能力仍以「仅预留」标注。</b></p>
+</div>
+<div class="box"><div class="t">本项目「多用户」能力在哪、演示站又在哪</div>
+<p>实查：多用户鉴权与多用户加固能力在 <code>webapp/</code>（PBKDF2 口令 + HMAC-JWT + 三维限流 + 预算 + 审计）与 <code>backend/</code>（<code>decide()</code> 权限判定、部门/owner 过滤、审计只追加）；<b><code>showcase/</code> 解析工作台是单用户离线演示站（8767 端口，无登录体系）</b>，它演示「解析→入库 JSON」，本身不承担多用户隔离。因此「多用户加固」要落在真正有多用户体系的 <code>webapp/</code> 或 <code>backend/</code> 上，别把单用户演示站说成多用户系统。</p></div>
+
+<h2 id="s1">1 · 分层加固图（DNS → WAF → CLB → CVM → 数据层）</h2>
+<p class="lead">每一层只解决自己该解决的问题；<b>不要指望某一层包打天下</b>。四层纵向叠加，越靠上越「粗」、越靠下越「懂业务」。</p>
+<div class="layers">
+  <div class="layer l1"><div class="who">DNS / 域名<small>腾讯云 DNSPod</small></div><div class="what"><b>拦什么：</b>解析到哪台机器、CNAME 指向（接 WAF 时域名要 CNAME 到 WAF）。不做业务鉴权。<span class="tag">入口寻址</span></div></div>
+  <div class="arrow">↓ 请求进入</div>
+  <div class="layer l2"><div class="who">WAF<small>Web 应用防火墙</small></div><div class="what"><b>拦什么：</b>OWASP Web 攻击（SQL 注入 / XSS / 命令执行）、<b>CC 攻击</b>（频率 + 人机校验）、IP 信誉库、地理围栏、0day 虚拟补丁；企业版再加 <b>API 安全</b>与 <b>BOT 管理</b>。支持 CNAME / SDK 插件 / 透明接入，有旁路检测与一键 Bypass。<span class="tag">应用层攻击</span></div></div>
+  <div class="arrow">↓ 清洗后转发</div>
+  <div class="layer l3"><div class="who">CLB<small>负载均衡</small></div><div class="what"><b>拦什么：</b>四层 TCP/UDP + 七层 HTTP/HTTPS；做 <b>HTTPS 卸载</b>、权重 1–100、按域名/URL 路由；依托大禹做 <b>DDoS / CC 清洗</b>；配连接数 / 新建连接速率 / 带宽规格。<b>不做业务鉴权。</b><span class="tag">流量分发 + 抗量</span></div></div>
+  <div class="arrow">↓ 转发到后端</div>
+  <div class="layer l4"><div class="who">CVM + Docker<small>应用层</small></div><div class="what"><b>拦什么：</b>认证（口令/JWT）、<b>四维限流</b>（user/endpoint/model + <code>ip</code> 附加维度）、权限判定（<code>decide()</code>）、数据隔离（owner/部门）、用户级预算、审计、PII。这是<b>唯一懂业务</b>的一层，也是最后一道闸。<span class="tag">业务鉴权 + 配额</span></div></div>
+  <div class="arrow">↓ 访问数据</div>
+  <div class="layer l5"><div class="who">数据层<small>PG/Redis/VectorDB/COS</small></div><div class="what"><b>拦什么：</b>网络隔离（只允许 CVM 内网访问、不暴露公网）、账号最小权限、连接数上限、备份加密。用云数据库 PostgreSQL / TDSQL-C、Redis、VectorDB、COS、日志服务 CLS。<span class="tag">数据边界</span></div></div>
+</div>
+<div class="box ok"><div class="t">一句话分工</div><p>DNS 找路 → WAF 挡坏请求 → CLB 分发并抗量 → 应用层认人 + 算配额 → 数据层守边界。<b>安全是叠加的，任何一层都不能替代另一层</b>。</p></div>
+
+<h2 id="s2">2 · 三处限流的分工（这是用户问的核心）</h2>
+<h3>2.1 分工表</h3>
+<table>
+<thead><tr><th>位置</th><th>限的是什么</th><th>典型机制</th><th>超限表现</th><th>适用</th></tr></thead>
+<tbody>
+<tr><td><b>云 API 网关</b></td><td>按<b>秒</b>、按 <b>app</b>（应用）的调用配额；鉴权</td><td>HMAC 鉴权、按秒限流、版本与回滚、测试/预发/生产环境、配额</td><td><b>共享实例单服务 500 QPS 硬上限，超限丢请求（不排队）</b>；请求体 ≤16MB；不支持 VPC</td><td>把「对外 API 入口」统一收口；需要 AK/HMAC 与配额时</td></tr>
+<tr><td><b>CLB</b></td><td><b>连接数 / 新建连接速率 / 带宽</b>；抗 DDoS/CC 清洗</td><td>四层/七层监听、权重、HTTPS 卸载、大禹清洗</td><td>连接被拒 / 新建连接被限 / 清洗后正常流量受影响</td><td>流量分发 + 抗量；需要多台后端、HTTPS 卸载时</td></tr>
+<tr><td><b>WAF</b></td><td><b>CC 防护</b>（频率 + 人机校验）、IP 信誉库、地理围栏；企业版 API 安全 / BOT</td><td>规则 + 频率阈值 + 验证码挑战；CNAME / 透明接入；旁路 + 一键 Bypass</td><td>返回验证页 / 403 / 拦截页（取决于配置）</td><td>应对 Web 攻击与 CC；对外站点必备</td></tr>
+<tr><td><b>应用层</b>（本项目）</td><td><b>业务配额</b>：user / endpoint / model 三维 + <code>ip</code> 附加维度；全局并发闸；请求体上限；用户级预算闸门</td><td>命中即返回统一 <b>429</b> + <code>Retry-After</code> / <code>X-RateLimit-Dimension</code>；并发超限 <b>503 <code>SERVER_BUSY</code></b>；请求体超限 <b>413 <code>PAYLOAD_TOO_LARGE</code></b>；<code>rate_limit_exceeded</code> 可退避重试、<code>quota_exceeded</code> 不重试</td><td>429 / 503 / 413（含维度与剩余窗口）、预算 block 时拒绝付费调用</td><td>认人、按业务维度算配额；这是云网关做不到的</td></tr>
+</tbody></table>
+
+<h3>2.2 应用层现状与缺口（逐条实查，不夸大）</h3>
+<div class="box ok"><div class="t">本轮更新（实测证据）</div><p>后端已在 <code>webapp/</code> 补齐五项网关加固，<code>python -m pytest -q webapp/tests/test_gateway_hardening.py</code> → <b>18 passed</b>、<code>pytest -q webapp/tests</code> → <b>127 passed</b>。下表按 <b>webapp / backend 两列</b>分别写，<b>不合并</b>——<code>backend/</code> 骨架这五项仍是「仅预留」。</p></div>
+<table>
+<thead><tr><th>能力</th><th><code>webapp/</code> 演示切片（本轮）</th><th><code>backend/</code> 骨架</th></tr></thead>
+<tbody>
+<tr><td>三维限流 <code>user / endpoint / model</code></td><td><span class="b b-ok">已实现</span> <code>observability.py</code> 的 <code>RATE_DIMENSIONS</code> 三维不变；<code>main.py::gateway_guard</code> 计数，命中 429 + 统一错误体。<b><code>department</code> 只是成本归因标签，不参与计数、不做按部门 429 隔离</b></td><td><span class="b b-no">部分</span> <code>middleware/rate_limit.py</code> 只有按 IP 的单维令牌桶，挂在 <code>api_router</code> 依赖上</td></tr>
+<tr><td><b>IP 附加维度</b>（防匿名刷）</td><td><span class="b b-ok">已实现</span> <code>observability.py:43 IP_DIMENSION="ip"</code>，<code>rate_check(ip=)</code> 附加维度（<code>RATE_DIMENSIONS</code> 仍三维，IP 独立计入）；命中错误码 <code>RATE_LIMIT_IP_EXCEEDED</code>、<code>X-RateLimit-Dimension: ip</code>。解决了「未登录共用 <code>"anonymous"</code> 单桶」的缺口</td><td><span class="b b-no">未做</span> 无 IP 维度概念</td></tr>
+<tr><td><b>可信代理 / XFF 校验</b></td><td><span class="b b-ok">已实现</span> <code>security.py::client_ip(host, xff, trusted)</code> + <code>main.py:57 TRUSTED_PROXY_IPS</code>（默认 <code>127.0.0.1,::1</code>）：仅当直连对端是可信代理才采信 XFF 最左值</td><td><span class="b b-no">未做</span> 直接用 <code>request.client.host</code>，挂代理后会把所有人算成同一 IP</td></tr>
+<tr><td><b>全局并发闸</b></td><td><span class="b b-ok">已实现</span> <code>main.py:59 MAX_INFLIGHT</code>（默认 32），超限快速失败 <b>503 <code>SERVER_BUSY</code></b> + <code>Retry-After</code>（实测并发 2 / 上限 1 → <code>[200, 503]</code>）</td><td><span class="b b-no">仅预留</span> <code>redis_client.acquire_slot/release_slot</code> 全仓<b>无调用点</b>，<code>MAX_CONCURRENT_INGEST_PER_TENANT=4</code> 未被引用</td></tr>
+<tr><td>请求体上限</td><td><span class="b b-ok">已实现</span> <code>main.py:63 MAX_BODY_BYTES</code>（默认 10 MiB），<code>Content-Length</code> 超限 → <b>413 <code>PAYLOAD_TOO_LARGE</code></b>（实测通过）；nginx <code>client_max_body_size 64m</code> 为外层保险</td><td><span class="b b-ok">已实现</span> <code>MAX_UPLOAD_SIZE_MB=2048</code>（整文件，分片绕过）</td></tr>
+<tr><td><b>预算闸门</b></td><td><span class="b b-ok">已实现（用户级）</span> <code>check_budget(user_id=)</code> 支持 <code>budgets(scope='user', key=uid)</code> 覆盖、未配置回退全局；<code>put_user_budget</code> 可配；问答入口超限 → <b>429 <code>QUOTA_EXCEEDED</code></b>（实测 A 超支 <code>allowed=False</code>、B 走全局 <code>allowed=True</code>，互不影响）。离线评估端点仍为 <b>200 + <code>{ok:false, reason:"budget_exceeded"}</code></b>，形态不同、语义一致</td><td><span class="b b-no">未做</span> 无 budget 表与成本闸门</td></tr>
+</tbody></table>
+
+<h3>2.3 为什么「两层都要有，不能只靠一层」</h3>
+<div class="box"><div class="t">云网关管入口，应用层管业务配额</div>
+<p><b>云 API 网关做不到的事</b>：不知道谁是「部门 A 的用户」、不知道某用户今天用了多少 token、不能按 <code>endpoint</code> 与 <code>model</code> 组合限流、不能在 429 里告诉你「是哪个维度、还剩几秒」、不能和权限判定 <code>decide()</code> 联动。<br>
+<b>应用层做不到的事</b>：挡不住 10 万 QPS 的 DDoS、做不了 TLS 卸载、做不了多机负载均衡、扛不住真实 CC 洪峰（单机令牌桶先被打满）。<br>
+<b>结论</b>：入口限流（网关/CLB/WAF）负责「不让洪水进来」，业务限流（应用层三维 + <code>ip</code> 附加维度）负责「让每个用户公平、可追责、可退避」。<b>缺任何一层都会留下真实缺口</b>。</p></div>
+<div class="box danger"><div class="t">上云后必踩的坑：<code>X-Forwarded-For</code> 与「按 IP 限流」的信任链<span class="b b-ok" style="margin-left:8px">webapp 已校验</span></div>
+<p><b>坑在哪</b>：<code>backend/app/middleware/rate_limit.py</code> 用 <code>request.client.host</code> 取 IP。这在「浏览器直连应用」时没问题，但<b>一旦前面挂了 CLB / WAF</b>，<code>request.client.host</code> 会变成<b>代理的内网地址</b>——于是「按 IP 限流」要么把所有人算成同一个 IP（全站共用一个桶），要么对伪造的 <code>X-Forwarded-For</code> 照单全收（攻击者换头就绕过）。<br>
+<b><code>webapp/</code> 已用 <code>TRUSTED_PROXY_IPS</code> 白名单校验</b>（<code>security.py::client_ip(host, xff, trusted)</code>，默认 <code>127.0.0.1,::1</code>）：<b>只有直连对端是可信代理时，才采信 <code>X-Forwarded-For</code> 最左值</b>；<b>直连时伪造 XFF 不生效</b>（实测：伪造 <code>X-Forwarded-For: 1.1.1.1</code>，第二次仍 <code>429 key=testclient</code>，伪造头没有换 key；可信代理下 <code>5.5.5.5</code> / <code>6.6.6.6</code> 各自计数）。可复现：<code>pytest -q webapp/tests/test_gateway_hardening.py</code> → 18 passed。<br>
+<b>上云仍要做</b>：把 <code>WEBAPP_TRUSTED_PROXY_IPS</code> 设为<b>你自己的 CLB/WAF 回源网段</b>（默认只含本机回环，别把 <code>0.0.0.0/0</code> 配进去）；<code>backend/</code> 骨架仍是直接取 <code>client.host</code>，接代理前需自行补同等校验。<b>不要无脑取 XFF 最左值</b>。</p></div>
+
+<h2 id="s3">3 · 多用户加固矩阵</h2>
+<p class="lead">多用户系统真正要守的是「<b>人、会话、权限、数据、配额、审计、隐私</b>」七件事。下表逐项对照本项目实现状态。</p>
+<table class="matrix">
+<thead><tr><th>维度</th><th>加固要点</th><th>本项目状态</th></tr></thead>
+<tbody>
+<tr><td>账号与口令</td><td>口令不明文存储；加随机盐；慢哈希（PBKDF2/bcrypt/Argon2）；登录失败计数与锁定</td><td><span class="b b-ok">已实现</span> PBKDF2-HMAC-SHA256、100k 迭代、16 字节随机盐、<code>hmac.compare_digest</code> 恒时比较（<code>webapp/security.py</code>）。失败计数/锁定 <span class="b b-no">未做</span></td></tr>
+<tr><td>会话</td><td>JWT 短期有效 + 过期校验；令牌不落 URL；登出失效；刷新策略</td><td><span class="b b-ok">已实现</span> HMAC-SHA256 JWT，含 <code>sub/role/iat/exp</code>，校验过期与签名（<code>webapp/security.py</code>）。令牌吊销列表 <span class="b b-no">未做</span></td></tr>
+<tr><td>权限</td><td>单一判定入口（纯函数）、先过滤后召回、最小权限、避免"哪都能判"</td><td><span class="b b-ok">已实现</span> <code>backend/app/services/permission.py::decide()</code> 单一入口；检索先过滤后召回（Milvus expr + <code>filter_candidates</code> 二次校验）。<code>showcase/</code> 无鉴权</td></tr>
+<tr><td>数据隔离</td><td>按 <code>owner_id</code> / 部门标签过滤；跨用户不可见；越权用例集</td><td><span class="b b-ok">已实现</span> <code>owner_id</code> 过滤 + 部门标签；越权用例见 <code>tests/</code>。<b>多用户上线前必须跑一遍越权用例集</b></td></tr>
+<tr><td>配额</td><td>按用户/部门预算；超额告警或阻断；成本归因</td><td><span class="b b-ok">已实现（用户级，本轮）</span> <code>usage_events</code> + <code>budgets</code> + <code>check_budget(user_id=)</code>：用户级预算优先、未配置回退全局；问答入口超限 <b>429 <code>QUOTA_EXCEEDED</code></b>；离线评估入口 <b>200 + <code>{ok:false, reason:"budget_exceeded"}</code></b>。默认 <code>policy=warn</code>，<code>block</code> 由 admin 显式开启</td></tr>
+<tr><td>审计</td><td>只追加、不可改；记录主体/动作/资源/结果/trace_id；拒绝也要记</td><td><span class="b b-ok">已实现</span> <code>backend/app/services/audit.py</code> 明确「审计表只追加」，登录/上传/删除/拒绝均记录</td></tr>
+<tr><td>PII</td><td>输入、生成、入库、召回多个出口脱敏；命中即拦或改写</td><td><span class="b b-warn">部分实现</span> 实查 <code>backend/app/agent/orchestrator.py</code> 仅 <code>verify_node</code> <b>输出闸</b>用 2 条正则（手机号、身份证号）扫描；<b>输入/入库/召回其余出口未做</b>。设计口径是「四出口」，但当前只落地 1 处，<b>不要讲成四出口都已实现</b></td></tr>
+</tbody></table>
+
+<h3>3.1 应用层五项 · webapp 与 backend 分列（不合并）</h3>
+<p class="lead">主理人要求：这五项必须<b>两列分开写</b>。`webapp/` 演示切片本轮已完成并有实测；`backend/` 骨架同名能力仍属「仅预留」，不得合并成一行。</p>
+<table class="matrix">
+<thead><tr><th>能力</th><th><code>webapp/</code> 演示切片（本轮）</th><th><code>backend/</code> 骨架</th></tr></thead>
+<tbody>
+<tr><td><b>IP 维度</b>（附加维度，防匿名刷）</td><td><span class="b b-ok">已实现</span> <code>observability.py IP_DIMENSION="ip"</code> + <code>rate_check(ip=)</code>；<code>RATE_DIMENSIONS</code> 仍三维、IP 独立计入；错误码 <code>RATE_LIMIT_IP_EXCEEDED</code> / <code>X-RateLimit-Dimension: ip</code></td><td><span class="b b-no">未做</span> 无 IP 维度概念</td></tr>
+<tr><td><b>可信代理</b>（XFF 校验）</td><td><span class="b b-ok">已实现</span> <code>security.py::client_ip()</code> + <code>TRUSTED_PROXY_IPS</code>（默认 <code>127.0.0.1,::1</code>），仅可信对端才采信 XFF 最左值</td><td><span class="b b-no">未做</span> 直接 <code>request.client.host</code></td></tr>
+<tr><td><b>全局并发闸</b></td><td><span class="b b-ok">已实现</span> <code>MAX_INFLIGHT</code>（默认 32）→ 超限 <b>503 <code>SERVER_BUSY</code></b> + <code>Retry-After</code></td><td><span class="b b-no">仅预留</span> <code>acquire_slot/release_slot</code> 无调用点</td></tr>
+<tr><td><b>请求体上限</b></td><td><span class="b b-ok">已实现</span> <code>MAX_BODY_BYTES</code>（默认 10 MiB）→ <b>413 <code>PAYLOAD_TOO_LARGE</code></b></td><td><span class="b b-ok">已实现</span> <code>MAX_UPLOAD_SIZE_MB=2048</code>（分片绕过）</td></tr>
+<tr><td><b>用户级预算</b></td><td><span class="b b-ok">已实现</span> <code>check_budget(user_id=)</code> 支持 <code>scope='user'</code> 覆盖 → 问答入口 <b>429 <code>QUOTA_EXCEEDED</code></b>；A 超支不影响 B（实测已证）</td><td><span class="b b-no">未做</span> 无 budget 表</td></tr>
+</tbody></table>
+<div class="box ok"><div class="t">本轮实测证据（可复跑）</div><p><code>pytest -q webapp/tests/test_gateway_hardening.py</code> → <b>18 passed</b>；<code>pytest -q webapp/tests</code> → <b>127 passed</b>。要点：伪造 <code>XFF:1.1.1.1</code> 第二次仍 <code>429 key=testclient</code>（未换 key）；可信代理下 <code>5.5.5.5</code>/<code>6.6.6.6</code> 各自计数；并发 2/上限 1 → <code>[200,503]</code> + <code>SERVER_BUSY</code> + <code>Retry-After:1</code>；<code>Content-Length</code> 超限 → <code>413 PAYLOAD_TOO_LARGE</code>；用户 A <code>overridden=True spend=0.05 limit=0.01 allowed=False</code>、用户 B <code>scope=global allowed=True</code>。</p></div>
+<div class="box warn"><div class="t">加固顺序建议</div><p>webapp 侧 ①②⑤ 已完成（IP 维度 / 越权用例 / 并发闸）；剩余：③ PII 其余出口（仍只有输出闸）→ ④ 令牌吊销 / 登录锁定。`backend/` 骨架的 IP 维度、可信代理、并发闸、用户级预算仍待接入，多用户上线前需补齐或明确以 webapp 为交付面。</p></div>
+
+<h2 id="s4">4 · 腾讯云部署步骤（每一步「在哪点 / 做什么 / 常见坑」）</h2>
+<div class="box"><div class="t">前置：先确认你要部署哪个</div><p>① 想演示「解析→入库 JSON」→ 用 <code>showcase/</code>（8767）；② 想演示多用户（登录/限流/预算/审计）→ 用 <code>webapp/</code>（8765）。两者可同机跑，<code>run-demo.sh</code> 会一次性起这两个（均绑 <code>127.0.0.1</code>）。</p></div>
+<div class="code"><div class="bar"><span>bash · 1) 买机器 → 安全组 → 装 Docker → 一键起演示</span><button type="button">复制</button></div><pre># 1. 控制台买「轻量应用服务器」或「CVM」（见 §5 选型）
+# 2. 安全组/防火墙：入方向只开 443（对公网）与 22（仅你的出口 IP/32）
+#    不要开 8765/8767 到公网——它们只给本机 nginx 反代用
+#    （轻量应用服务器在「防火墙」页配，CVM 在「安全组」配）
+
+# 3. 装 Docker（Ubuntu 22.04 示例，按官方文档配仓库）
+sudo apt-get update &amp;&amp; sudo apt-get install -y ca-certificates curl nginx
+# 按官方仓库装 docker-ce / docker-ce-cli / containerd.io / buildx / compose-plugin 后：
+sudo systemctl enable --now docker
+
+# 4. 上传代码并一键起两个演示页（run-demo.sh 用 docker build + docker run，
+#    绕开 compose bake 在中文路径下的构建器兼容问题）
+scp -r ./* root@&lt;公网IP&gt;:/opt/kb/
+ssh root@&lt;公网IP&gt; 'cd /opt/kb &amp;&amp; bash run-demo.sh'
+# 脚本会起：kb-webapp(:8765，多用户完整功能) 与 kb-showcase(:8767，解析工作台)
+curl -fsS http://127.0.0.1:8765/    # 200 即 OK
+curl -fsS http://127.0.0.1:8767/api/health</pre></div>
+<div class="box warn"><div class="t">密钥怎么进去（绝不打进镜像）</div><p><code>run-demo.sh</code> 默认注入 <code>PARSING_OFFLINE=1</code> 等离线开关；要用外部解析/LLM 时，<b>由你本人在服务器上</b>用 <code>-e</code> 或 <code>--env-file</code> 注入真实 Key（如 <code>PARSING_OCR_API_KEY</code>、<code>DISCOVERY_API_KEY</code>），<b>不要把 Key 写进 Dockerfile、不要提交 Git、不要发给 AI</b>。轮换顺序：生成新 Key → 更新 env 文件 → 重启容器 → 验证 → 供应商侧吊销旧 Key。</p></div>
+<div class="code"><div class="bar"><span>bash · 2) CLB 挂后端 + 证书 + NGINX 反代（七层）</span><button type="button">复制</button></div><pre># 控制台：CLB → 创建七层 HTTPS 监听 → 后端组指向 CVM:8765（和/或 8767）
+# 权重 1–100；证书在「证书管理」上传后绑定到 443 监听（腾讯云托管可自动续期）
+
+# CVM 内：nginx 反代到本机容器（CLB 到 nginx，nginx 到容器，双保险可控）
+# /etc/nginx/conf.d/kb.conf
+server {
+    listen 80;
+    server_name _;
+    client_max_body_size 64m;
+    location / {
+        proxy_pass http://127.0.0.1:8765;      # 多用户完整功能页
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        # 与 CLB 的转发头对齐后再决定是否信任 X-Forwarded-For（见 §2.3）
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 120s;
+        proxy_buffering off;                    # 流式/SSE 需要关缓冲
+    }
+    location /showcase/ { proxy_pass http://127.0.0.1:8767/; }
+}
+sudo nginx -t &amp;&amp; sudo systemctl reload nginx</pre></div>
+<div class="code"><div class="bar"><span>bash · 3) WAF 接入 / 日志 / 告警 / CAM</span><button type="button">复制</button></div><pre># WAF：控制台 → Web 应用防火墙 → 添加域名 → 选 CNAME 接入 或 透明接入
+#   - CNAME 接入：把域名 CNAME 指向 WAF 给的地址（DNS 侧改）
+#   - 透明接入：在 CLB/实例侧挂载，不改 DNS（按版本支持情况选）
+#   - 先开「观察/旁路」模式看规则命中，再切「拦截」；保留一键 Bypass 应急
+# 日志：日志服务 CLS → 采集 nginx / 容器 stdout；设置保留期与检索
+# 告警：云监控 → 对 CPU/带宽/5xx/429 设阈值告警，通知到你的手机/邮件
+# CAM：子账号 + 最小权限策略；部署脚本用独立子账号，不用主账号 AK</pre></div>
+<div class="box danger"><div class="t">这一步最容易出的错</div><p>① 安全组开了 8765/8767 到公网（等于绕过 WAF/CLB，直连容器）；② WAF 直接切拦截没先观察，误杀正常流量；③ 只挂了 CLB 没配 XFF 信任链，应用层把所有人当一个 IP；④ 用主账号 AK 跑脚本；⑤ 忘了给 22 限来源 IP。</p></div>
+
+<h2 id="s5">5 · 费用估算表（估算 + 假设前提，不是账单）</h2>
+<p><b>统一假设</b>：① 演示 = 1 台轻量 + 免费额度 + 域名；② 小规模生产 = 2 台 CVM + CLB + WAF 高级版 + 云 PG + Redis；③ 一整个自然月 30 天。<b>全部为按规格推算的估算</b>，以腾讯云控制台实时价为准；促销/秒杀价随时变，<b>不写确定账单</b>。</p>
+<table>
+<thead><tr><th>场景</th><th>组成</th><th>月度估算（基于上述假设）</th><th>性质</th></tr></thead>
+<tbody>
+<tr><td><b>演示</b></td><td>轻量应用服务器 2核2G3M/40GB/200GB 流量（新人约 68 元/年；4核4G 约 38–79 元/年秒杀档）+ 域名 + 免费 DV 证书</td><td>约个位数元/月量级（年费摊月）；域名「几十~百元/年」量级</td><td><span class="b b-est">估算 · 必产生</span></td></tr>
+<tr><td><b>小规模生产</b></td><td>2×CVM（2核2G1M 约 169 元/年起）+ CLB + <b>WAF 高级版 3,880 元/月</b> + 云 PG + Redis</td><td>WAF 高级版是<b>主要成本项</b>（约 3,880 元/月）；CVM/CLB/PG/Redis 叠加后为「数千元/月」量级</td><td><span class="b b-est">估算 · 区间大</span></td></tr>
+<tr><td>WAF 更高版本</td><td>企业版 9,880 元/月（+API 安全、BOT 管理）；旗舰版 28,880 元/月</td><td>按需选，非必须</td><td><span class="b b-est">估算 · 按需</span></td></tr>
+<tr><td><b>API 网关</b></td><td>共享实例：首年每月 <b>100 万次调用 + 1GB 公网流量免费</b>；超出约 <b>$0.0089/万次</b>（至 1000 万/月）</td><td>演示/小流量常在免费额度内 ≈ <b>0 元</b>；超出后按调用量线性增长</td><td><span class="b b-est">估算 · 按调用</span></td></tr>
+<tr><td>专享 API 网关</td><td>需 VPC/专线、接 WAF/EIAM、或稳定超 500 QPS 时选；按规格计费（未提供单价，<b>不编造</b>）</td><td>明显高于共享实例；<b>何时上：</b>① 需要 VPC/专线 ② 需要接 WAF ③ 稳定超过 500 QPS ④ 需要更高请求体/更强隔离</td><td><span class="b b-est">估算 · 按规格</span></td></tr>
+</tbody></table>
+<div class="box warn"><div class="t">怎么读这张表</div><p>「演示」几乎只花服务器 + 域名的小钱；「小规模生产」的成本大头是 <b>WAF 高级版</b>，而不是机器——很多人低估这一项。API 网关共享实例在低调用量下基本免费，但<b>别用它承载稳定 &gt;500 QPS</b>（会丢请求），那时要上专享。建议开通前在控制台设<b>费用告警</b>，并每日核对账单与调用量。</p></div>
+
+<h2 id="s6">6 · 上线检查单（可勾选）</h2>
+<ul class="checks">
+<li class="grp">入口与网络</li>
+<li><input type="checkbox"> 安全组只放行 443（公网）与 22（仅你的 IP/32）；8765/8767 <b>未</b>暴露公网</li>
+<li><input type="checkbox"> 域名已备案并解析；HTTPS 证书已绑定、可自动续期；HTTP→HTTPS 301</li>
+<li><input type="checkbox"> WAF 先观察模式跑过一轮，再切拦截；Bypass 应急流程已演练</li>
+<li><input type="checkbox"> CLB 健康检查通过；后端权重与超时合理</li>
+<li class="grp">限流与容量（重点验证）</li>
+<li><input type="checkbox"> <b>用 <code>ab</code> / <code>wrk</code> 压 600 QPS，观察 429 与 503 是否符合预期</b>（应用层应返回 429 + <code>Retry-After</code>；网关/CLB 层超限可能是 503/丢请求）</li>
+<li><input type="checkbox"> <b>伪造 <code>X-Forwarded-For</code> 验证不被采信</b> —— <span class="b b-ok">已可复现</span> <code>pytest -q webapp/tests/test_gateway_hardening.py</code> → <b>18 passed</b>（换头不应绕过按 IP 限流）</li>
+<li><input type="checkbox"> <b><code>WEBAPP_TRUSTED_PROXY_IPS</code> 已设为 CLB/WAF 回源网段</b>（默认只含 <code>127.0.0.1,::1</code>；<b>切勿</b>配 <code>0.0.0.0/0</code>）</li>
+<li><input type="checkbox"> 三维限流 <code>user/endpoint/model</code> 各自触发一次 429，且响应头含维度与剩余窗口</li>
+<li><input type="checkbox"> <b>IP 附加维度</b>已生效：匿名请求按 <code>ip</code> 计数，命中返回 <code>RATE_LIMIT_IP_EXCEEDED</code> / <code>X-RateLimit-Dimension: ip</code>（已复现）</li>
+<li><input type="checkbox"> <b>并发闸</b>：<code>MAX_INFLIGHT</code> 调小后压并发 → 超限返回 <b>503 <code>SERVER_BUSY</code></b> + <code>Retry-After</code>（已实测 <code>[200,503]</code>）</li>
+<li><input type="checkbox"> <b>用户级预算</b>：A 用户超支不影响 B；问答入口 <b>429 <code>QUOTA_EXCEEDED</code></b>，离线评估入口 <b>200 + <code>{ok:false,reason:"budget_exceeded"}</code></b>（形态不同、语义一致）</li>
+<li><input type="checkbox"> 请求体上限三层保险：nginx <code>client_max_body_size</code> + <code>MAX_BODY_BYTES</code>（10 MiB → 413）+ 后端 <code>MAX_UPLOAD_SIZE_MB</code> 都生效</li>
+<li class="grp">多用户与数据</li>
+<li><input type="checkbox"> 越权用例集全绿（跨用户 / 部门边界 / owner 过滤）</li>
+<li><input type="checkbox"> 审计只追加已验证；拒绝请求也有记录</li>
+<li><input type="checkbox"> 预算默认 warn、需要时切 block；成本归因可查</li>
+<li><input type="checkbox"> 数据层（PG/Redis/VectorDB/COS）均不暴露公网，账号最小权限</li>
+<li class="grp">运维与安全</li>
+<li><input type="checkbox"> CAM 子账号 + 最小权限；<b>主账号未创建 AccessKey</b>；AK 未硬编码/未入 Git</li>
+<li><input type="checkbox"> 容器 <code>--restart unless-stopped</code> + <code>systemctl enable docker nginx</code></li>
+<li><input type="checkbox"> 日志轮转生效（<code>docker inspect</code> 查 LogConfig）；CLS 采集正常</li>
+<li><input type="checkbox"> CPU/带宽/5xx/429 告警已设并实测能收到</li>
+<li><input type="checkbox"> 回滚路径可用：上一版镜像 tag + <code>.env</code> 副本已留存</li>
+</ul>
+
+<h2 id="s7">7 · 与阿里云方案对比（同规格差异，不贬低任何一家）</h2>
+<table>
+<thead><tr><th>维度</th><th>腾讯云（本页）</th><th>阿里云（另见 aliyun-guide.html）</th><th>选型建议</th></tr></thead>
+<tbody>
+<tr><td>入门机器</td><td>轻量应用服务器 2核2G3M 约 68 元/年（新人）；CVM 2核2G1M 约 169 元/年起</td><td>轻量/ECS 经济型 e 实例有同类促销档</td><td>演示看谁的促销更合适；要自定义网络/挂多盘/接 CLB 选 CVM 或 ECS</td></tr>
+<tr><td>WAF 计费方式</td><td>版本制：高级版 3,880 元/月、企业版 9,880、旗舰版 28,880；含 CC、0day 虚拟补丁；企业版加 API 安全/BOT</td><td>同样有按版本/按量的 WAF 产品（具体档位以阿里云控制台实时价为准）</td><td>两者都是「版本费为主」，先估月费再决定；小站可先用云厂商基础防护 + 应用层限流</td></tr>
+<tr><td>API 网关</td><td>共享实例 500 QPS 硬上限、16MB、不支持 VPC；专享实例支持 VPC/专线并接 WAF/EIAM</td><td>阿里云也有 API 网关共享/专享形态（规格以控制台为准）</td><td>要 VPC/高 QPS 时必须专享（两家同理）；纯演示用共享够</td></tr>
+<tr><td>向量库选型</td><td>VectorDB 为托管选项；也可自建 Milvus</td><td>有对应向量检索服务；也可自建 Milvus</td><td>数据量小、演示用自建 Milvus 或本地向量即可；要托管运维省心再上云向量库</td></tr>
+<tr><td>限流能力落点</td><td>WAF(CC) + CLB + API 网关 + 应用层</td><td>WAF + SLB + API 网关 + 应用层</td><td>两家思路一致：<b>入口 + 应用层双层</b>；差异在具体产品名与计费档</td></tr>
+</tbody></table>
+<p class="lead">选型结论（不构成采购建议）：<b>纯演示</b> → 哪家促销便宜用哪家，重点配好安全组 + 应用层限流；<b>要多用户 + 对外</b> → 优先把 WAF 与应用层限流都配上，再按是否需要 VPC/高 QPS 决定要不要专享网关。两家都不建议「只挂一个 WAF 就以为安全了」。</p>
+
+<h2 id="s8">8 · 边界声明与资料来源</h2>
+<ul>
+<li><b>不是上线证明</b>：本页是部署与加固指导，所有命令为待执行文本；未连接云资源、未采购、未执行部署。</li>
+<li><b>未做</b>：等保测评、WAF 规则调优、真实压测、DDoS 高防、数据合规审批、监控告警 SLO、容量压测与灰度回滚演练。</li>
+<li><b>费用</b>全部为「估算 + 假设前提」，以腾讯云控制台实时价为准，不提供精确报价。</li>
+<li><b>500 QPS</b> 为共享 API 网关单服务上限口径，达到上限<b>可能丢请求（不排队）</b>——这是选型硬约束，不是可调参数。</li>
+<li><b>资料来源性质</b>：主理人 2026-11-15 联网核实的公开信息（轻量/CVM 促销价、CLB、WAF 版本价、API 网关共享/专享规格与计费、CAM 等），均标注「公开信息、以控制台实时价为准」；非账单、非报价承诺。</li>
+<li><b>项目内实查依据</b>：<code>webapp/observability.py</code>（<code>RATE_DIMENSIONS</code>、<code>IP_DIMENSION</code>、<code>rate_check(ip=)</code>、<code>check_budget(user_id=)</code>）、<code>webapp/main.py</code>（<code>gateway_guard</code>：413→限流→并发闸；<code>TRUSTED_PROXY_IPS</code> / <code>MAX_INFLIGHT</code> / <code>MAX_BODY_BYTES</code>）、<code>webapp/security.py</code>（PBKDF2/JWT、<code>client_ip()</code>）、<code>webapp/routers_evaltest.py</code>（<code>put_user_budget</code>）、<code>webapp/routers_chat.py</code>（预算拦截 429 <code>QUOTA_EXCEEDED</code>）、<code>webapp/tests/test_gateway_hardening.py</code>（18 passed）；<code>backend/app/middleware/rate_limit.py</code>（按 IP、<code>request.client.host</code>）、<code>backend/app/integrations/redis_client.py</code>（<code>acquire_slot</code> 仅定义）、<code>backend/app/services/audit.py</code>（只追加）、<code>backend/app/agent/orchestrator.py</code>（PII 仅输出闸）、<code>run-demo.sh</code>（8765/8767）、<code>showcase/README.md</code>（单用户离线演示）。</li>
+</ul>
+
+<footer>腾讯云加固指导 · 多用户场景 ｜ 单文件离线页，零外部资源 ｜ 简体中文 · 浅色主题 ｜ 与《阿里云上线指导》配套对照</footer>
+</main>
+</div>
+<script>
+// 纯内联：代码块一键复制（file:// 下 clipboard 不可用时回退 execCommand）
+document.querySelectorAll('.code button').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    var pre = btn.closest('.code').querySelector('pre');
+    var text = pre.innerText;
+    var done = function () { var o = btn.textContent; btn.textContent = '已复制'; setTimeout(function () { btn.textContent = o; }, 1400); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () { fallback(text, done); });
+    } else { fallback(text, done); }
+  });
+});
+function fallback(text, done) {
+  var ta = document.createElement('textarea');
+  ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.select();
+  try { document.execCommand('copy'); done(); } catch (e) {}
+  document.body.removeChild(ta);
+}
+</script>
+</body>
+</html>

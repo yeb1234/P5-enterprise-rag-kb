@@ -217,18 +217,38 @@ def _filter_inline_think(chunks: Iterator[str]) -> Iterator[str]:
         yield buf
 
 
+def thinking_fields(*, disabled: bool) -> dict:
+    """低思考档要注入的请求体字段，与 backend/app/integrations/llm.py:52 同一口径。
+
+    settings.thinking_disabled() 决定「是否低思考」，本函数只决定「低思考发什么字段」，
+    让流式 / 非流式 / 连接测试三条路径共用一份 payload 定义。
+    2026-11-14 网关参数对照实测：`thinking={"type":"disabled"}` 把
+    reasoning_tokens 从 55 降到 0、耗时 979ms → 467ms，确认生效；
+    元数据里列出的布尔 `reasoning` 参数实测无效，不要改用它。
+    换成别的供应商时可用 WEBAPP_LLM_THINKING=enabled 关掉本字段，
+    _filter_inline_think() 仍负责剥掉内联思考块。
+    """
+    return {"thinking": {"type": "disabled"}} if disabled else {}
+
+
 class OpenAILikeLLMProvider(LLMProvider):
-    """OpenAI 兼容端点（外部 Sensenova / 本地 LM Studio）。
+    """OpenAI 兼容端点（外部 Sensenova / Discovery 网关 / 本地 LM Studio）。
 
     流式走 SSE（data: {...}\\n\\n，以 data: [DONE] 结束）；标准库 http.client，零额外依赖。
     api_key 为空时不带 Authorization（LM Studio 默认不校验）。
     """
 
-    def __init__(self, base_url: str, api_key: str, model: str):
+    def __init__(self, base_url: str, api_key: str, model: str,
+                 thinking_disabled: bool = True):
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key or ""
         self.model = model
         self.model_label = model
+        self.thinking_disabled = thinking_disabled
+
+    def _extras(self) -> dict:
+        # 构造时已定档，不在这里重读全局配置（便于单测锁定，也避免流中途配置变化）
+        return thinking_fields(disabled=self.thinking_disabled)
 
     def _messages(self, question: str, retrieved: list[dict]) -> list[dict]:
         ctx = []
@@ -252,9 +272,10 @@ class OpenAILikeLLMProvider(LLMProvider):
 
     def _stream_raw(self, question: str, retrieved: list[dict]) -> Iterator[str]:
         messages = self._messages(question, retrieved)
-        body = json.dumps(
-            {"model": self.model, "messages": messages, "stream": True, "temperature": 0.3}
-        ).encode("utf-8")
+        payload = {"model": self.model, "messages": messages, "stream": True,
+                   "temperature": 0.3}
+        payload.update(self._extras())  # 低思考档：显式关闭 V4 系列的 thinking
+        body = json.dumps(payload).encode("utf-8")
         path = urlparse(self.base_url).path + "/chat/completions"
         headers = {"Content-Type": "application/json"}
         if self.api_key:
@@ -325,10 +346,11 @@ class OpenAILikeLLMProvider(LLMProvider):
         if system:
             messages.append({"role": "system", "content": system})
         messages.append({"role": "user", "content": prompt})
+        payload = {"model": self.model, "messages": messages, "stream": False,
+                   "temperature": temperature, "max_tokens": max_tokens}
+        payload.update(self._extras())
         status, data = _post_json(
-            self.base_url + "/chat/completions",
-            {"model": self.model, "messages": messages, "stream": False,
-             "temperature": temperature, "max_tokens": max_tokens},
+            self.base_url + "/chat/completions", payload,
             self.api_key, timeout=90,
         )
         if status == 429 and classify_429(json.dumps(data, ensure_ascii=False) if isinstance(data, dict) else str(data)) == "quota":
@@ -413,15 +435,18 @@ LocalEmbeddingProvider = OpenAILikeEmbeddingProvider
 def get_llm(cfg: dict | None = None) -> LLMProvider:
     cfg = cfg or settings.get_all()
     kind = cfg.get("llm_provider", "offline")
+    low_thinking = settings.thinking_disabled(cfg)
     if kind == "local":
         return OpenAILikeLLMProvider(
-            cfg.get("local_llm_base_url", ""), "", cfg.get("local_llm_model", "")
+            cfg.get("local_llm_base_url", ""), "", cfg.get("local_llm_model", ""),
+            thinking_disabled=low_thinking,
         )
     if kind == "sensenova":
         return OpenAILikeLLMProvider(
             os.environ.get("SENSENOVA_BASE_URL", "https://token.sensenova.cn/v1"),
             os.environ.get("SENSENOVA_API_KEY", ""),
             cfg.get("sensenova_model") or os.environ.get("SENSENOVA_MODEL", "deepseek-flash"),
+            thinking_disabled=low_thinking,
         )
     if kind == "discovery":
         # Intern-AI Discovery 网关：同一 key 下多家模型（deepseek / glm / kimi / minimax / qwen / vision）
@@ -429,8 +454,14 @@ def get_llm(cfg: dict | None = None) -> LLMProvider:
             os.environ.get("DISCOVERY_BASE_URL", "https://discovery-api.intern-ai.org.cn/v1"),
             os.environ.get("DISCOVERY_API_KEY", ""),
             cfg.get("discovery_model") or os.environ.get("DISCOVERY_MODEL", "deepseek-v4.1-flash-1017"),
+            thinking_disabled=low_thinking,
         )
     return OfflineLLMProvider()
+
+
+def get_thinking_mode(cfg: dict | None = None) -> str:
+    """给设置页 / SSE meta 展示的档位标签，不改动 get_model_label() 的返回值。"""
+    return "低思考 · 快速" if settings.thinking_disabled(cfg) else "完整推理"
 
 
 def get_model_label(cfg: dict | None = None) -> str:
@@ -468,13 +499,15 @@ def probe_models(base_url: str, api_key: str = "") -> list[str]:
     return [m.get("id") for m in data.get("data", []) if m.get("id")]
 
 
-def test_llm(base_url: str, model: str, api_key: str = "") -> dict:
+def test_llm(base_url: str, model: str, api_key: str = "",
+             thinking_disabled: bool = True) -> dict:
     """连接测试：给足 token 预算，避免推理模型把 max_tokens 全花在 thinking 上导致正文为空。"""
     t0 = time.time()
+    payload = {"model": model, "messages": [{"role": "user", "content": "只回复两个字：你好"}],
+               "stream": False, "max_tokens": 256}
+    payload.update(thinking_fields(disabled=thinking_disabled))
     status, data = _post_json(
-        base_url.rstrip("/") + "/chat/completions",
-        {"model": model, "messages": [{"role": "user", "content": "只回复两个字：你好"}],
-         "stream": False, "max_tokens": 256},
+        base_url.rstrip("/") + "/chat/completions", payload,
         api_key,
         timeout=90,
     )
@@ -494,6 +527,14 @@ def test_llm(base_url: str, model: str, api_key: str = "") -> dict:
         "reasoning_tokens": reasoning_tokens,
         # 推理模型在 token 预算不足时可能只吐 thinking：如实标注，不让「可用」掩盖空正文
         "reasoning_only": bool(content == "" and (msg.get("reasoning_content") or "")),
+        "thinking_mode": "低思考 · 快速" if thinking_disabled else "完整推理",
+        # 记录请求里带了什么；2026-11-14 对照实测已确认该字段在本网关生效。
+        "thinking_field_sent": "thinking=disabled" if thinking_disabled else "",
+        # usage 里是否观察到推理 token：仅作证据，不等于网关确认支持该字段。
+        "low_thinking_evidence": (
+            "reasoning_tokens_present" if reasoning_tokens else
+            "no_reasoning_tokens" if reasoning_tokens == 0 else "not_reported"
+        ),
     }
 
 

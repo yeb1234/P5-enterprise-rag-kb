@@ -4,7 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>企业级知识库 · 可运行演示切片</title>
-  <link rel="stylesheet" href="/style.css?v=10" />
+  <!-- 同步执行：在 CSS 应用前写好 data-theme / data-mode，首屏无主题闪烁 -->
+  <script src="/theme.js?v=19"></script>
+  <script src="/i18n.js?v=19"></script>
+  <link rel="stylesheet" href="/style.css?v=19" />
 </head>
 <body>
 
@@ -76,6 +79,21 @@
         <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/></svg>
         评测中心
       </button>
+      <button data-view="evaltest" onclick="switchView('evaltest')">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/><circle cx="19" cy="6" r="1.5"/></svg>
+        评估测试
+        <span class="nav-tag soft">OBS</span>
+      </button>
+      <button data-view="parsing" onclick="switchView('parsing')">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/></svg>
+        解析实验室
+        <span class="nav-tag soft">NEW</span>
+      </button>
+      <button data-view="knowledge" onclick="switchView('knowledge')">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/><path d="M5 5l14 14"/></svg>
+        知识治理
+        <span class="nav-tag soft">NEW</span>
+      </button>
       <button data-view="admin" id="nav-admin" class="hidden" onclick="switchView('admin')">
         <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/><path d="M9 12l2 2 4-4"/></svg>
         管理后台 <span class="nav-tag">ADMIN</span>
@@ -93,6 +111,22 @@
         <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg>
         系统设置与边界
       </button>
+      <button data-view="runtime" onclick="switchView('runtime')">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16v12H4z"/><path d="M8 7V4h8v3M8 13h8M8 16h5"/></svg>
+        缓存与恢复
+        <span class="nav-tag soft">NEW</span>
+      </button>
+      <button data-view="safety" onclick="switchView('safety')">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg>
+        内容安全 / PII
+        <span class="nav-tag soft">NEW</span>
+      </button>
+      <!-- 同标签跳转：内嵌预览面板会拦截 window.open / target=_blank；地址写进 title 便于复制 -->
+      <a id="nav-showcase" class="nav-item" href="http://127.0.0.1:8767" title="http://127.0.0.1:8767">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4h7v16H4z"/><path d="M13 4h7v16h-7z"/><path d="M7 9h1M7 13h1M16 9h1M16 13h1"/></svg>
+        解析工作台
+        <span class="nav-tag soft">8767</span>
+      </a>
     </nav>
     <div class="side-foot">
       <div class="sys-line"><span class="sys-dot" id="sys-dot"></span><span id="sys-text">系统运行中</span></div>
@@ -107,6 +141,17 @@
         <div class="crumb" id="page-crumb">工作台 / 文档管理</div>
       </div>
       <div class="spacer"></div>
+      <div class="appearance" id="appearance">
+        <label class="appearance-label" for="kb-lang">语言</label>
+        <select id="kb-lang" class="select lang-select" aria-label="语言 / Language" onchange="setLang(this.value)">
+          <option value="zh">中文</option><option value="en">EN</option>
+        </select>
+        <span class="sep"></span>
+        <span class="appearance-label">主题色</span>
+        <div class="swatches" id="kb-swatches" role="group" aria-label="主题色 / Accent color"></div>
+        <span class="sep"></span>
+        <button class="mode-btn" id="kb-mode" onclick="toggleMode()" aria-label="外观模式 / Appearance"></button>
+      </div>
       <span id="busy-inline" class="badge badge-gray hidden">空闲</span>
       <div class="user-chip">
         <span class="avatar" id="user-avatar">U</span>
@@ -296,7 +341,7 @@
       <!-- ---------- 任务中心 ---------- -->
       <section id="view-tasks" class="hidden">
         <div class="page-head">
-          <div><h2>任务中心</h2><p>上传分析队列、状态机与失败恢复；对应 docs/async-upload.md 的三层进度通道设计。</p></div>
+          <div><h2>任务中心</h2><p>全局上传分析队列：谁在排队、积压多少。队列真值取自 <code>documents.status</code>，不是内存队列，进程重启后仍可重建；对应 docs/async-upload.md 的三层进度通道设计。</p></div>
           <div class="head-actions"><button class="btn btn-sm" onclick="loadTasks()">刷新</button></div>
         </div>
         <div class="stat-grid" id="task-stats"></div>
@@ -312,10 +357,30 @@
               这里用进程内信号量 + 轮询展示同一语义，<b>不是</b> Celery + RabbitMQ。</p>
           </div>
         </div>
-        <div class="card" style="margin-bottom:16px"><div class="section-title padded" style="padding-bottom:0">最近文档状态</div><div class="table-wrap" id="task-docs"></div></div>
+
+        <div class="card" style="margin-bottom:16px">
+          <div class="section-title padded" style="padding-bottom:0">按用户积压 <span class="badge badge-blue">已实现（演示级）</span></div>
+          <div class="table-wrap" id="task-by-user"></div>
+        </div>
+
+        <div class="card hidden" id="task-by-dept-card" style="margin-bottom:16px">
+          <div class="section-title padded" style="padding-bottom:0">按部门 <span class="badge badge-blue">已实现（演示级）</span></div>
+          <div class="table-wrap" id="task-by-dept"></div>
+        </div>
+
+        <div class="card hidden" id="task-details-card" style="margin-bottom:16px">
+          <div class="section-title padded" style="padding-bottom:0">文件名明细 <span class="badge badge-purple">仅管理员可见</span></div>
+          <details style="padding:0 20px 16px">
+            <summary class="small muted" style="cursor:pointer;padding:6px 0">展开 / 收起明细（最多 200 条，按提交时间升序）</summary>
+            <div class="table-wrap" id="task-details"></div>
+          </details>
+        </div>
+
+        <div class="card" style="margin-bottom:16px"><div class="section-title padded" style="padding-bottom:0">最近文档状态 <span class="badge badge-gray">仅自己的文档</span></div><div class="table-wrap" id="task-docs"></div></div>
         <div class="card padded"><div class="section-title">降级与恢复矩阵</div>
           <p class="muted small" style="margin:0">格式不支持 → error + 原因；繁忙 → 排队并显示位置；检索为空 → 拒答不编造；
             流中断 → resume_from 续传；后端不可达 → 红色横幅自动重连；令牌失效 → 退回登录。<b>全部可见、全部留痕，不静默。</b></p>
+          <p class="muted small" style="margin:10px 0 0"><span class="badge badge-gray">只设计</span> 页级 chord 与 SSE 权威快照仍为设计目标，本轮用 2.5s 轮询 + 进程内信号量演示同一语义，<b>未实现</b>。</p>
         </div>
       </section>
 
@@ -398,6 +463,346 @@
         </div>
       </section>
 
+      <!-- ---------- 评估测试：可观测子页 ---------- -->
+      <section id="view-evaltest" class="hidden">
+        <div class="page-head">
+          <div><h2>评估测试</h2><p>评估配置、运行记录、指标展示、日志追踪，以及按项目 / 部门 / 调用维度统计 token 消耗与成本；支持预算上限与超限处理。</p></div>
+          <div class="head-actions"><button class="btn btn-sm" onclick="loadEvalTest()">刷新</button></div>
+        </div>
+        <div id="et-banner"></div>
+        <div class="tabs" id="et-tabs">
+          <button class="tab active" data-tab="config" onclick="switchEvalTab('config')">评估配置</button>
+          <button class="tab" data-tab="runs" onclick="switchEvalTab('runs')">运行记录</button>
+          <button class="tab" data-tab="metrics" onclick="switchEvalTab('metrics')">指标展示</button>
+          <button class="tab" data-tab="logs" onclick="switchEvalTab('logs')">日志追踪</button>
+          <button class="tab" data-tab="cost" onclick="switchEvalTab('cost')">成本与预算</button>
+          <button class="tab" data-tab="gov" onclick="switchEvalTab('gov')">限流与插件</button>
+        </div>
+
+        <div class="tab-panel active" id="et-config">
+          <div class="grid-2" style="margin-bottom:16px">
+            <div class="card padded">
+              <div class="section-title">评估配置</div>
+              <div class="field" style="margin-bottom:12px"><label>评估档位</label>
+                <select id="et-profile" class="select">
+                  <option value="offline_placeholder">offline_placeholder（离线可控，comparable=false）</option>
+                  <option value="real_api">real_api（真实 API，需契约解禁）</option>
+                </select>
+              </div>
+              <div class="field" style="margin-bottom:12px"><label>提示词版本</label><select id="et-prompt" class="select"></select></div>
+              <div class="field" style="margin-bottom:12px"><label>参数组</label><select id="et-params" class="select"></select></div>
+              <div class="field" style="margin-bottom:12px"><label>样本范围</label><select id="et-samples" class="select"></select></div>
+              <div class="btns" style="display:flex;gap:8px;flex-wrap:wrap">
+                <button class="btn btn-primary btn-sm" id="et-save" onclick="saveEvalConfig()">保存配置</button>
+                <button class="btn btn-sm" id="et-run" onclick="runEvalOnce()">运行一次评估</button>
+              </div>
+              <div id="et-config-msg" class="muted small" style="margin-top:10px"></div>
+            </div>
+            <div class="card padded">
+              <div class="section-title">当前配置与口径</div>
+              <div id="et-config-view"></div>
+              <div class="note-box" style="margin-top:12px">离线档位结果 <code>comparable=false</code>，禁止写入质量基线；
+                <code>real_api</code> 档位在 <code>OBJ-ADAPTER-CONTRACTS</code> 的 blocking 字段解禁前保持阻断。
+                本页配置只影响演示切片的评估运行，不改动 <code>eval/</code> 冻结对象。</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tab-panel" id="et-runs">
+          <div class="card"><div class="section-title padded" style="padding-bottom:0">最近运行</div>
+            <div class="table-wrap" id="et-runs-table"></div></div>
+          <p class="muted small" style="margin-top:10px">运行记录来自 <code>evalbench/runs/</code> 与本页面发起的离线运行；
+            <code>real_api</code> 与离线档位分别标注，不混算。</p>
+        </div>
+
+        <div class="tab-panel" id="et-metrics">
+          <div class="card padded" style="margin-bottom:16px">
+            <div class="section-title">指标展示 · 按任务类别 / 维度</div>
+            <div class="inline-form">
+              <div class="field"><label>运行</label><select id="et-metric-run" class="select" onchange="loadEtMetrics()"></select></div>
+              <div class="field"><label>模型</label><select id="et-metric-model" class="select" onchange="loadEtMetrics()"><option value="">全部</option></select></div>
+            </div>
+          </div>
+          <div class="card"><div class="table-wrap" id="et-metrics-table"></div></div>
+        </div>
+
+        <div class="tab-panel" id="et-logs">
+          <div class="card padded" style="margin-bottom:16px">
+            <div class="inline-form">
+              <div class="field"><label>运行 ID</label><select id="et-log-run" class="select" onchange="loadEtLogs()"><option value="">全部</option></select></div>
+              <div class="field"><label>级别</label><select id="et-log-level" class="select" onchange="loadEtLogs()">
+                <option value="">全部</option><option value="INFO">INFO</option><option value="WARN">WARN</option><option value="ERROR">ERROR</option>
+              </select></div>
+              <button class="btn btn-sm" onclick="loadEtLogs()">刷新</button>
+            </div>
+          </div>
+          <div class="card"><div class="table-wrap" id="et-logs-table"></div></div>
+        </div>
+
+        <div class="tab-panel" id="et-cost">
+          <div class="grid-2" style="margin-bottom:16px">
+            <div class="card padded">
+              <div class="section-title">预算上限与超限处理</div>
+              <div class="budget-hero"><span class="num" id="et-budget-spend">—</span><span class="unit">/ <span id="et-budget-limit">—</span> 元</span></div>
+              <div class="budget-track" id="et-budget-track"><i style="width:0%"></i></div>
+              <div class="kv-line"><span>使用率</span><b id="et-budget-rate">—</b></div>
+              <div class="kv-line"><span>剩余额度</span><b id="et-budget-left">—</b></div>
+              <div class="kv-line"><span>超限处理</span><b class="small">告警并拒绝新的付费调用（留痕）</b></div>
+              <div class="inline-form" style="margin-top:12px">
+                <div class="field"><label>预算上限（元 / 周期）</label><input id="et-budget-input" class="input" type="number" min="0" step="0.01" /></div>
+                <div class="field"><label>超限策略</label><select id="et-budget-policy" class="select">
+                  <option value="warn">warn（告警留痕，不拒绝）</option>
+                  <option value="block">block（拒绝新的付费调用）</option>
+                </select></div>
+                <button class="btn btn-primary btn-sm" id="et-budget-save" onclick="saveBudget()">保存预算</button>
+              </div>
+              <div id="et-budget-msg" class="muted small" style="margin-top:8px"></div>
+            </div>
+            <div class="card padded">
+              <div class="section-title">Token 消耗与成本（按维度聚合）</div>
+              <div class="field" style="margin-bottom:12px"><label>按维度聚合</label>
+                <select id="et-cost-dim" class="select" onchange="loadEtCost()">
+                  <option value="project">项目</option><option value="department_id">部门</option>
+                  <option value="call_type">调用类型</option><option value="model">模型</option>
+                </select>
+              </div>
+              <div id="et-cost-summary" class="muted small"></div>
+              <div id="et-cost-rows" style="margin-top:10px"></div>
+              <p class="muted small" style="margin:12px 0 0">单价表为演示估算值，非供应商报价；上线前须用账单校准。
+                成本口径：输入 / 输出 token 分别计价，按调用逐条落台账后聚合。</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="tab-panel" id="et-gov">
+          <div class="card" style="margin-bottom:16px">
+            <div class="section-title padded" style="padding-bottom:0">限流配额（用户 / 接口 / 模型调用 + IP 接入层防刷）</div>
+            <div class="table-wrap" id="et-rate-table"></div>
+            <div class="padded muted small">超限反馈：HTTP 429 + Retry-After + 统一错误体 + 审计留痕；
+              <code>rate_limit_exceeded</code> 退避重试，<code>quota_exceeded</code> 不重试。</div>
+          </div>
+          <div class="section-title">插件能力 · 接入模块与边界</div>
+          <div class="plugin-grid" id="et-plugins"></div>
+        </div>
+      </section>
+
+      <!-- ---------- 解析实验室（可插拔文档解析） ---------- -->
+      <section id="view-parsing" class="hidden">
+        <div class="page-head">
+          <div><h2>解析实验室</h2><p>三级解析策略（自研 / 收费 OCR / 多模态兜底）可切换；质量门禁决定逐页升级，预算闸门限制最贵链路占比，全过程留下可核对的轨迹。</p></div>
+          <div class="head-actions"><button class="btn btn-sm" onclick="loadParsing()">刷新</button></div>
+        </div>
+
+        <div class="grid-2" style="margin-bottom:16px">
+          <div class="card padded">
+            <div class="section-title">策略开关</div>
+            <div class="field"><label>解析策略</label><select id="ps-strategy" class="select"></select></div>
+            <div class="btns" style="margin-top:8px"><button class="btn btn-primary btn-sm" onclick="saveParsingStrategy()">保存策略</button></div>
+            <div id="ps-strategy-msg" class="muted small" style="margin-top:8px"></div>
+            <p class="muted small" style="margin:12px 0 0">自动档按质量门禁逐级升级：<code>无文本层</code> / <code>置信度不足</code> / <code>表格结构不自洽</code> 才会往贵的一级走，不是随机分流。</p>
+          </div>
+          <div class="card padded">
+            <div class="section-title">预算闸门 · 90:10</div>
+            <div id="ps-budget" class="muted small">加载中…</div>
+            <div class="section-title" style="margin-top:14px">网关视觉能力探测</div>
+            <div id="ps-vision" class="muted small">加载中…</div>
+          </div>
+        </div>
+
+        <div class="card padded" style="margin-bottom:16px">
+          <div class="section-title">三级策略可用性</div>
+          <div id="ps-levels" class="grid-3"></div>
+        </div>
+
+        <div class="card padded" style="margin-bottom:16px">
+          <div class="section-title">上传文件并解析（演示探测，不落业务库、不写向量）</div>
+          <div class="inline-form">
+            <div class="field"><label>选择文件（支持 PDF / 图片 / Markdown / CSV / 纯文本，≤ 8 MiB）</label>
+              <input id="ps-file" class="input" type="file" /></div>
+            <button class="btn btn-primary btn-sm" onclick="runParsingProbe()">开始解析</button>
+          </div>
+          <div id="ps-probe-msg" class="muted small" style="margin-top:8px"></div>
+        </div>
+
+        <div class="card padded" style="margin-bottom:16px">
+          <div class="section-title">逐页解析轨迹</div>
+          <div id="ps-summary" class="muted small">尚未解析。</div>
+          <div class="table-wrap" id="ps-traces" style="margin-top:10px"></div>
+        </div>
+
+        <div class="card padded" style="margin-bottom:16px">
+          <div class="section-title">第一页结构化结果预览</div>
+          <div id="ps-preview" class="muted small">尚未解析。</div>
+        </div>
+      </section>
+
+      <!-- ---------- 知识治理（新鲜度 + 事实冲突） ---------- -->
+      <section id="view-knowledge" class="hidden">
+        <div class="page-head">
+          <div><h2>知识治理</h2><p>入库新鲜度（时间衰减 + 适用性门控 + 过期处置）与事实冲突检测（claim 级比对 → 冲突图按簇裁决 → 结构化证据）。内置合成场景，不写业务库、不触发外部调用。</p></div>
+          <div class="head-actions"><button class="btn btn-sm" onclick="loadKnowledge()">重新计算</button></div>
+        </div>
+
+        <div class="grid-2" style="margin-bottom:16px">
+          <div class="card padded">
+            <div class="section-title">新鲜度策略</div>
+            <div class="inline-form">
+              <div class="field"><label>启用时间衰减</label><select id="kn-enabled" class="select">
+                <option value="1">启用</option><option value="0">关闭（仅作对照）</option></select></div>
+              <div class="field"><label>半衰期（天）</label><input id="kn-half" class="input" type="number" min="1" step="1" /></div>
+              <div class="field"><label>过期处置</label><select id="kn-expired" class="select">
+                <option value="demote">demote（降权并标注）</option>
+                <option value="exclude">exclude（排除出候选）</option>
+                <option value="warn">warn（只告警不改分）</option></select></div>
+              <div class="field"><label>相关性混合权重 blend</label><input id="kn-blend" class="input" type="number" min="0" max="1" step="0.05" /></div>
+            </div>
+            <div class="btns" style="margin-top:8px"><button class="btn btn-primary btn-sm" onclick="saveKnowledgePolicy()">保存策略</button></div>
+            <div id="kn-policy-msg" class="muted small" style="margin-top:8px"></div>
+            <p class="muted small" style="margin:12px 0 0">有效分 = 相关分 × (1 − blend + blend × 衰减)；衰减 = 0.5^(年龄/半衰期)，下限 demote_floor。<b>适用性门控不受开关影响</b>：未来生效与已过期文档始终按规则处置。</p>
+          </div>
+          <div class="card padded">
+            <div class="section-title">场景汇总</div>
+            <div id="kn-summary" class="muted small">加载中…</div>
+            <div class="section-title" style="margin-top:14px">排序前后对照</div>
+            <div id="kn-order" class="muted small">加载中…</div>
+          </div>
+        </div>
+
+        <div class="card padded" style="margin-bottom:16px">
+          <div class="section-title">逐文档新鲜度报告</div>
+          <div class="table-wrap" id="kn-freshness"></div>
+        </div>
+
+        <div class="card padded" style="margin-bottom:16px">
+          <div class="section-title">事实冲突与裁决</div>
+          <div id="kn-warnings"></div>
+          <div class="table-wrap" id="kn-conflicts" style="margin-top:10px"></div>
+          <div class="section-title" style="margin-top:14px">证据记录（EvidenceRecord）</div>
+          <div id="kn-evidence" class="muted small">加载中…</div>
+        </div>
+
+        <div class="grid-2" style="margin-bottom:16px">
+          <div class="card padded">
+            <div class="section-title">负向对照（检测器不乱报）</div>
+            <div id="kn-controls" class="muted small"></div>
+          </div>
+          <div class="card padded">
+            <div class="section-title">场景原文（合成样本）</div>
+            <div id="kn-docs" class="muted small"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ---------- 缓存与恢复（运行时状态） ---------- -->
+      <section id="view-runtime" class="hidden">
+        <div class="page-head">
+          <div><h2>缓存与恢复</h2><p>双层缓存（L1 内存 LRU + L2 SQLite）、版本感知失效、缓存 key 逐段拆解，以及服务器重启后的启动自检与状态恢复报告。全部离线可跑。</p></div>
+          <div class="head-actions"><button class="btn btn-sm" onclick="loadRuntime()">刷新</button></div>
+        </div>
+
+        <div class="grid-2" style="margin-bottom:16px">
+          <div class="card padded">
+            <div class="section-title">缓存策略与统计</div>
+            <div id="rt-policy" class="muted small">加载中…</div>
+            <div class="section-title" style="margin-top:14px">缓存 key 逐段拆解</div>
+            <div id="rt-key" class="muted small">加载中…</div>
+          </div>
+          <div class="card padded">
+            <div class="section-title">重启恢复报告</div>
+            <div id="rt-recovery" class="muted small">加载中…</div>
+          </div>
+        </div>
+
+        <div class="card padded" style="margin-bottom:16px">
+          <div class="section-title">检索结果缓存演示（先按权限过滤再写）</div>
+          <div class="inline-form">
+            <div class="field"><label>演示查询</label><input id="rt-query" class="input" value="配网" /></div>
+            <button class="btn btn-primary btn-sm" onclick="runCacheDemo()">运行缓存演示</button>
+            <button class="btn btn-sm" onclick="simulateRuntimeRestart()">模拟重启</button>
+            <button class="btn btn-sm" onclick="invalidateRuntime()">主动失效</button>
+          </div>
+          <div id="rt-demo" class="muted small" style="margin-top:10px">未运行。</div>
+        </div>
+
+        <div class="card padded" style="margin-bottom:16px">
+          <div class="section-title">缓存策略开关（admin）</div>
+          <div class="inline-form">
+            <div class="field"><label>L1 容量</label><input id="rt-l1" class="input" type="number" min="1" /></div>
+            <div class="field"><label>L2 容量</label><input id="rt-l2" class="input" type="number" min="1" /></div>
+            <div class="field"><label>正常 TTL（秒）</label><input id="rt-ttl" class="input" type="number" min="1" /></div>
+            <button class="btn btn-primary btn-sm" onclick="saveRuntimePolicy()">保存</button>
+          </div>
+          <div id="rt-msg" class="muted small" style="margin-top:8px"></div>
+          <p class="muted small" style="margin:12px 0 0">L1 重启必然清空；L2 与 runtime_state 落 SQLite。命中后仍复核 <code>data_version</code> / <code>authz_snapshot</code> / <code>policy_version</code>；TTL 不是权限控制。答案缓存与语义缓存<b>未做</b>；检索结果缓存目前只在下方演示接口使用，默认不接主问答链路。
+
+          </p>
+        </div>
+      </section>
+
+      <!-- ---------- 内容安全 / PII 防护 ---------- -->
+      <section id="view-safety" class="hidden">
+        <div class="page-head">
+          <div><h2>内容安全 / PII 防护</h2><p>同一套规则贯穿四个出口：入库前、进模型前、输出前、日志与导出前。检测走「格式 → 校验位 → 上下文 → 置信度」四级判定链，附防误报负向对照。全部离线可跑。</p></div>
+          <div class="head-actions"><button class="btn btn-sm" onclick="loadSafety()">刷新</button></div>
+        </div>
+
+        <div class="grid-2" style="margin-bottom:16px">
+          <div class="card padded">
+            <div class="section-title">当前策略与四出口台账</div>
+            <div id="sf-policy" class="muted small">加载中…</div>
+            <div class="section-title" style="margin-top:14px">实时链路接入状态</div>
+            <div id="sf-integration" class="muted small">加载中…</div>
+          </div>
+          <div class="card padded">
+            <div class="section-title">检测规则（格式 → 校验位 → 上下文 → 置信度）</div>
+            <div id="sf-rules" class="muted small">加载中…</div>
+          </div>
+        </div>
+
+        <div class="card padded" style="margin-bottom:16px">
+          <div class="section-title">一键演示：正向命中 / 防误报 / 四出口链路 / 流式跨界</div>
+          <div class="inline-form">
+            <button class="btn btn-primary btn-sm" onclick="runSafetyDemo()">运行规则演示</button>
+          </div>
+          <div id="sf-demo" class="muted small" style="margin-top:10px">未运行。</div>
+        </div>
+
+        <div class="card padded" style="margin-bottom:16px">
+          <div class="section-title">任意文本四出口检测</div>
+          <div class="inline-form">
+            <div class="field" style="flex:1"><label>待检测文本</label><input id="sf-text" class="input" value="员工身份证号是 110101199003071938，手机 13812345678。" /></div>
+            <button class="btn btn-sm" onclick="runSafetyCheck()">检测</button>
+          </div>
+          <div id="sf-check" class="muted small" style="margin-top:10px">未运行。</div>
+        </div>
+
+        <div class="card padded" style="margin-bottom:16px">
+          <div class="section-title">策略开关（admin）</div>
+          <div class="inline-form">
+            <div class="field"><label>启用</label>
+              <select id="sf-enabled" class="select">
+                <option value="1">开启（默认）</option>
+                <option value="0">关闭（仅对照演示）</option>
+              </select>
+            </div>
+            <div class="field"><label>默认动作</label>
+              <select id="sf-action" class="select">
+                <option value="mask">mask（部分遮蔽）</option>
+                <option value="hash">hash（带盐不可逆）</option>
+                <option value="remove">remove（占位替换）</option>
+                <option value="block">block（命中即拒）</option>
+                <option value="token">token（可逆，默认不建议）</option>
+              </select>
+            </div>
+            <div class="field"><label>最小置信度</label><input id="sf-minconf" class="input" type="number" step="0.05" min="0" max="1" /></div>
+            <button class="btn btn-primary btn-sm" onclick="saveSafetyPolicy()">保存</button>
+          </div>
+          <div id="sf-msg" class="muted small" style="margin-top:8px"></div>
+          <p class="muted small" style="margin:12px 0 0">边界：规则级检测<b>不是</b>模型级 NER；中文姓名、工号、护照靠字段名词定位，不做「看见汉字就当姓名」。可逆 token 默认关闭（映射本身是新的泄漏面）。关闭启用会让四个出口全部放行原文，仅限对照演示。台账只存类别与数量，不存原文、不存可逆映射。
+          </p>
+        </div>
+      </section>
+
       <!-- ---------- 模型设置（仅 admin） ---------- -->
       <section id="view-settings" class="hidden">
         <div class="page-head">
@@ -416,6 +821,13 @@
                 <option value="offline">离线占位</option>
               </select>
             </div>
+            <div class="field"><label>推理强度</label>
+              <select id="st-llm-thinking" class="select">
+                <option value="disabled">低思考 · 快速（默认，关闭 thinking）</option>
+                <option value="enabled">完整推理（慢，先输出思考过程）</option>
+              </select>
+            </div>
+            <p class="muted small" data-i18n="V4.1 系列默认会先输出思考过程；检索问答要低延迟，默认在请求里显式关闭。该字段经实测生效：推理 token 从 55 降到 0，耗时约减半；网关元数据里的布尔 reasoning 参数实测无效。">V4.1 系列默认会先输出思考过程；检索问答要低延迟，默认在请求里显式关闭。该字段经实测生效：推理 token 从 55 降到 0，耗时约减半；网关元数据里的布尔 reasoning 参数实测无效。</p>
             <div id="st-discovery-box">
               <div class="field"><label>网关模型</label>
                 <select id="st-discovery-model" class="select"></select>
@@ -494,6 +906,6 @@
 <div id="modal-root"></div>
 <div id="toasts"></div>
 
-<script src="/app.js?v=10"></script>
+<script src="/app.js?v=19"></script>
 </body>
 </html>

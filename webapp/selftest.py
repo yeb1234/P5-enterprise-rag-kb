@@ -166,7 +166,8 @@ def main() -> dict:
         _, d = upload(admin, fn, content)
         if isinstance(d, dict) and d.get("id"):
             up_ids.append(d["id"])
-    st, _, busy = jcall("GET", "/api/system/busy")
+    # 安全加固后 /api/system/busy 必须登录（此前无鉴权可探测文件名），故带 admin token
+    st, _, busy = jcall("GET", "/api/system/busy", admin)
     record("C07", "批量上传触发繁忙状态与队列", st == 200 and busy.get("busy") is True
            and (busy.get("active_count", 0) > 0 or busy.get("queue_count", 0) > 0),
            f"status={st}, busy={busy.get('busy')}, active={busy.get('active_count')}, queue={busy.get('queue_count')}")
@@ -251,7 +252,9 @@ def main() -> dict:
     t0row = next((t for t in comp0.get("tasks", []) if t["eval_task_id"] == tid), {})
     record("C16", "完成度与该任务关联 badcase 数一致",
            st == 200 and t0row.get("completed", -1) >= 1
-           and t0row.get("pending") == t0row.get("target_count") - t0row.get("completed"),
+           # pending 与完成率在服务端口径上都被钳制（累积记录可超过目标数）
+           and t0row.get("pending") == max(0, t0row.get("target_count") - t0row.get("completed"))
+           and 0 <= t0row.get("completion_rate", -1) <= 1,
            f"target={t0row.get('target_count')}, completed={t0row.get('completed')}, "
            f"pending={t0row.get('pending')}, rate={t0row.get('completion_rate')}")
 
@@ -309,7 +312,8 @@ def main() -> dict:
            f"status={st4}, id={str(can_create.get('id', ''))[:8]}")
 
     # ---------- 12. 断线/离线降级（业务侧） ----------
-    st, _, idle = jcall("GET", "/api/system/busy")
+    # 同 C07：安全加固后该端点必须登录，带 admin token 复验「排空后回到空闲」
+    st, _, idle = jcall("GET", "/api/system/busy", admin)
     record("C26", "队列排空后回到空闲（繁忙提示会自动消失）",
            st == 200 and idle.get("busy") is False,
            f"busy={idle.get('busy')}, msg={idle.get('message')}")

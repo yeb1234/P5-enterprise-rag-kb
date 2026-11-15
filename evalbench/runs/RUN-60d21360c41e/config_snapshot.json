@@ -1,0 +1,76 @@
+{
+  "run_id": "RUN-60d21360c41e",
+  "label": "v1-baseline",
+  "mode": "live",
+  "comparable": true,
+  "git": {
+    "branch": "eval/v1-baseline",
+    "commit": "b66d116",
+    "commit_full": "b66d116b0a101dd420e4c6332dd9b77eb8785a9a",
+    "dirty": true,
+    "captured_at": "2026-11-12T11:34:44Z"
+  },
+  "dataset": {
+    "file": "samples_v1.jsonl",
+    "hash": "3483a9721338fe40",
+    "n_samples": 12,
+    "origin": "self_built_v1 (见 datasets/SOURCES.md)"
+  },
+  "metrics_version": "METRICS@1.2.0",
+  "models": {
+    "minimax-m3": {
+      "id": "minimax-m3",
+      "role": "fast_non_reasoning",
+      "timeout_s": 60,
+      "adaptations": [
+        "strip_inline_think"
+      ],
+      "reason": "延迟最低（约 1.3s）、无 reasoning 阶段，适合做多轮提示词/参数对比的主力，控制调用成本"
+    },
+    "kimi-k2.6": {
+      "id": "kimi-k2.6",
+      "role": "general",
+      "timeout_s": 90,
+      "adaptations": [],
+      "reason": "中间档通用模型，作为与推理模型、快速模型的对照"
+    },
+    "deepseek-v4.1-flash-1017": {
+      "id": "deepseek-v4.1-flash-1017",
+      "role": "reasoning",
+      "timeout_s": 180,
+      "adaptations": [
+        "require_min_max_tokens_512",
+        "strip_reasoning_content",
+        "tolerate_empty_content"
+      ],
+      "reason": "推理模型，冷启动与 reasoning 阶段显著影响延迟/空正文，必须单独验证兼容性"
+    }
+  },
+  "prompts": {
+    "v1_baseline": {
+      "sha256_16": "582231c4ff68acc5"
+    }
+  },
+  "params": {
+    "A": {
+      "sha256_16": "1d93be89064be4f8",
+      "id": "A",
+      "label": "RGB 官方推荐基线",
+      "source": "https://github.com/chen700564/RGB/blob/master/readme.md (--temp 0.2 --noise_rate 0.6 --passage_num 5)",
+      "temperature": 0.2,
+      "top_p": 1.0,
+      "max_tokens": 512,
+      "passage_num": 5,
+      "noise_rate": 0.6,
+      "repeats": 1,
+      "note": "官方评测脚本默认设定，作为对比起点"
+    }
+  },
+  "repeats": 1,
+  "created_at": "2026-11-12T11:30:14Z",
+  "rescored_from": "RUN-c2b5dcf2bd41",
+  "rescored_at": "2026-11-12T11:34:44Z",
+  "scoring_revision": "METRICS@1.2.0",
+  "scoring_revision_from": "METRICS@1.1.0",
+  "note": "原始 answer 未改动，仅重算 scores；旧 run 完整保留作为前后对照"
+}

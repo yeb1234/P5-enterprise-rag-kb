@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>项目在干什么 · 数据流向与 14 个真实故障点</title>
+<style>
+:root{
+  --bg:#f5f7fb; --surface:#fff; --surface-2:#f8fafc; --surface-3:#eef2f8;
+  --text:#14203a; --text-2:#3b4a66; --muted:#6b7a94;
+  --border:#e2e8f0; --border-2:#cfd8e6;
+  --primary:#4f46e5; --primary-soft:#eef0ff; --primary-ink:#3730a3;
+  --teal:#0d9488; --teal-soft:#e6f6f3;
+  --amber:#b45309; --amber-soft:#fef4e2;
+  --rose:#be123c; --rose-soft:#fdeef2;
+  --slate:#475569; --slate-soft:#eef1f5;
+  --shadow:0 1px 2px rgba(20,32,58,.04),0 10px 30px rgba(20,32,58,.06);
+  --shadow-sm:0 1px 3px rgba(20,32,58,.07);
+  --r:14px; --r-sm:9px; --maxw:1180px;
+  --font:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);font-size:15px;line-height:1.75;-webkit-font-smoothing:antialiased}
+a{color:var(--primary);text-decoration:none}
+a:hover{text-decoration:underline}
+.wrap{max-width:var(--maxw);margin:0 auto;padding:0 28px}
+section{padding:44px 0;border-bottom:1px solid var(--border)}
+section:last-of-type{border-bottom:0}
+.topbar{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.92);backdrop-filter:blur(10px);border-bottom:1px solid var(--border)}
+.topbar .wrap{display:flex;align-items:center;gap:18px;min-height:56px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:9px;font-weight:800;font-size:15px;white-space:nowrap}
+.brand .mark{width:26px;height:26px;border-radius:8px;background:var(--rose);color:#fff;display:grid;place-items:center;font-size:12px}
+.navlinks{display:flex;gap:4px;flex-wrap:wrap;margin-left:auto}
+.navlinks a{padding:5px 10px;border-radius:7px;color:var(--text-2);font-size:13px;font-weight:600}
+.navlinks a:hover{background:var(--surface-3);text-decoration:none}
+.hero{padding:58px 0 46px;background:radial-gradient(900px 380px at 12% -10%,rgba(190,18,60,.08),transparent 70%),radial-gradient(700px 320px at 92% 0%,rgba(79,70,229,.07),transparent 70%);border-bottom:1px solid var(--border)}
+.eyebrow{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:700;letter-spacing:.08em;color:var(--rose);background:var(--rose-soft);border:1px solid #f6cfd9;padding:5px 12px;border-radius:999px}
+.eyebrow i{width:6px;height:6px;border-radius:50%;background:var(--rose);font-style:normal}
+h1{font-size:clamp(28px,4vw,42px);line-height:1.26;margin:18px 0 14px;letter-spacing:-.6px;font-weight:800}
+h1 .sub{display:block;font-size:clamp(15px,2vw,19px);font-weight:600;color:var(--muted);letter-spacing:0;margin-top:11px}
+.lede{font-size:16.5px;color:var(--text-2);max-width:900px;margin:0 0 22px}
+.lede b{color:var(--text)}
+.sec-head{display:flex;align-items:baseline;gap:12px;margin-bottom:8px;flex-wrap:wrap}
+.sec-num{font-size:12px;font-weight:800;color:var(--primary);letter-spacing:.12em}
+h2{font-size:clamp(20px,2.5vw,27px);margin:0;font-weight:800;letter-spacing:-.3px}
+.sec-desc{color:var(--muted);font-size:14px;margin:0 0 22px;max-width:940px}
+h3{font-size:15.5px;font-weight:800;margin:0 0 7px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:20px 22px;box-shadow:var(--shadow-sm)}
+.rise{opacity:0;transform:translateY(14px);animation:rise .55s cubic-bezier(.2,.7,.3,1) forwards;animation-delay:var(--d,0s)}
+@keyframes rise{to{opacity:1;transform:none}}
+/* 数据流 */
+.flow{display:flex;align-items:stretch;gap:0;overflow:auto;padding:8px 2px 14px}
+.fnode{flex:1;min-width:112px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);padding:12px 10px;position:relative;box-shadow:var(--shadow-sm)}
+.fnode .step{font-size:10px;font-weight:800;color:var(--primary);letter-spacing:.1em}
+.fnode .name{font-weight:800;font-size:13.5px;margin:3px 0 4px}
+.fnode .what{font-size:11.5px;color:var(--muted);line-height:1.55}
+.fnode .bugs{display:flex;gap:4px;flex-wrap:wrap;margin-top:7px}
+.bug{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 5px;border-radius:6px;background:var(--rose-soft);color:var(--rose);font-size:11px;font-weight:800;cursor:help}
+.farrow{flex:0 0 26px;display:grid;place-items:center;color:var(--border-2);font-size:18px;font-weight:800}
+/* 分类条 */
+.bars{display:grid;gap:10px;margin-top:6px}
+.bar-row{display:grid;grid-template-columns:120px 1fr 46px;align-items:center;gap:10px;font-size:13px}
+.bar{height:14px;border-radius:7px;background:var(--surface-3);overflow:hidden}
+.bar span{display:block;height:100%;border-radius:7px}
+.bar-row .n{text-align:right;font-weight:800;font-size:12.5px;color:var(--text-2)}
+/* 案例卡 */
+.case{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow-sm);overflow:hidden}
+.case>summary{list-style:none;cursor:pointer;padding:14px 18px;display:flex;gap:10px;align-items:flex-start}
+.case>summary::-webkit-details-marker{display:none}
+.case>summary:hover{background:var(--surface-2)}
+.case .no{flex:0 0 30px;height:30px;border-radius:8px;background:var(--rose-soft);color:var(--rose);display:grid;place-items:center;font-weight:800;font-size:13px}
+.case .ttl{font-weight:800;font-size:14.5px;line-height:1.5}
+.case .tag{margin-left:auto;flex:0 0 auto;font-size:11px;font-weight:800;padding:2px 8px;border-radius:999px}
+.tag.sec{background:var(--rose-soft);color:var(--rose)}
+.tag.det{background:var(--primary-soft);color:var(--primary-ink)}
+.tag.quota{background:var(--amber-soft);color:var(--amber)}
+.tag.eng{background:var(--slate-soft);color:var(--slate)}
+.case .body{padding:0 18px 16px 58px;font-size:13.5px;color:var(--text-2)}
+.case .body p{margin:0 0 8px}
+.case .k{font-weight:800;color:var(--text)}
+.case .fix{color:var(--teal);font-weight:700}
+.case .ask{background:var(--primary-soft);border-left:3px solid var(--primary);border-radius:0 8px 8px 0;padding:9px 12px;margin-top:8px;font-size:13px}
+.case .ask b{color:var(--primary-ink)}
+/* 表 */
+.tbl-wrap{overflow:auto;border:1px solid var(--border);border-radius:var(--r);background:var(--surface);box-shadow:var(--shadow-sm)}
+table{border-collapse:collapse;width:100%;font-size:13.5px;min-width:680px}
+th,td{padding:10px 12px;text-align:left;vertical-align:top;border-bottom:1px solid var(--border)}
+th{background:var(--surface-3);font-size:12px;font-weight:800;color:var(--text-2);white-space:nowrap}
+tr:last-child td{border-bottom:0}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px;background:var(--surface-3);padding:1px 6px;border-radius:5px;color:#334155}
+pre{margin:0;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-sm);padding:13px 15px;overflow:auto;font-size:12.5px;line-height:1.7}
+pre code{background:none;padding:0}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.fine{font-size:12.5px;color:var(--muted);line-height:1.8}
+footer{padding:32px 0 42px;background:var(--surface);border-top:1px solid var(--border)}
+.srcs{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 12px}
+.srcs code{font-size:11.5px}
+@media(max-width:900px){.grid2{grid-template-columns:1fr}.wrap{padding:0 18px}.flow{flex-direction:column}.farrow{transform:rotate(90deg);height:22px}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.rise{opacity:1;transform:none;animation:none}}
+@media print{.topbar{display:none}body{background:#fff}section{break-inside:avoid}.rise{opacity:1;transform:none;animation:none}}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap">
+    <div class="brand"><span class="mark">!</span> 故障案例与数据流向</div>
+    <nav class="navlinks">
+      <a href="#what">项目在干什么</a>
+      <a href="#flow">数据流向</a>
+      <a href="#cases">14 个案例</a>
+      <a href="#howto">面试怎么讲</a>
+      <a href="#check">自测清单</a>
+      <a href="index.html">← 主解释页</a>
+      <a href="journey.html">演进史</a>
+    </nav>
+  </div>
+</header>
+
+<div class="hero">
+  <div class="wrap">
+    <div class="eyebrow"><i></i> 全部来自本轮实跑与独立验收 · 不含假想风险</div>
+    <h1>这个项目在干什么，以及它今天修好了什么
+      <span class="sub">一张数据流向图 + 14 个真实故障点：每个都给出「现象 → 根因 → 修法 → 面试问法」。</span>
+    </h1>
+    <p class="lede">面试官最容易追问的不是「你用了什么技术」，而是<b>「出了问题你怎么定位」</b>。
+      这页把今天修过的 14 个缺陷按数据流位置标出来——你能指着图说「这里会漏、为什么漏、我怎么堵的」，
+      比背十个技术名词更有说服力。</p>
+  </div>
+</div>
+
+<!-- 01 项目在干什么 -->
+<section id="what">
+  <div class="wrap">
+    <div class="sec-head"><span class="sec-num">01</span><h2>项目在干什么：一句话与四个角色</h2></div>
+    <p class="sec-desc">这不是「又一个 ChatGPT 套壳」，而是把<b>企业文档变成可追溯答案</b>的一条链路：上传 → 解析 → 入库 → 检索 → 权限 → 生成 → 引用 → 留痕。</p>
+    <div class="grid2">
+      <div class="card rise" style="--d:.05s">
+        <h3>它解决的问题</h3>
+        <p class="fine" style="margin:0">企业文档散在 PDF、扫描件、表格里，员工问一句话，系统要能<b>找到依据、给出引用、说清不确定</b>。
+          所以核心不是「生成得像人」，而是<b>每条结论都能回溯到原文分块</b>。</p>
+      </div>
+      <div class="card rise" style="--d:.08s">
+        <h3>四个角色各自看什么</h3>
+        <p class="fine" style="margin:0"><b>员工</b>：问一句、看引用；<b>部门管理员</b>：看本部门队列积压、配额；
+          <b>平台管理员</b>：看审计、成本、限流；<b>面试官</b>：看边界、故障处理、可复跑证据。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 02 数据流向 -->
+<section id="flow">
+  <div class="wrap">
+    <div class="sec-head"><span class="sec-num">02</span><h2>数据流向：九个节点，红色数字是今天修的故障点</h2></div>
+    <p class="sec-desc">鼠标悬停红色编号可看案例标题；点击下方卡片看详情。这条链路每一段都可能泄漏、失真或拖垮系统——故障点不是平均分布的，<b>解析与输出两端最多</b>。</p>
+
+    <div class="flow rise">
+      <div class="fnode"><div class="step">STEP 1</div><div class="name">上传</div><div class="what">限大小、鉴权、入队</div><div class="bugs"><span class="bug" title="案例 11 · 并发闸提前释放令牌">11</span><span class="bug" title="案例 5 · busy 无鉴权">5</span></div></div>
+      <div class="farrow">›</div>
+      <div class="fnode"><div class="step">STEP 2</div><div class="name">解析</div><div class="what">P0 规则 / P2 视觉 / 预算闸</div><div class="bugs"><span class="bug" title="案例 7 · Pro 永不触发">7</span><span class="bug" title="案例 14 · 种子被消费">14</span></div></div>
+      <div class="farrow">›</div>
+      <div class="fnode"><div class="step">STEP 3</div><div class="name">入库前脱敏</div><div class="what">PII 四出口之一</div><div class="bugs"><span class="bug" title="案例 1 · 密钥正则漏连字符">1</span></div></div>
+      <div class="farrow">›</div>
+      <div class="fnode"><div class="step">STEP 4</div><div class="name">分块与入库</div><div class="what">chunks / 向量 / 真值</div><div class="bugs"><span class="bug" title="案例 8 · 双向摘要互引">8</span></div></div>
+      <div class="farrow">›</div>
+      <div class="fnode"><div class="step">STEP 5</div><div class="name">检索与权限</div><div class="what">先过滤 → 召回 → 复核</div><div class="bugs"><span class="bug" title="案例 4 · anonymous 共桶">4</span></div></div>
+      <div class="farrow">›</div>
+      <div class="fnode"><div class="step">STEP 6</div><div class="name">进模型前</div><div class="what">上下文脱敏 / 预算闸</div><div class="bugs"><span class="bug" title="案例 10 · 预算闸门错层">10</span><span class="bug" title="案例 9 · 全局预算">9</span></div></div>
+      <div class="farrow">›</div>
+      <div class="fnode"><div class="step">STEP 7</div><div class="name">流式输出</div><div class="what">SSE / 输出闸 / 断线续传</div><div class="bugs"><span class="bug" title="案例 2 · 流式跨界泄漏">2</span><span class="bug" title="案例 6 · 版本被计数污染">6</span></div></div>
+      <div class="farrow">›</div>
+      <div class="fnode"><div class="step">STEP 8</div><div class="name">日志与导出</div><div class="what">审计 / CSV / badcase</div><div class="bugs"><span class="bug" title="案例 3 · 伪造 XFF">3</span></div></div>
+      <div class="farrow">›</div>
+      <div class="fnode"><div class="step">STEP 9</div><div class="name">部署与接入</div><div class="what">容器 / 网关 / 反向代理</div><div class="bugs"><span class="bug" title="案例 12 · Compose bake">12</span><span class="bug" title="案例 13 · 预览面板拦截">13</span></div></div>
+    </div>
+
+    <div class="card rise" style="--d:.06s;margin-top:16px">
+      <h3>故障类型分布</h3>
+      <div class="bars">
+        <div class="bar-row"><span>安全 / 泄漏</span><div class="bar"><span style="width:100%;background:var(--rose)"></span></div><span class="n">5</span></div>
+        <div class="bar-row"><span>确定性与状态</span><div class="bar"><span style="width:60%;background:var(--primary)"></span></div><span class="n">3</span></div>
+        <div class="bar-row"><span>配额与并发</span><div class="bar"><span style="width:60%;background:var(--amber)"></span></div><span class="n">3</span></div>
+        <div class="bar-row"><span>工程与演示</span><div class="bar"><span style="width:60%;background:var(--slate)"></span></div><span class="n">3</span></div>
+      </div>
+      <p class="fine" style="margin:12px 0 0">安全类占三分之一——这类缺陷的特点是<b>功能测试全绿也发现不了</b>，必须专门构造攻击面（真实凭证形态、伪造请求头、跨 chunk 拆分）。</p>
+    </div>
+  </div>
+</section>
+
+<!-- 03 案例 -->
+<section id="cases">
+  <div class="wrap">
+    <div class="sec-head"><span class="sec-num">03</span><h2>14 个案例 · 点开看根因与面试问法</h2></div>
+    <p class="sec-desc">每条都是「可复现」的：给出现象、根因、修法，以及面试官可能怎么问。完整 MD 见 <code>docs/case-studies.md</code>。</p>
+
+    <h3 style="margin:16px 0 10px">安全 / 泄漏（5）</h3>
+    <div style="display:grid;gap:10px">
+      <details class="case rise"><summary><span class="no">1</span><span class="ttl">API_KEY 正则漏了连字符，真实密钥全部漏检</span><span class="tag sec">P0</span></summary>
+        <div class="body"><p><span class="k">现象</span> <code>sk-proj-…</code> / <code>sk-or-v1-…</code> 扫描 <code>hits=0</code>，A9 还回显原文、A5 落盘明文。</p>
+          <p><span class="k">根因</span> 字符集只写 <code>[A-Za-z0-9]</code>，密钥在第一个 <code>-</code> 处被截断；而我的测试样例是自己编的无连字符串，所以自测全绿。</p>
+          <p><span class="fix">修法</span> 字符集纳入 <code>-</code>/<code>_</code>；A9 不回显输入；A5 落盘前整份 JSON 再扫一遍，命中即 422 且不写文件。</p>
+          <div class="ask"><b>面试问法</b>「你的规则怎么测的？」→ 用<b>真实凭证形态</b>测，别用自己编的样例。测试数据比测试代码更容易骗人。</div></div>
+      </details>
+
+      <details class="case rise"><summary><span class="no">2</span><span class="ttl">流式输出把身份证整段发了出去</span><span class="tag sec">泄漏</span></summary>
+        <div class="body"><p><span class="k">现象</span> 逐字符 SSE 输出长文本，脱敏后的回答里仍出现完整 18 位身份证。</p>
+          <p><span class="k">根因</span> 只保留尾部 24 字符，滑动窗口每轮只看前 2 字符，<b>永远看不到完整 18 位</b>。</p>
+          <p><span class="fix">修法</span> 找横跨下发边界的连续候选串，把边界收缩到串起点、整串扣住；无 PII 文本流式拼接必须与原文逐字相同。</p>
+          <div class="ask"><b>面试问法</b>「流式脱敏怎么做？」→ 关键不是正则，是<b>边界</b>；标识符会跨 chunk，单块扫描必漏。</div></div>
+      </details>
+
+      <details class="case rise"><summary><span class="no">3</span><span class="ttl">伪造 X-Forwarded-For 就能绕过 IP 限流</span><span class="tag sec">网关</span></summary>
+        <div class="body"><p><span class="k">现象</span> 每次换一个 XFF，限流完全不生效。</p>
+          <p><span class="k">根因</span> 无条件采信 XFF 首值——这个头客户端可任意伪造。</p>
+          <p><span class="fix">修法</span> 只有直连对端在 <code>TRUSTED_PROXY_IPS</code> 白名单内才采信 XFF 最左值；host 缺失返回 <code>unknown</code>，不落空串共桶。</p>
+          <div class="ask"><b>面试问法</b>「挂了 CLB/WAF 怎么拿真实 IP？」→ <b>信任链</b>：只信自家代理 + 回源段白名单。</div></div>
+      </details>
+
+      <details class="case rise"><summary><span class="no">4</span><span class="ttl">未登录用户共用一个 anonymous 限流桶</span><span class="tag sec">限流</span></summary>
+        <div class="body"><p><span class="k">现象</span> 所有匿名请求 <code>user</code> 维度 key 都是 <code>anonymous</code>，要么全限死、要么阈值形同虚设。</p>
+          <p><span class="k">根因</span> 三维限流没有稳定身份时退化成同一个 key。</p>
+          <p><span class="fix">修法</span> 加 IP 附加维度（600/60s），<code>RATE_DIMENSIONS</code> 仍三维；命中返回专用码 <code>RATE_LIMIT_IP_EXCEEDED</code>。</p>
+          <div class="ask"><b>面试问法</b>「多维限流怎么设计？」→ 分「业务配额」与「接入层防刷」，阈值、错误码、提示语都不同。</div></div>
+      </details>
+
+      <details class="case rise"><summary><span class="no">5</span><span class="ttl">/api/system/busy 不需要登录就能看到文件名</span><span class="tag sec">鉴权</span></summary>
+        <div class="body"><p><span class="k">现象</span> 未登录 200，且 <code>active[].filename</code> 是真实文档名。</p>
+          <p><span class="k">根因</span> 写的时候当成「状态查询」，没加登录依赖。</p>
+          <p><span class="fix">修法</span> 加 <code>Depends(get_current_user)</code>；普通用户只拿计数 + <code>redacted: true</code>，文件名明细仅 admin。</p>
+          <div class="ask"><b>面试问法</b>「哪些接口要鉴权？」→ 判断标准是<b>响应里有没有别人的信息</b>，不是「是不是写操作」。</div></div>
+      </details>
+    </div>
+
+    <h3 style="margin:22px 0 10px">确定性与状态（3）</h3>
+    <div style="display:grid;gap:10px">
+      <details class="case rise"><summary><span class="no">6</span><span class="ttl">版本号被「瞬时计数」污染，同参双跑 run_id 必变</span><span class="tag det">确定性</span></summary>
+        <div class="body"><p><span class="k">现象</span> 同文件同参数两次，<code>snapshot_version</code> 从 <code>7bd0a3fa</code> 变 <code>cb26b89a</code>，<code>run_id</code> 全变。</p>
+          <p><span class="k">根因</span> 版本哈希里含 <code>reason</code>（"连续命中 1/2"）与 <code>hysteresis</code>（计数）——这是<b>决策观测</b>，不是<b>配置快照</b>。</p>
+          <p><span class="fix">修法</span> 拆字段集：<code>snapshot_version</code> 只认配置（tier/model/prompt/params/…），<code>route_id</code> 用全字段。</p>
+          <div class="ask"><b>面试问法</b>「版本号里放什么？」→ 放<b>配置</b>，不放<b>运行时计数</b>；否则每次调用都产生新版本，缓存与对拍全失效。</div></div>
+      </details>
+
+      <details class="case rise"><summary><span class="no">7</span><span class="ttl">单次复杂档永远升不到 Pro（滞回状态每次新建）</span><span class="tag det">状态机</span></summary>
+        <div class="body"><p><span class="k">现象</span> 难度 0.735（阈值 0.60），但每次都是 <code>standard</code>，Pro 永不触发。</p>
+          <p><span class="k">根因</span> 滞回要求连续 2 次命中，但每次请求都新建 <code>TierState</code>，计数永远 1/2。</p>
+          <p><span class="fix">修法</span> 保留 <code>k=2</code>，按 <code>(source_sha, params_hash)</code> 做 LRU（≤32）缓存状态；不串用户、重启清零。</p>
+          <div class="ask"><b>面试问法</b>「有状态的东西怎么设计？」→ 隔离维度 / 生命周期 / 并发安全，三问答不出就是没设计。</div></div>
+      </details>
+
+      <details class="case rise"><summary><span class="no">8</span><span class="ttl">双向摘要互引在数学上无解</span><span class="tag det">一致性</span></summary>
+        <div class="body"><p><span class="k">现象</span> manifest 指向 ingest 的 sha256，ingest 又指向 manifest，怎么算都不对。</p>
+          <p><span class="k">根因</span> 对完整字节互签会形成循环依赖。</p>
+          <p><span class="fix">修法</span> 签<b>规范化投影</b>：ingest 摘要剔除 <code>manifest.sha256</code> 后再算；两侧都可重算，篡改照样能拦。</p>
+          <div class="ask"><b>面试问法</b>「两个文件互校完整性？」→ 不可能对完整字节互签，要么单向、要么签剔除互引字段的投影。</div></div>
+      </details>
+    </div>
+
+    <h3 style="margin:22px 0 10px">配额与并发（3）</h3>
+    <div style="display:grid;gap:10px">
+      <details class="case rise"><summary><span class="no">9</span><span class="ttl">全局预算：一个人烧光，所有人被拦</span><span class="tag quota">配额</span></summary>
+        <div class="body"><p><span class="k">现象</span> 预算只查 global，A 跑量用完后 B 的问答也被 <code>policy=block</code> 拦住。</p>
+          <p><span class="k">根因</span> 配额没按用户隔离，<code>budgets</code> 的 <code>scope/key</code> 只用了 global 一行。</p>
+          <p><span class="fix">修法</span> <code>check_budget(user_id=)</code> 优先用户级、回退全局；用户级花费按 <code>usage_events.user_id</code> 聚合。实测 A 拒、B 通。</p>
+          <div class="ask"><b>面试问法</b>「多用户配额怎么防互相影响？」→ <b>配额是每用户的、账也是每用户的</b>；全局额度只作总闸。</div></div>
+      </details>
+
+      <details class="case rise"><summary><span class="no">10</span><span class="ttl">预算闸门只在离线评估里生效，问答链路根本没拦</span><span class="tag quota">配额</span></summary>
+        <div class="body"><p><span class="k">现象</span> <code>policy=block</code> 时离线评估被拒，问答照跑。</p>
+          <p><span class="k">根因</span> <code>check_budget</code> 只在 <code>run_offline_eval</code> 调用，<code>chat_stream</code> 从未调用。</p>
+          <p><span class="fix">修法</span> 进模型前查一次；超支以 SSE 首事件告知（<code>QUOTA_EXCEEDED</code>）并写审计；离线评估保持 <code>200 + {ok:false}</code>，两种入口形态不同、语义一致。</p>
+          <div class="ask"><b>面试问法</b>「配额在哪一层拦？」→ 在<b>真正花钱的那一层</b>拦；只在报表里统计不算生效。</div></div>
+      </details>
+
+      <details class="case rise"><summary><span class="no">11</span><span class="ttl">并发闸把流式响应的令牌提前释放了</span><span class="tag quota">并发</span></summary>
+        <div class="body"><p><span class="k">现象</span> 并发上限 1，两个 SSE 同时进来第二个没被拒，并发数被低估。</p>
+          <p><span class="k">根因</span> 中间件 <code>return response</code> 时就 <code>release()</code>，而流式响应体是之后才发的。</p>
+          <p><span class="fix">修法</span> 包装 <code>body_iterator</code>，<code>try/finally</code> 里流完再释放；正常/异常/断连三条路径都恰好一次。</p>
+          <div class="ask"><b>面试问法</b>「信号量何时释放？」→ <b>等响应真正结束</b>；流式响应的 return 不等于结束。</div></div>
+      </details>
+    </div>
+
+    <h3 style="margin:22px 0 10px">工程与演示（3）</h3>
+    <div style="display:grid;gap:10px">
+      <details class="case rise"><summary><span class="no">12</span><span class="ttl">Docker Compose v5 的 bake 在中文路径下直接失败</span><span class="tag eng">构建</span></summary>
+        <div class="body"><p><span class="k">现象</span> <code>docker compose up --build</code> 报 <code>x-docker-expose-session-sharedkey … non-printable ASCII</code>。</p>
+          <p><span class="k">根因</span> 构建器把含中文的项目路径塞进 gRPC 头，编码失败。</p>
+          <p><span class="fix">修法</span> 用 <code>docker build</code> + <code>docker run</code> 绕开；要用 compose 时加 <code>COMPOSE_BAKE=false</code>。同一镜像 <code>run</code> 完全正常。</p>
+          <div class="ask"><b>面试问法</b>「构建失败是环境还是代码？」→ 看<b>同一产物换路径是否可用</b>；镜像能跑、只有 compose 构建挂，就是构建器兼容问题。</div></div>
+      </details>
+
+      <details class="case rise"><summary><span class="no">13</span><span class="ttl">内嵌预览面板拦截 window.open 与 target=_blank</span><span class="tag eng">前端</span></summary>
+        <div class="body"><p><span class="k">现象</span> 按钮点了没反应，但直接访问 URL 是 200。</p>
+          <p><span class="k">根因</span> WebView / 预览面板默认禁弹窗与新标签页。</p>
+          <p><span class="fix">修法</span> 改 <code>&lt;a href&gt;</code> 同标签跳转，不依赖弹窗 API；地址写进 <code>title</code> 并在页面列出，可复制。</p>
+          <div class="ask"><b>面试问法</b>「为什么不用 window.open？」→ 它依赖弹窗权限，WebView / iframe / 企业微信内置浏览器都可能拦。</div></div>
+      </details>
+
+      <details class="case rise"><summary><span class="no">14</span><span class="ttl">演示种子被「启动自检」逐条消费</span><span class="tag eng">演示</span></summary>
+        <div class="body"><p><span class="k">现象</span> 造 130 条排队文档，重启几次只剩 50 条，继续减少。</p>
+          <p><span class="k">根因</span> 启动自检把所有 <code>queued</code> 幂等重投（<b>正确</b>的恢复行为），种子没有真实文件，重投后转 <code>error</code>。</p>
+          <p><span class="fix">修法</span> 不改恢复逻辑，改演示策略：种子定位为「演示前生成、演示后清理」，docstring 写明会被消费。</p>
+          <div class="ask"><b>面试问法</b>「演示数据和正确性冲突怎么办？」→ <b>不要为演示改正确性逻辑</b>，把演示数据降级为临时资产。</div></div>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- 04 面试怎么讲 -->
+<section id="howto">
+  <div class="wrap">
+    <div class="sec-head"><span class="sec-num">04</span><h2>面试怎么讲：三层递进</h2></div>
+    <p class="sec-desc">同一个案例，讲得好与不好差在「有没有结构」。用 STAR 的变体：场景 → 现象 → 根因 → 修法 → 验证。</p>
+    <div class="tbl-wrap rise">
+      <table>
+        <thead><tr><th>层次</th><th>讲什么</th><th>例子（案例 6）</th><th>时长</th></tr></thead>
+        <tbody>
+          <tr><td><b>一句话</b></td><td>结论 + 影响</td><td>「版本号里混进了运行时计数，导致同参双跑的 run_id 每次都变。」</td><td>10 秒</td></tr>
+          <tr><td><b>一分钟</b></td><td>现象 → 根因 → 修法</td><td>补充「怎么发现的（对拍）」→「拆成配置哈希与决策哈希」→「改完后同参一致、改档必变」</td><td>60 秒</td></tr>
+          <tr><td><b>追问级</b></td><td>为什么这么修、还有什么坑</td><td>「为什么不用时间戳做版本？因为不可复现」「多副本下 LRU 怎么办？换 Redis」</td><td>按需</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card rise" style="--d:.06s;margin-top:14px">
+      <h3>三个加分动作</h3>
+      <p class="fine" style="margin:0">
+        <b>① 主动说「我怎么发现的」</b>——对拍、独立验收、真实形态测试，比「我写了测试」具体。<br />
+        <b>② 主动说「同类缺陷还会在哪」</b>——比如密钥漏检之后，立刻问「其他规则是不是也只测了自己编的样例」。<br />
+        <b>③ 主动说「没做什么」</b>——多副本限流未做、WAF 未标定、模型级 NER 未做，比吹完整更可信。
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- 05 自测 -->
+<section id="check">
+  <div class="wrap">
+    <div class="sec-head"><span class="sec-num">05</span><h2>自测清单：能不能在 30 秒内讲清</h2></div>
+    <div class="tbl-wrap rise">
+      <table>
+        <thead><tr><th>问题</th><th>能讲清的标准</th></tr></thead>
+        <tbody>
+          <tr><td>这个项目解决什么问题？</td><td>说出「文档 → 可追溯答案」和「每条结论能回溯到分块」两个点</td></tr>
+          <tr><td>数据从上传到回答经过哪几步？</td><td>能画出九节点链路，并指出解析与输出两端故障最多</td></tr>
+          <tr><td>你修过最难的 bug 是哪个？</td><td>能给出「现象可复现 + 根因一句话 + 修法可验证」三件套</td></tr>
+          <tr><td>怎么保证不泄漏用户信息？</td><td>说出「一层规则、四个出口」+ 流式边界问题</td></tr>
+          <tr><td>多用户怎么隔离？</td><td>说出权限 / 数据 / 配额 / 速率四条，并区分业务配额与接入层防刷</td></tr>
+          <tr><td>怎么证明改动有效？</td><td>给出可复跑命令（292 单测 / 33 e2e / 18 项加固测试）与「不可比」标注</td></tr>
+          <tr><td>哪些没做？</td><td>主动列：多副本限流、WAF 标定、模型级 NER、真实压测</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div><b style="color:var(--text)">事实源</b></div>
+    <div class="srcs">
+      <code>docs/case-studies.md</code>
+      <code>docs/multi-user-hardening.md</code>
+      <code>docs/queue-observability.md</code>
+      <code>docs/showcase/04-acceptance.md</code>
+      <code>webapp/tests/test_gateway_hardening.py</code>
+      <code>guardrails/tests/test_guardrails.py</code>
+      <code>docs/git-pr-log.md</code>
+    </div>
+    <div class="fine">
+      本页为单文件、零外部依赖的静态教学页，可双击离线打开；未引用任何 CDN、字体、脚本或远程图片。<br />
+      所有案例均来自本轮实跑或 QA 独立验收，未编造；阈值与权重是演示起始值，非压测结论。
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

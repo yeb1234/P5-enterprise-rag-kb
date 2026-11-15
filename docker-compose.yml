@@ -1,10 +1,24 @@
 # 企业级知识库 · 一体化开发编排
 # 用法：cp .env.example .env && docker compose up -d --build
 # 生产化提示：PG 流复制、Redis Sentinel、MinIO 分布式、Milvus 集群、nginx 双 upstream 见 docs/operations.md
+# 本轮韧性补齐说明：docs/deployment-guide.md §3（纯增量字段，未删服务/未改服务名与端口）
+
+# 统一日志轮转：默认 json-file 无上限，长期运行会撑爆磁盘。
+# 上限约 10m × 3 = 30MB/服务；x- 扩展字段为 Compose 原生支持的锚点载体。
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
 
 services:
   postgres:
     image: postgres:16-alpine
+    restart: unless-stopped
+    # 资源上限为建议值、未按真实负载压测；OOM 时上调或注释（单机模式直接生效）
+    mem_limit: 1g
+    cpus: 1.0
+    logging: *default-logging
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-kb}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kb_dev_pwd}
@@ -18,9 +32,14 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
+      start_period: 10s
 
   redis:
     image: redis:7-alpine
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: 0.5
+    logging: *default-logging
     command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
     volumes:
       - redisdata:/data
@@ -30,9 +49,14 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
+      start_period: 10s
 
   minio:
     image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    restart: unless-stopped
+    mem_limit: 1g
+    cpus: 1.0
+    logging: *default-logging
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-kb_minio}
@@ -45,9 +69,14 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
+      start_period: 30s
 
   etcd:
     image: quay.io/coreos/etcd:v3.5.16
+    restart: unless-stopped
+    mem_limit: 1g
+    cpus: 1.0
+    logging: *default-logging
     environment:
       ETCD_AUTO_COMPACTION_MODE: revision
       ETCD_AUTO_COMPACTION_RETENTION: "1000"
@@ -62,6 +91,11 @@ services:
 
   milvus:
     image: milvusdb/milvus:v2.5.10
+    restart: unless-stopped
+    # Milvus standalone 冷启动最慢，内存与 CPU 给较宽裕的建议值
+    mem_limit: 4g
+    cpus: 2.0
+    logging: *default-logging
     command: ["milvus", "run", "standalone"]
     security_opt: ["seccomp:unconfined"]
     environment:
@@ -75,11 +109,16 @@ services:
       interval: 10s
       timeout: 5s
       retries: 20
+      start_period: 60s
 
   api:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    restart: unless-stopped
+    mem_limit: 2g
+    cpus: 2.0
+    logging: *default-logging
     env_file: .env
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2
     volumes: ["./backend:/app"]
@@ -94,12 +133,17 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+      start_period: 30s
 
   # 轻量任务：小文件解析、向量化、通知
   worker-light:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    restart: unless-stopped
+    mem_limit: 2g
+    cpus: 2.0
+    logging: *default-logging
     env_file: .env
     command: celery -A app.tasks.celery_app:celery_app worker -Q ingest,default -c 4 -l info --prefetch-multiplier=1
     volumes: ["./backend:/app"]
@@ -110,6 +154,10 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    restart: unless-stopped
+    mem_limit: 2g
+    cpus: 1.0
+    logging: *default-logging
     env_file: .env
     command: celery -A app.tasks.celery_app:celery_app worker -Q ingest_heavy -c 2 -l info --prefetch-multiplier=1
     volumes: ["./backend:/app"]
@@ -119,6 +167,10 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: 0.5
+    logging: *default-logging
     env_file: .env
     command: celery -A app.tasks.celery_app:celery_app beat -l info
     volumes: ["./backend:/app"]
@@ -129,16 +181,68 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        VITE_API_BASE_URL: /api/v1
+        # 与 .env.example 的 VITE_API_BASE_URL 对齐；默认值不变，消除硬编码漂移
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api/v1}
+    restart: unless-stopped
+    mem_limit: 256m
+    cpus: 0.5
+    logging: *default-logging
     depends_on: [api]
     expose: ["80"]
 
   nginx:
     image: nginx:alpine
+    restart: unless-stopped
+    mem_limit: 256m
+    cpus: 0.5
+    logging: *default-logging
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     ports: ["8080:80"]
     depends_on: [api, frontend]
+
+  # 可插拔文档解析服务（独立进程、可单独扩容）。
+  # 用 profiles 隔离：默认 `docker compose up -d` 仍是原来的 11 个服务，
+  # 只有 `docker compose --profile parsing up -d` 才会拉起它，不影响既有演示链路。
+  # 端口只绑 127.0.0.1，避免把未鉴权的探测接口暴露到公网（见 deployment-guide §G1）。
+  parser:
+    build:
+      context: .
+      dockerfile: Dockerfile.parse
+    profiles: ["parsing"]
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: 0.5
+    logging: *default-logging
+    environment:
+      PARSING_STRATEGY: ${PARSING_STRATEGY:-auto}
+      PARSING_VISION_ESCALATION_RATIO: ${PARSING_VISION_ESCALATION_RATIO:-0.10}
+      PARSING_CONFIDENCE_MIN: ${PARSING_CONFIDENCE_MIN:-0.75}
+      PARSING_OCR_TEXT_CHARS_MIN: ${PARSING_OCR_TEXT_CHARS_MIN:-40}
+      PARSING_OFFLINE: ${PARSING_OFFLINE:-0}
+      PARSING_VISION_ENABLED: ${PARSING_VISION_ENABLED:-1}
+      PARSING_VISION_LOW_THINKING: ${PARSING_VISION_LOW_THINKING:-1}
+      PARSING_VISION_TIMEOUT_S: ${PARSING_VISION_TIMEOUT_S:-60}
+      # P2 已接通（2026-11-14 实测）：复用网关的视觉能力，无需额外凭证。
+      # 密钥只从 .env 注入，不写进镜像、不下发前端。
+      DISCOVERY_BASE_URL: ${DISCOVERY_BASE_URL:-}
+      DISCOVERY_API_KEY: ${DISCOVERY_API_KEY:-}
+      DISCOVERY_MODEL: ${DISCOVERY_MODEL:-deepseek-v4.1-flash-1017}
+      # 可显式覆盖成别的视觉端点；留空则走上面的 DISCOVERY_* 回退
+      PARSING_VISION_BASE_URL: ${PARSING_VISION_BASE_URL:-}
+      PARSING_VISION_API_KEY: ${PARSING_VISION_API_KEY:-}
+      PARSING_VISION_MODEL: ${PARSING_VISION_MODEL:-}
+      # P1 收费 OCR 仍未接通，契约字段保持 __TBC__
+      PARSING_OCR_BASE_URL: ${PARSING_OCR_BASE_URL:-}
+      PARSING_OCR_API_KEY: ${PARSING_OCR_API_KEY:-}
+      PARSING_OCR_MODEL: ${PARSING_OCR_MODEL:-}
+    ports: ["127.0.0.1:8766:8766"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8766/health/live', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
 volumes:
   pgdata:

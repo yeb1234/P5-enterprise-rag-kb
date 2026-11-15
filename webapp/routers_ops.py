@@ -38,7 +38,7 @@ def overview(user: dict = Depends(get_current_user)):
         ).fetchone()["c"]
         chat_rows = conn.execute(
             "SELECT COUNT(DISTINCT conversation_id) AS conv, COUNT(*) AS msg,"
-            " SUM(degraded) AS degraded FROM chat_logs"
+            " SUM(CASE WHEN degraded THEN 1 ELSE 0 END) AS degraded FROM chat_logs"
             + ("" if is_admin else " WHERE user_id=?"),
             [] if is_admin else [user["id"]],
         ).fetchone()
@@ -98,8 +98,18 @@ def search_preview(q: str = Query(..., min_length=1), top_k: int = Query(4, ge=1
 
 @router.get("/eval/objects")
 def eval_objects(_: dict = Depends(get_current_user)):
-    """版本化对象清单，直接读 eval/config/registry.json（与评测体系同一事实源）。"""
-    data = json.loads(REGISTRY.read_text(encoding="utf-8"))
+    """版本化对象清单，直接读 eval/config/registry.json（与评测体系同一事实源）。
+
+    文件缺失/损坏时返回 503 + 明确原因，而不是让 `read_text` 抛出去变 500。
+    真实发生过：镜像只 COPY 了 `webapp/`，没带 `eval/config/`，
+    端点直接 500（plain text，连 JSON 都不是），排查时先怀疑代码，实际是打包漏文件。
+    """
+    try:
+        data = json.loads(REGISTRY.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        raise HTTPException(503, f"评测注册表缺失：{REGISTRY.name}（镜像需 COPY eval/config/）")
+    except (OSError, json.JSONDecodeError) as exc:
+        raise HTTPException(503, f"评测注册表不可读：{type(exc).__name__}")
     return {
         "registry_id": data.get("registry_id"),
         "registry_version": data.get("version"),
@@ -112,13 +122,116 @@ def eval_objects(_: dict = Depends(get_current_user)):
     }
 
 
+def _short(v: str, keep: int = 2) -> str:
+    """短码：保留首尾各 2 位 + ***，既能区分同前缀账号，也不暴露完整用户名。
+
+    只保留首 2 位时，``queue_demo_a`` 与 ``queue_demo_b`` 都会变成 ``qu***``，
+    在「按用户积压」表里无法区分，故补上尾部。
+    """
+    s = str(v or "")
+    if len(s) <= keep * 2:
+        return s[:keep] + "***"
+    return s[:keep] + "***" + s[-keep:]
+
+
+@router.get("/system/queue")
+def queue_overview(user: dict = Depends(get_current_user)):
+    """全局队列聚合：谁在排队、积压多少。
+
+    需求背景：普通用户也应能判断「是我的任务慢，还是全站在排队」，
+    所以开放全局视图；但隐私边界要守住——普通用户只拿**部门 + 用户短码 + 计数**，
+    文件名、邮箱、完整用户名仅 admin 可见。
+    真值取自 ``documents.status``（queued / analyzing），不是内存队列：
+    内存态重启会丢，文档状态才是可重建的事实源。
+    """
+    is_admin = user["role"] == "admin"
+    conn = db.get_conn()
+    try:
+        rows = conn.execute(
+            "SELECT d.owner_id, COALESCE(u.username,'(已删除)') AS username,"
+            " COALESCE(u.department,'未分配') AS department, d.status, COUNT(*) AS n"
+            " FROM documents d LEFT JOIN users u ON u.id=d.owner_id"
+            " WHERE d.status IN ('queued','analyzing')"
+            " GROUP BY d.owner_id, username, department, d.status"
+        ).fetchall()
+        details = []
+        if is_admin:
+            details = [
+                {
+                    "doc_id": r["id"], "filename": r["filename"], "status": r["status"],
+                    "size_bytes": r["size_bytes"], "created_at": r["created_at"],
+                    "owner_id_short": str(r["owner_id"])[:8],
+                    "username": r["username"], "department": r["department"],
+                }
+                for r in conn.execute(
+                    "SELECT d.id, d.filename, d.status, d.size_bytes, d.created_at,"
+                    " d.owner_id, COALESCE(u.username,'(已删除)') AS username,"
+                    " COALESCE(u.department,'未分配') AS department"
+                    " FROM documents d LEFT JOIN users u ON u.id=d.owner_id"
+                    " WHERE d.status IN ('queued','analyzing')"
+                    " ORDER BY d.created_at ASC LIMIT 200"
+                ).fetchall()
+            ]
+    finally:
+        conn.close()
+
+    by_user: dict[str, dict] = {}
+    by_dept: dict[str, dict] = {}
+    for r in rows:
+        uid = str(r["owner_id"])
+        bucket = by_user.setdefault(uid, {
+            "user_id_short": uid[:8],
+            "username": r["username"] if is_admin else _short(r["username"]),
+            "department": r["department"],
+            "active": 0, "queued": 0, "total": 0,
+        })
+        dept = by_dept.setdefault(r["department"], {
+            "department": r["department"], "active": 0, "queued": 0, "total": 0,
+        })
+        n = int(r["n"])
+        if r["status"] == "analyzing":
+            bucket["active"] += n
+            dept["active"] += n
+        else:
+            bucket["queued"] += n
+            dept["queued"] += n
+        bucket["total"] += n
+        dept["total"] += n
+
+    total = sum(v["total"] for v in by_user.values())
+    active = sum(v["active"] for v in by_user.values())
+    queued = sum(v["queued"] for v in by_user.values())
+    message = (
+        f"上传分析繁忙：{active} 个任务处理中，{queued} 个排队中，新上传将依次等待。"
+        if total else "系统空闲，可即时分析。"
+    )
+    return {
+        "busy": total > 0,
+        "active_count": active,
+        "queue_count": queued,
+        "total_pending": total,
+        "user_count": len(by_user),
+        "department_count": len(by_dept),
+        "by_user": sorted(by_user.values(), key=lambda x: -x["total"]),
+        "by_department": sorted(by_dept.values(), key=lambda x: -x["total"]),
+        "details": details,
+        "scope": "full" if is_admin else "aggregate",
+        "message": message,
+        "note": (
+            "真值取自 documents.status（queued / analyzing），不是内存队列；"
+            + ("admin 可见文件名明细。" if is_admin
+               else "普通用户只看部门、用户短码与计数，文件名与邮箱不可见。")
+        ),
+    }
+
+
 @router.get("/admin/users")
 def list_users(_: dict = Depends(require_admin)):
     """成员与角色（对应 README §4 的 /users、/departments，切片只做最小集）。"""
     conn = db.get_conn()
     try:
         rows = conn.execute(
-            "SELECT id,username,email,role,created_at FROM users ORDER BY created_at DESC"
+            "SELECT id,username,email,role,department,created_at FROM users ORDER BY created_at DESC"
         ).fetchall()
         out = []
         for r in rows:
@@ -130,7 +243,8 @@ def list_users(_: dict = Depends(require_admin)):
             ).fetchone()["c"]
             out.append({
                 "id": r["id"], "username": r["username"], "email": r["email"],
-                "role": r["role"], "created_at": r["created_at"],
+                "role": r["role"], "department": r["department"],
+                "created_at": r["created_at"],
                 "doc_count": dc, "badcase_count": bc,
             })
     finally:
@@ -148,7 +262,8 @@ def list_audit(action: str | None = None, actor: str | None = None,
         sql += " AND action=?"; params.append(action)
     if actor:
         sql += " AND actor=?"; params.append(actor)
-    sql += " ORDER BY created_at DESC, rowid DESC LIMIT ?"
+    # SQLite 的隐式 rowid 在 PG 里不存在，用主键做稳定的次序后缀
+    sql += " ORDER BY created_at DESC, id DESC LIMIT ?"
     params.append(limit)
     conn = db.get_conn()
     try:

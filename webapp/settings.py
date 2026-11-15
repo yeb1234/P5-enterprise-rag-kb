@@ -1,14 +1,13 @@
 """运行时配置：LLM / Embedding / Rerank 提供者选择与本地端点。
 
 设计取舍：
-- 生产对应配置中心 / 环境注入；演示切片落 SQLite（app_settings），**切换即时生效、无需重启**。
+- 生产对应配置中心 / 环境注入；本项目落 PostgreSQL 的 `app_settings`，**切换即时生效、无需重启**。
 - .env 只作为「首次默认值」来源；之后以库表为准，可在「模型设置」页改。
 - 只允许白名单键与枚举值，避免任意键污染；未知键直接拒绝。
 """
 from __future__ import annotations
 
 import os
-import sqlite3
 import time
 
 from webapp import db
@@ -23,6 +22,11 @@ DEFAULTS: dict[str, str] = {
     "local_llm_model": os.environ.get("LOCAL_LLM_MODEL", "qwen2.5-coder-7b-instruct"),
     "sensenova_model": os.environ.get("SENSENOVA_MODEL", "deepseek-flash"),
     "discovery_model": os.environ.get("DISCOVERY_MODEL", "deepseek-v4.1-flash-1017"),
+    # 推理强度：V4.1 系列默认会先吐 reasoning，检索问答要的是低延迟，所以默认关闭思考。
+    # 沿用 backend/app/core/config.py:69 的 DEEPSEEK_THINKING 口径与
+    # backend/app/integrations/llm.py:52 的 thinking={"type":"disabled"} 字段，不另造参数。
+    # 用 WEBAPP_ 前缀隔离：backend 骨架已有同名语义配置，避免两套枚举互相污染。
+    "llm_thinking": os.environ.get("WEBAPP_LLM_THINKING", "disabled"),
     # Embedding：offline（词法）| local（LM Studio Bge M3）| external（硅基流动 BAAI/bge-m3 等 OpenAI 兼容）
     "embedding_provider": os.environ.get("WEBAPP_EMBEDDING_PROVIDER", "local"),
     "local_embedding_base_url": os.environ.get("LOCAL_EMBED_BASE_URL", "http://127.0.0.1:1234/v1"),
@@ -43,7 +47,18 @@ ENUMS: dict[str, set[str]] = {
     "llm_provider": {"offline", "sensenova", "discovery", "local"},
     "embedding_provider": {"offline", "local", "external"},
     "rerank_provider": {"off", "llm", "external"},
+    "llm_thinking": {"disabled", "enabled"},
 }
+
+
+def thinking_disabled(cfg: dict | None = None) -> bool:
+    """「低思考 / 快速档」的唯一事实源：是否要在请求体注入关闭思考的字段。
+
+    放在配置层而不是 provider 里，是为了让流式、非流式、连接测试三条路径
+    共用同一个判定，避免某条链路忘了关闭思考而拖慢演示。
+    """
+    cfg = cfg or get_all()
+    return cfg.get("llm_thinking", "disabled") == "disabled"
 
 
 def _now() -> str:
@@ -57,8 +72,11 @@ def get_all() -> dict[str, str]:
         for r in conn.execute("SELECT key, value FROM app_settings"):
             if r["key"] in ALLOWED:
                 out[r["key"]] = r["value"]
-    except sqlite3.OperationalError:
-        pass  # 表尚未初始化（独立脚本/首次启动前）：回落到默认值
+    except Exception:
+        # 表尚未初始化（独立脚本 / 首次启动前）：回落到默认值。
+        # 这里刻意捕获宽泛异常而不是 sqlite3.OperationalError——换库后错误类型变了，
+        # 但「读不到配置就用默认值」的意图不变；真正的连接错误会在别处先炸。
+        pass
     finally:
         conn.close()
     return out

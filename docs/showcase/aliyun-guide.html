@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>阿里云上线指导 · 解析演示站点（部署指导，非上线证明）</title>
+<style>
+:root{--bg:#ffffff;--canvas:#f6f8fa;--bd:#d0d7de;--fg:#1f2328;--muted:#57606a;--blue:#0969da;--blue-bg:#ddf4ff;--green:#1a7f37;--green-bg:#dafbe1;--red:#cf222e;--red-bg:#ffebe9;--amber:#9a6700;--amber-bg:#fff8c5;--purple:#8250df;--purple-bg:#fbefff;--code:#f6f8fa}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
+code,pre,.mono{font-family:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono","Courier New",monospace}
+.wrap{display:grid;grid-template-columns:264px minmax(0,1fr);max-width:1240px;margin:0 auto}
+/* 侧边目录 */
+.side{position:sticky;top:0;height:100vh;overflow:auto;border-right:1px solid var(--bd);background:var(--canvas);padding:22px 16px}
+.side h2{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 12px}
+.side a{display:block;padding:5px 9px;margin:2px 0;border-radius:6px;color:var(--fg);text-decoration:none;font-size:13.5px}
+.side a:hover{background:#eaeef2;color:var(--blue)}
+.side .sub{padding-left:20px;font-size:12.5px;color:var(--muted)}
+.side .tip{margin-top:18px;padding:10px;border:1px solid var(--bd);border-radius:6px;background:#fff;font-size:12px;color:var(--muted)}
+/* 主体 */
+main{padding:30px 40px 80px;min-width:0}
+h1{font-size:27px;border-bottom:1px solid var(--bd);padding-bottom:14px;margin:0 0 12px}
+h2{font-size:21px;border-bottom:1px solid var(--bd);padding-bottom:8px;margin:42px 0 16px;scroll-margin-top:16px}
+h3{font-size:16.5px;margin:26px 0 10px;scroll-margin-top:16px}
+p{margin:9px 0}
+a{color:var(--blue)}
+.lead{color:var(--muted);font-size:14px}
+.badges{margin:10px 0 18px}
+.b{display:inline-block;font-size:11.5px;font-weight:600;line-height:1.5;padding:2px 9px;border-radius:999px;border:1px solid transparent;margin:2px 5px 2px 0;white-space:nowrap}
+.b-you{background:var(--red-bg);color:var(--red);border-color:#ff818266}
+.b-ai{background:var(--blue-bg);color:var(--blue);border-color:#54aeff66}
+.b-est{background:var(--purple-bg);color:var(--purple);border-color:#c297ff66}
+.b-free{background:var(--green-bg);color:var(--green);border-color:#4ac26b66}
+.b-warn{background:var(--amber-bg);color:var(--amber);border-color:#d4a72c66}
+.b-gray{background:#eaeef2;color:var(--muted);border-color:var(--bd)}
+/* 提示框 */
+.box{border:1px solid var(--bd);border-left:4px solid var(--blue);border-radius:6px;padding:12px 16px;margin:16px 0;background:var(--canvas)}
+.box.danger{border-left-color:var(--red);background:var(--red-bg)}
+.box.warn{border-left-color:var(--amber);background:var(--amber-bg)}
+.box.ok{border-left-color:var(--green);background:var(--green-bg)}
+.box .t{font-weight:700;margin-bottom:4px}
+.box p{margin:5px 0;font-size:14px}
+/* 表格 */
+table{border-collapse:collapse;width:100%;margin:14px 0;font-size:13.5px}
+th,td{border:1px solid var(--bd);padding:8px 11px;text-align:left;vertical-align:top}
+th{background:var(--canvas);font-weight:600}
+tr:nth-child(even) td{background:#fbfcfd}
+td code,th code{font-size:12.5px;background:var(--code);padding:1px 5px;border-radius:4px}
+/* 代码块 + 一键复制 */
+.code{position:relative;margin:12px 0;border:1px solid var(--bd);border-radius:6px;background:var(--code);overflow:hidden}
+.code .bar{display:flex;justify-content:space-between;align-items:center;padding:5px 12px;background:#eaeef2;border-bottom:1px solid var(--bd);font-size:12px;color:var(--muted)}
+.code button{font:inherit;font-size:12px;cursor:pointer;border:1px solid var(--bd);background:#fff;color:var(--fg);border-radius:5px;padding:2px 10px}
+.code button:hover{background:var(--blue-bg);border-color:var(--blue);color:var(--blue)}
+pre{margin:0;padding:12px 14px;overflow:auto;font-size:12.8px;line-height:1.6;white-space:pre}
+/* 流程图 */
+.flow{display:flex;flex-wrap:wrap;gap:6px;align-items:stretch;margin:16px 0}
+.flow .st{flex:1 1 168px;min-width:150px;border:1px solid var(--bd);border-radius:6px;background:#fff;padding:9px 11px;position:relative}
+.flow .st .n{display:inline-block;width:20px;height:20px;line-height:20px;text-align:center;border-radius:50%;background:var(--blue);color:#fff;font-size:11px;font-weight:700;margin-right:5px}
+.flow .st b{font-size:13px}
+.flow .st small{display:block;color:var(--muted);font-size:11.5px;line-height:1.5;margin-top:4px}
+/* 步骤卡 */
+.step{border:1px solid var(--bd);border-radius:6px;margin:14px 0;overflow:hidden}
+.step>.h{background:var(--canvas);padding:9px 14px;font-weight:700;font-size:15px;border-bottom:1px solid var(--bd)}
+.step>.h .num{color:var(--blue);margin-right:6px}
+.step .g{display:grid;grid-template-columns:92px minmax(0,1fr);font-size:13.5px}
+.step .g>div{padding:8px 12px;border-bottom:1px solid #eaeef2}
+.step .g>div:nth-child(odd){background:#fbfcfd;color:var(--muted);font-weight:600}
+.step .g>div:nth-last-child(-n+2){border-bottom:none}
+/* 检查单 */
+.checks{list-style:none;padding:0;margin:10px 0}
+.checks li{padding:5px 0 5px 26px;position:relative;font-size:14px;border-bottom:1px dashed #eaeef2}
+.checks input{position:absolute;left:2px;top:9px;width:15px;height:15px}
+.checks .grp{font-weight:700;color:var(--muted);font-size:12px;letter-spacing:.05em;padding:10px 0 3px;border:none;list-style:none}
+/* 责任分界 */
+.role{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:14px 0}
+.role>div{border:1px solid var(--bd);border-radius:6px;padding:12px 14px}
+.role .ai{background:var(--blue-bg);border-color:#54aeff66}
+.role .you{background:var(--red-bg);border-color:#ff818266}
+.role h4{margin:0 0 8px;font-size:14.5px}
+.role ul{margin:0;padding-left:18px;font-size:13.5px}
+.role li{margin:4px 0}
+footer{margin-top:44px;border-top:1px solid var(--bd);padding-top:14px;font-size:12.5px;color:var(--muted)}
+@media(max-width:860px){.wrap{grid-template-columns:1fr}.side{position:static;height:auto;border-right:none;border-bottom:1px solid var(--bd)}main{padding:20px}.role{grid-template-columns:1fr}.step .g{grid-template-columns:76px minmax(0,1fr)}}
+@media print{.side{display:none}.wrap{grid-template-columns:1fr}.code button{display:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav class="side">
+  <h2>目录</h2>
+  <a href="#s0">0 · 先读这段（边界）</a>
+  <a href="#s1">1 · 一页速览：上线路径</a>
+  <a href="#s2">2 · 逐步指导</a>
+  <a href="#s2" class="sub">2.1 注册 / 实名 / RAM</a>
+  <a href="#s2" class="sub">2.2 ECS / 安全组 / 计费</a>
+  <a href="#s3">3 · 域名与 ICP 备案</a>
+  <a href="#s4">4 · 部署命令清单</a>
+  <a href="#s4" class="sub">4.1 Docker 与镜像</a>
+  <a href="#s4" class="sub">4.2 NGINX / HTTPS</a>
+  <a href="#s4" class="sub">4.3 密钥 / 日志 / 自启</a>
+  <a href="#s5">5 · 费用估算表</a>
+  <a href="#s6">6 · 检查单 / 回滚 / 排障</a>
+  <a href="#s7">7 · 谁做什么（责任分界）</a>
+  <a href="#s8">8 · 边界声明与来源</a>
+  <div class="tip">单文件离线页 · 零外部 CDN / 字体 / 脚本。代码块右上角「复制」可一键复制；文中网址仅为文字说明，不会联网加载。</div>
+</nav>
+
+<main>
+<h1>阿里云上线指导 · 解析演示站点</h1>
+<div class="badges">
+  <span class="b b-gray">部署指导</span>
+  <span class="b b-warn">非上线证明</span>
+  <span class="b b-est">费用均为估算</span>
+  <span class="b b-you">含需你本人操作的步骤</span>
+  <span class="b b-ai">脚本可由 AI 生成</span>
+  <span class="b b-free">含免费额度</span>
+</div>
+<p class="lead">目标：把一个 <b>FastAPI + 同源静态单页</b> 的解析演示站点，从零注册到能在公网通过域名 + HTTPS 打开。本页只讲这一个<b>独立最小部署单元</b>，不把主干项目的 11 个服务（PG / Redis / Milvus / MinIO / Celery 等）塞进来。</p>
+
+<h2 id="s0">0 · 先读这段（边界与事实）</h2>
+<div class="box danger">
+  <div class="t">这不是「已上线」，也不要求你把任何凭证交给我</div>
+  <p>① 本页是<b>部署指导</b>，不是上线证明；演示切片不等于生产系统。② <b>实名认证、支付、域名购买与备案、账号凭证保管、是否同意付费开解析/LLM API</b> 必须由你本人在控制台完成（见 <a href="#s7">§7</a>）。③ <b>不要把账号、密码、AccessKey、短信验证码发给 AI，也不要贴进聊天窗口、文档或 Git</b>；我生成脚本不需要任何凭证。④ 未包含等保测评、WAF、DDoS 高防、数据合规审批。</p>
+</div>
+<div class="box warn">
+  <div class="t">关于本页引用的项目资产（实查，避免把「设计」写成「已有」）</div>
+  <p>仓库当前有 <code>Dockerfile.parse</code>（暴露 <b>8766</b>、仅 COPY <code>parsing/</code>、HEALTHCHECK 用标准库 urllib 打 <code>/health/live</code>），以及 <code>docker-compose.yml</code> 里的 <code>parser</code> 服务（<code>profiles: ["parsing"]</code>、端口 <code>127.0.0.1:8766:8766</code>、密钥全部从 <code>.env</code> 注入）。<b>主理人描述的未来独立目录 <code>showcase/</code> 目前尚未在仓库出现</b>；若后续改名/迁移，只需把下文的 build context 与 COPY 路径对应替换，其余流程不变。</p>
+</div>
+<p>费用口径：全文金额一律为 <span class="b b-est">估算 + 假设前提</span>，<b>不是账单、不是报价</b>，以阿里云官网/控制台实时价为准。解析 API 单价引用主理人 2026-11-15 联网检索确认的公开计费事实，并标注来源性质。</p>
+
+<h2 id="s1">1 · 一页速览：上线路径流程图</h2>
+<div class="flow">
+  <div class="st"><span class="n">1</span><b>注册账号</b><small>官网右上角注册；手机号/邮箱，开 MFA</small></div>
+  <div class="st"><span class="n">2</span><b>实名认证</b><small>个人 or 企业；本人扫脸/支付宝授权</small></div>
+  <div class="st"><span class="n">3</span><b>购买 ECS</b><small>选地域/规格/镜像/计费方式</small></div>
+  <div class="st"><span class="n">4</span><b>安全组</b><small>只放行 80/443/22，22 限来源 IP</small></div>
+  <div class="st"><span class="n">5</span><b>域名 + 备案</b><small>中国内地节点必须 ICP 备案</small></div>
+  <div class="st"><span class="n">6</span><b>装 Docker</b><small>ECS 内安装 Engine + Compose 插件</small></div>
+  <div class="st"><span class="n">7</span><b>构建/传镜像</b><small>docker build 或 scp 上传后 build</small></div>
+  <div class="st"><span class="n">8</span><b>NGINX + HTTPS</b><small>反代到 127.0.0.1:8766，证书终止 TLS</small></div>
+  <div class="st"><span class="n">9</span><b>环境变量与密钥</b><small>--env-file；不入镜像、不入 Git</small></div>
+  <div class="st"><span class="n">10</span><b>健康检查</b><small>/health/live 门禁 + 日志</small></div>
+  <div class="st"><span class="n">11</span><b>监控与回滚</b><small>镜像 tag、上一版保留、开机自启</small></div>
+</div>
+<p class="lead">关键路径上真正卡时间的是 <b>第 5 步备案</b>（外部审核，非技术步骤）；技术上可先用「IP + HTTP」做验证，但那不能作为正式对外服务（见 <a href="#s3">§3</a>）。</p>
+
+<h2 id="s2">2 · 逐步指导（在哪点 / 填什么 / 大概多少钱 / 常见坑）</h2>
+<div class="box"><div class="t">金额说明</div><p>下面每步的「大概多少钱」都是 <span class="b b-est">估算</span>：<b>0 元</b> = 该步骤本身不产生费用；其余均为「量级 + 假设」，实际以控制台实时价与你的用量为准，本文不提供精确报价。</p></div>
+
+<h3>2.1 注册 / 实名 / RAM</h3>
+<div class="step"><div class="h"><span class="num">Step 1</span> 注册阿里云账号 <span class="b b-you">需你本人</span></div>
+<div class="g">
+<div>在哪点</div><div>阿里云官网 <code>www.aliyun.com</code> → 右上角「注册」。也可用支付宝 / 钉钉扫码注册（会自动带部分实名信息，但仍需在阿里云侧确认）。</div>
+<div>填什么</div><div>手机号 + 短信验证码、登录名、强密码（按页面规则）、勾选服务条款。注册后立刻绑定邮箱并<b>开启 MFA 多因素认证</b>。</div>
+<div>多少钱</div><div><b>0 元</b>（注册本身不收费）。</div>
+<div>常见坑</div><div>注册时选择的「国家/地区」决定计费货币与税率且后续难改；支付宝已实名 ≠ 阿里云已实名，两套体系不自动同步；<b>不要把密码/验证码发给任何人或贴进文档</b>。</div>
+</div></div>
+
+<div class="step"><div class="h"><span class="num">Step 2</span> 实名认证（个人 vs 企业） <span class="b b-you">需你本人 · 不可代办</span></div>
+<div class="g">
+<div>在哪点</div><div>控制台 → 「账号中心」→「实名认证」。购买<b>中国内地地域</b>云资源前必须完成，法律要求（《网络安全法》《反电信网络诈骗法》）。</div>
+<div>填什么</div><div><b>个人</b>：个人支付宝授权 / 扫脸，填姓名与证件号；<b>企业</b>：法人扫脸 / 企业支付宝 / 对公账户打款验证，需营业执照。一个账号只能选一种主体，<b>认证完成后不可更改或解绑</b>。</div>
+<div>多少钱</div><div><b>0 元</b>。差异在权益：个人只能开个人抬头普票、仅个人类活动；企业可开专票、可用短信/内容审核等企业专属产品、享企业活动。一个身份可认证账号数有限（公开资料口径 3~6 个不一，以控制台为准）；企业主体一般 10 个。</div>
+<div>常见坑</div><div>个人认证用于企业场景，后续人员变动会出账号管理问题；平均约 20 分钟、最多 3 个工作日审核（流程说明，<b>非承诺时长</b>）；发票抬头默认跟随认证主体；14 岁以下不能认证。</div>
+</div></div>
+
+<div class="step"><div class="h"><span class="num">Step 3</span> RAM 子账号与 AccessKey 最小权限 <span class="b b-you">需你本人</span> <span class="b b-ai">策略可由 AI 起草</span></div>
+<div class="g">
+<div>在哪点</div><div>控制台 → 「访问控制 RAM」→ 用户 / 权限策略 / 操作审计 ActionTrail。</div>
+<div>填什么</div><div>为「部署脚本」单独建一个 RAM 用户，只授它需要的权限（如只读 ECS / 指定解析 API 的调用权限）；<b>不要给主账号创建 AccessKey</b>；一个应用一个环境一把 AK；设置 AK 闲置上限（建议 90 天内轮转）、配置来源 IP 限制、启用 MFA 与 ActionTrail 审计。更优做法是用 ECS 实例角色 + STS 临时凭证（无 AK 方案）。</div>
+<div>多少钱</div><div><b>0 元</b>（RAM / ActionTrail 基础使用通常不额外收费；以控制台为准）。</div>
+<div>常见坑</div><div>AccessKey 是长期凭证，泄漏等于全账号资源受影响；<b>严禁硬编码进代码、写进镜像、提交到 Git</b>；AK Secret 只在创建时可完整查看，请自行保管在本人的密码管理器里，不要发给 AI。演示站若只跑离线解析，<b>这把 AK 可以先不建</b>。</div>
+</div></div>
+
+<h3>2.2 ECS / 安全组 / 计费方式</h3>
+<div class="step"><div class="h"><span class="num">Step 4</span> 购买 ECS（演示站点建议配置） <span class="b b-you">需你本人支付</span></div>
+<div class="g">
+<div>在哪点</div><div>控制台 → 「云服务器 ECS」→ 创建实例；或活动中心 / 轻量应用服务器。地域建议选离你近的中国内地节点（注意：内地节点才需要备案）。</div>
+<div>填什么</div><div><b>建议配置（假设：单人演示、低并发、解析走外部 API、本地无数据库）</b>：2 vCPU / 2~4 GiB 内存、系统盘 40 GiB ESSD、固定公网带宽 1~3 Mbps、镜像 Ubuntu 22.04 LTS 或 Alibaba Cloud Linux。密钥对登录优于密码登录。<b>这是建议配置、非已采购、未经压测</b>；解析若在服务端做重计算需上调规格。</div>
+<div>多少钱</div><div><span class="b b-est">估算</span>：按量常开为「数十元/月」量级；入门规格新用户促销常见「百元/年」量级（社区/活动页公开信息，<b>非报价</b>，活动随时变化）。<b>以官网实时价为准</b>。</div>
+<div>常见坑</div><div>选错地域 → 备案规则与延迟都不同；忘记勾选<b>公网 IP / 固定带宽</b> → 后面域名解析不了；系统盘太小 → 镜像与日志挤满；促销价常限首年/限购，续费价可能不同。</div>
+</div></div>
+
+<div class="step"><div class="h"><span class="num">Step 5</span> 按量付费 vs 包年包月（怎么选） <span class="b b-you">需你本人决定</span></div>
+<div class="g">
+<div>在哪点</div><div>ECS 创建页「计费方式」；以及控制台概览「实例停机不收费」设置。</div>
+<div>填什么</div><div><b>按量付费</b>=后付费、按秒计，适合短期测试、可随时释放；<b>包年包月</b>=预付费、按月，适合 7×24 稳定服务，通常单价更优、常有新用户折扣。备案对实例时长/类型可能有前置条件（如要求包年包月且剩余时长充足），<b>以备案页实时提示为准</b>。</div>
+<div>多少钱</div><div><span class="b b-est">估算</span>：短期验证用按量更省（用完即释放）；打算挂几个月以上则包年包月更划算。均为相对量级，非报价。</div>
+<div>常见坑</div><div><b>关机 ≠ 停费</b>：包年包月关机仍计费；按量实例停止后计算费可停，但<b>磁盘、EIP/公网 IP 仍计费</b>，只有「释放实例 + 释放云盘 + 释放 EIP」才彻底停费；按量若忘记释放会持续扣到欠费。</div>
+</div></div>
+
+<div class="step"><div class="h"><span class="num">Step 6</span> 安全组（只放行必要端口） <span class="b b-you">需你本人</span> <span class="b b-ai">规则清单可由 AI 生成</span></div>
+<div class="g">
+<div>在哪点</div><div>ECS 控制台 → 实例 → 「安全组」→ 入方向规则；规则即时生效，无需重启。</div>
+<div>填什么</div><div>入方向：<code>80/tcp</code> 与 <code>443/tcp</code> 授权对象 <code>0.0.0.0/0</code>；<code>22/tcp</code> 授权对象<b>只填你自己的出口 IP</b>（形如 <code>x.x.x.x/32</code>），不要 <code>0.0.0.0/0</code>。<b>不要</b>把容器端口 8766 直接暴露公网——由 NGINX 反代到 <code>127.0.0.1:8766</code> 即可。出站默认放行。</div>
+<div>多少钱</div><div><b>0 元</b>。</div>
+<div>常见坑</div><div>只改了安全组却忘了 ECS 内系统防火墙；把 22 全放开会被持续扫描爆破；把 8766 暴露公网等于把未鉴权的探测接口公开；修改了错误安全组（实例可能绑定多个）。</div>
+</div></div>
+
+<h2 id="s3">3 · 域名与 ICP 备案</h2>
+<p><b>为什么必须备案</b>：按工信部规定，网站/互联网信息服务解析到<b>中国内地（大陆）节点</b>服务器并对外提供服务，必须先完成 ICP 备案；未完成即解析会被服务商监测系统识别并<b>阻断访问</b>。选中国香港/境外节点则无需工信部 ICP 备案（仍涉及公安联网备案等其他要求），但延迟、合规与计费口径不同——本页按内地节点写。</p>
+<div class="step"><div class="h"><span class="num">Step 7</span> 域名注册 + ICP 备案 <span class="b b-you">需你本人 · 需本人证件与人脸核验</span></div>
+<div class="g">
+<div>在哪点</div><div>阿里云「域名」控制台注册域名；备案在 <code>beian.aliyun.com</code> / ICP 代备案管理系统。域名不在阿里云注册也可以，但需等待域名信息入库。</div>
+<div>填什么</div><div>域名持有者信息<b>必须与备案主体一致</b>（不一致先过户）；填主办者/网站/服务器信息，上传证件、核验单、人脸核验，绑定「备案服务码」（ECS 实例会自动生成，一台实例可申请若干个，以控制台为准）。备案成功后在页脚展示 ICP 号，并在 30 日内完成公安联网备案。</div>
+<div>多少钱</div><div><span class="b b-est">估算</span>：域名年费为「几十~百元/年」量级（后缀差异大）；<b>备案服务本身免费</b>。均非报价，以官网实时价为准。</div>
+<div>常见坑</div><div>备案<b>流程时长是说明、不是承诺</b>：阿里云初审约 1~2 个工作日 + 电话核验 → 工信部短信核验（收到后 <b>24 小时内</b>本人完成）→ 管局审核约 1~20 个工作日，整体公开口径约 3~22 个工作日，各地不同；备案订单有效期有限，超期会被清理；教育/新闻/医疗等特殊行业需<b>前置审批</b>。</div>
+</div></div>
+<div class="box warn"><div class="t">没有域名时的临时验证方案（及其限制）</div>
+<p>可先用 <b>ECS 公网 IP + HTTP + 80 端口</b> 做纯技术验证（容器能起、<code>/health/live</code> 能通、页面能打开）。<b>限制</b>：① 内地节点未备案的域名解析会被阻断，IP 直连访问通常也不作为正式对外服务方式，且随时可能受限；② 无域名无法签发常见 DV 证书，做不了正式 HTTPS；③ 浏览器会标「不安全」，涉及登录/Cookie 的功能不可靠；④ 只适合你本人短时间自检，不能当作上线。想长期稳定对外，就走完域名 + 备案。</p></div>
+
+<h2 id="s4">4 · 部署命令清单</h2>
+<p class="lead">以下命令为 <span class="b b-ai">可由 AI 生成、由你在 ECS 上执行</span> 的操作文本；<b>本页不执行任何命令</b>。示例基于仓库现有 <code>Dockerfile.parse</code>（端口 8766、健康检查 <code>/health/live</code>）。请把 <code>&lt;你的域名&gt;</code> 等占位符替换成实际值。</p>
+
+<h3>4.1 安装 Docker 与构建镜像</h3>
+<div class="code"><div class="bar"><span>bash · ECS 内首次准备</span><button type="button">复制</button></div><pre># 以 Ubuntu 22.04 为例（按官方文档安装 Engine + Compose 插件）
+sudo apt-get update
+sudo apt-get install -y ca-certificates curl gnupg nginx
+sudo install -m 0755 -d /etc/apt/keyrings
+# 按官方仓库配置 Docker apt 源后：
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io \
+    docker-buildx-plugin docker-compose-plugin
+sudo systemctl enable --now docker
+docker version &amp;&amp; docker compose version</pre></div>
+<div class="code"><div class="bar"><span>bash · 把最小部署单元弄上 ECS（二选一）</span><button type="button">复制</button></div><pre># 方式 A：本地打好镜像，scp 传 tar 上去再 load（无需在服务器放源码）
+docker build -f Dockerfile.parse -t parse-demo:v1 .
+docker save parse-demo:v1 | gzip &gt; parse-demo-v1.tar.gz
+scp parse-demo-v1.tar.gz root@&lt;ECS公网IP&gt;:/opt/
+ssh root@&lt;ECS公网IP&gt; 'docker load &lt; /opt/parse-demo-v1.tar.gz'
+
+# 方式 B：只上传必要文件，在 ECS 上构建（context 为项目根，只 COPY parsing/）
+scp -r Dockerfile.parse parsing/ .env.prod root@&lt;ECS公网IP&gt;:/opt/parse-demo/
+ssh root@&lt;ECS公网IP&gt; 'cd /opt/parse-demo &amp;&amp; \
+  docker build -f Dockerfile.parse -t parse-demo:v1 .'</pre></div>
+<div class="box"><div class="t">别把主干项目带进来</div><p>仓库根目录的 <code>docker-compose.yml</code> 默认是 <b>11 个服务</b>的完整演示环境（PG/Redis/Milvus/MinIO/Celery…），<b>不要</b>在服务器上直接 <code>docker compose up -d</code>。解析站是独立最小单元：要么用上面的单镜像 <code>docker run</code>，要么只起 <code>parser</code> 一个服务：<code>docker compose --profile parsing up -d --build parser</code>。</p></div>
+<div class="code"><div class="bar"><span>bash · 启动容器（密钥走 --env-file，端口只绑本机）</span><button type="button">复制</button></div><pre>cd /opt/parse-demo
+docker run -d --name parse-demo --restart unless-stopped \
+  -p 127.0.0.1:8766:8766 \
+  --env-file /opt/parse-demo/.env.prod \
+  --memory 512m --cpus 0.5 \
+  --log-driver json-file --log-opt max-size=10m --log-opt max-file=3 \
+  parse-demo:v1
+
+# 健康检查门禁（镜像自带 HEALTHCHECK；也可手动探活）
+docker inspect --format '{{.State.Health.Status}}' parse-demo
+curl -fsS http://127.0.0.1:8766/health/live
+docker logs --tail 50 parse-demo</pre></div>
+
+<h3>4.2 NGINX 反向代理与 HTTPS</h3>
+<div class="code"><div class="bar"><span>nginx · /etc/nginx/conf.d/parse-demo.conf（HTTP 阶段）</span><button type="button">复制</button></div><pre>server {
+    listen 80;
+    server_name &lt;你的域名&gt;;
+    client_max_body_size 32m;          # 上传文件大小，按演示需要调
+
+    location / {
+        proxy_pass http://127.0.0.1:8766;   # 同源静态页 + API 都在容器里
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        # 解析/流式响应可能较慢，放宽读超时；SSE 场景需关缓冲
+        proxy_read_timeout 120s;
+        proxy_buffering off;
+    }
+    location /health/ { proxy_pass http://127.0.0.1:8766/health/; }
+}</pre></div>
+<p class="lead">保存为 <code>/etc/nginx/conf.d/parse-demo.conf</code> 后执行 <code>sudo nginx -t &amp;&amp; sudo systemctl reload nginx</code>（这条是 shell 命令，不要粘进上面的 conf 文件）。</p>
+<div class="box"><div class="t">HTTPS 证书（两条途径，都需 <span class="b b-you">你本人</span> 在控制台/域名 DNS 处验证）</div>
+<p><b>途径 A · 阿里云免费个人测试证书</b>：控制台 →「数字证书管理服务」→「个人测试证书（原免费证书）」→ 0 元领取 → 创建证书填单域名 → DNS 验证（域名在阿里云可选自动 DNS 验证，否则手动加 <code>_dnsauth</code> TXT 记录）→ 下载 <b>Nginx 格式</b>（pem + key）。公开资料显示：DV 单域名、每实名主体每自然年约 20 张、<b>有效期约 90 天</b>、年底未用额度清零、不支持通配符与部分特殊后缀、官方标注<b>仅供测试/个人试用</b>。<b>坑</b>：90 天到期要重新申请并替换，务必设日历提醒（或写续期脚本）。<br><b>途径 B · Let's Encrypt + certbot</b>：<code>sudo apt install certbot python3-certbot-nginx</code> → <code>sudo certbot --nginx -d &lt;你的域名&gt;</code>，90 天有效期、自动续期任务，用 <code>sudo certbot renew --dry-run</code> 验证。两者都要先有<b>已备案且解析生效</b>的域名。</p></div>
+<div class="code"><div class="bar"><span>nginx · HTTPS 阶段（证书到位后，直接由 certbot 生成或手写）</span><button type="button">复制</button></div><pre>server {
+    listen 80;
+    server_name &lt;你的域名&gt;;
+    return 301 https://$host$request_uri;          # HTTP → HTTPS
+}
+server {
+    listen 443 ssl http2;
+    server_name &lt;你的域名&gt;;
+    ssl_certificate     /etc/nginx/tls/&lt;你的域名&gt;.pem;
+    ssl_certificate_key /etc/nginx/tls/&lt;你的域名&gt;.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    # 全站 HTTPS 稳定后再考虑 includeSubDomains，先只用基础 HSTS
+    add_header Strict-Transport-Security "max-age=31536000" always;
+    add_header X-Content-Type-Options nosniff always;
+    add_header Referrer-Policy strict-origin-when-cross-origin always;
+    client_max_body_size 32m;
+    location / {
+        proxy_pass http://127.0.0.1:8766;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 120s;
+        proxy_buffering off;
+    }
+    location /health/ { proxy_pass http://127.0.0.1:8766/health/; }
+}</pre></div>
+
+<h3>4.3 环境变量 / 密钥 / 开机自启</h3>
+<div class="code"><div class="bar"><span>.env.prod · 只放在服务器上，绝不入镜像 / Git</span><button type="button">复制</button></div><pre># /opt/parse-demo/.env.prod  权限 600，属主 root
+# 演示起步建议全部留空/关闭外部调用 → 纯离线解析，0 元
+PARSING_STRATEGY=auto
+PARSING_OFFLINE=1
+PARSING_VISION_ENABLED=0
+PARSING_VISION_API_KEY=
+PARSING_OCR_API_KEY=
+DISCOVERY_API_KEY=
+# 需要外部 LLM/视觉兜底时，由你本人决定是否开通并把 Key 填在这里
+# 注意：这些 Key 是第三方 API 凭证，不是阿里云 AccessKey；
+# 若用阿里云文档解析 API，其 RAM AccessKey 同样只放这里，不要硬编码</pre></div>
+<div class="box danger"><div class="t">密钥三条铁律</div><p>① <b>绝不入镜像</b>：不要 <code>COPY .env*</code>、不要 <code>ENV KEY=...</code>；Dockerfile 里只放代码。② <b>绝不入 Git</b>：服务器上的 <code>.env.prod</code> 与仓库的 <code>.env</code> 都要在 <code>.gitignore</code> 内；提交前用 <code>git grep -nE 'sk-[A-Za-z0-9]{20,}'</code> 扫一遍。③ <b>绝不进聊天窗口</b>：不要把 Key 发给 AI、贴进工单或截图。轮换顺序：生成新 Key → 更新 <code>.env.prod</code> → 重启容器 → 验证 → 在供应商侧吊销旧 Key → 记一笔变更。</p></div>
+<div class="code"><div class="bar"><span>bash · 权限 / 开机自启 / 日志</span><button type="button">复制</button></div><pre>chmod 600 /opt/parse-demo/.env.prod
+# 开机自启：容器已带 --restart unless-stopped；Docker 服务本身也要开机起
+sudo systemctl enable docker nginx
+# 若用 compose 单服务方式，写 /etc/systemd/system/parse-demo.service 亦可
+# 日志：容器已限 10m×3 轮转；查看用 docker logs --tail 100 parse-demo
+# 每次变更前记录当前镜像 tag：docker images parse-demo</pre></div>
+
+<h2 id="s5">5 · 费用估算表（估算 + 假设前提，不是账单）</h2>
+<p><b>统一假设</b>：① 单人演示、日均 <b>100 次解析</b>、每次 <b>2 页</b> → 约 <b>6000 页/月</b>；② 一台入门 ECS 常开 1 个月；③ 一个普通域名；④ 用免费 DV 证书；⑤ 30 天/月。<b>所有数字为按假设推算的估算值</b>，实际取决于是否接通外部 API、降级策略、缓存/重试、促销与实时单价；<b>以官网实时价为准</b>。</p>
+<table>
+<thead><tr><th>项目</th><th>计费口径 / 免费额度</th><th>月度估算（基于上述假设）</th><th>性质</th></tr></thead>
+<tbody>
+<tr><td>ECS 计算 + 系统盘 + 公网带宽</td><td>按量后付费或包年包月预付费；社区/活动页常见新用户促销（百元/年级别），<b>非报价</b></td><td>「数十元/月」量级；若赶上首年促销摊到月可能更低</td><td><span class="b b-est">估算 · 必产生</span></td></tr>
+<tr><td>域名</td><td>按年注册，后缀差异大，注册后一般不可退款</td><td>「几十~百元/年」量级，摊月为个位数~十元级</td><td><span class="b b-est">估算 · 必产生</span></td></tr>
+<tr><td>SSL 证书</td><td>阿里云个人测试证书：每实名主体每自然年约 20 张 DV 单域名、约 90 天有效；或 Let's Encrypt 免费 90 天自动续期</td><td><b>0 元</b>（免费额度内）；付费 OV/EV 另计</td><td><span class="b b-free">免费额度</span></td></tr>
+<tr><td>ICP 备案</td><td>阿里云代备案服务本身免费；备案服务码由 ECS 实例生成</td><td><b>0 元</b></td><td><span class="b b-free">免费</span></td></tr>
+<tr><td>阿里云文档解析（大模型版）</td><td>基础链路 <b>0.02 元/页</b>；增强链路 <b>0.04 元/页</b>（主理人 2026-11-15 联网检索确认的公开计费事实）</td><td>6000 页 × 0.02 ≈ <b>120 元/月</b>（全走基础）；× 0.04 ≈ <b>240 元/月</b>（全走增强）；实际多在两者之间</td><td><span class="b b-est">估算 · 按用量</span></td></tr>
+<tr><td>腾讯云多模态解析（对照）</td><td><b>0.08 元/页</b>；首开赠 <b>1000 页/1 年</b>（同上来源性质，仅作对照，非本方案默认）</td><td>6000 页 × 0.08 = 480 元/月量级，赠页可抵一部分</td><td><span class="b b-est">对照 · 估算</span></td></tr>
+<tr><td>阿里云 OCR 通用文字识别</td><td>激活后<b>每月 200 次免费调用</b>、资源包 <b>500 次/年</b>（同上来源性质）</td><td>免费额度内 <b>0 元</b>；超出按资源包/按量另计</td><td><span class="b b-free">免费额度</span></td></tr>
+<tr><td>LLM / 视觉兜底调用</td><td>按模型 token 用量计费（单价未提供、不编造）；仓库 <code>PARSING_VISION_ENABLED=0</code> 可关闭 P2 视觉兜底</td><td>关闭时 <b>0 元</b>；开启后为「依用量」的估算值，量级随调用次数线性增长</td><td><span class="b b-est">估算 · 可开关</span></td></tr>
+<tr><td>纯离线自研解析（P0）</td><td>标准库实现、不调外部 API</td><td><b>0 元</b>；这是演示起步的默认建议</td><td><span class="b b-free">免费</span></td></tr>
+</tbody></table>
+<div class="box warn"><div class="t">合计怎么看</div><p>「<b>纯离线 + 免费证书 + 入门 ECS</b>」= 主要是 ECS + 域名的基础花费（数十元/月量级）；「<b>全量走增强解析 + 开 LLM 兜底</b>」= 基础花费 + 数百元/月量级的 API 费用。<b>Reducto 等海外解析服务</b>在国内访问、外币付费与数据合规上存在可达性/合规问题，只适合做<b>可选适配器</b>，不作为本方案默认链路。建议开通前先在控制台设<b>预算/费用告警</b>，并每日核对账单与用量。</p></div>
+
+<h2 id="s6">6 · 上线检查单 / 回滚 / 故障排查</h2>
+<h3>6.1 上线检查单（可勾选）</h3>
+<ul class="checks">
+<li class="grp">上线前（你本人 + 脚本各司其职）</li>
+<li><input type="checkbox"> 账号已注册并开启 MFA；实名认证已完成（个人/企业选对，不可更改）</li>
+<li><input type="checkbox"> 主账号未创建 AccessKey；部署用 RAM 用户按最小权限授权</li>
+<li><input type="checkbox"> ECS 安全组只放行 80/443（0.0.0.0/0）与 22（仅本人 IP/32）；8766 未暴露公网</li>
+<li><input type="checkbox"> 域名已备案成功并解析到 ECS 公网 IP；页脚有 ICP 号</li>
+<li><input type="checkbox"> <code>.env.prod</code> 权限 600、未入镜像、未入 Git；提交前密钥扫描零命中</li>
+<li><input type="checkbox"> 镜像打了不可变 tag（如 <code>v1</code>），上一版镜像/tar 已留存</li>
+<li><input type="checkbox"> 本地已跑过 <code>docker compose config -q</code> 与 <code>nginx -t</code></li>
+<li class="grp">上线中</li>
+<li><input type="checkbox"> <code>docker ps</code> 容器 healthy；<code>curl /health/live</code> 返回预期</li>
+<li><input type="checkbox"> HTTP→HTTPS 301 生效；证书链与 HSTS 头已验证</li>
+<li><input type="checkbox"> 静态页与 API 同源打开，无跨域报错；上传/解析主链路手工验证</li>
+<li><input type="checkbox"> 日志轮转生效（<code>docker inspect</code> 查 LogConfig）</li>
+<li class="grp">上线后</li>
+<li><input type="checkbox"> 费用告警已设；账单与用量每日核对</li>
+<li><input type="checkbox"> 证书 90 天到期提醒已设（免费 DV / Let's Encrypt）</li>
+<li><input type="checkbox"> 观察期内保留上一版镜像与 <code>.env.prod</code> 备份，不清理</li>
+</ul>
+
+<h3>6.2 回滚步骤</h3>
+<div class="code"><div class="bar"><span>bash · 回滚到上一版镜像</span><button type="button">复制</button></div><pre># 1) 停新、起旧（镜像 tag 是回滚锚点）
+docker stop parse-demo &amp;&amp; docker rm parse-demo
+docker run -d --name parse-demo --restart unless-stopped \
+  -p 127.0.0.1:8766:8766 --env-file /opt/parse-demo/.env.prod \
+  --memory 512m --cpus 0.5 parse-demo:v0      # 上一版 tag
+
+# 2) 健康检查门禁：不通过就继续回退，不放流量
+curl -fsS http://127.0.0.1:8766/health/live
+sudo nginx -t &amp;&amp; sudo systemctl reload nginx
+curl -fsS https://&lt;你的域名&gt;/health/live
+
+# 3) 配置类回滚：恢复上一版 nginx conf / .env.prod 副本后 reload
+# 4) 演示站无数据库强依赖，通常无需迁移回滚；若日后接了 DB，
+#    须先备份 + 临时库验证可恢复，且 downgrade 只回结构不回数据语义。</pre></div>
+<p class="lead">回滚窗口：只要上一版镜像与 <code>.env.prod</code> 备份还在（观察期内），随时可回。不可逆动作只有「删除旧镜像/tar」与「覆盖式恢复丢数据」，因此观察期内不要清理。</p>
+
+<h3>6.3 常见故障排查</h3>
+<table>
+<thead><tr><th>现象</th><th>排查顺序</th></tr></thead>
+<tbody>
+<tr><td><b>端口不通 / 页面打不开</b></td><td>① 安全组入方向是否放行 80/443；② ECS 内 <code>ss -lntp | grep -E '80|443|8766'</code> 与系统防火墙；③ 容器是否 <code>-p 127.0.0.1:8766:8766</code>（只绑本机是对的，靠 nginx 反代，别直接公网连 8766）；④ <code>nginx -t</code> 与 <code>proxy_pass</code> 目标；⑤ 备案是否生效（内地节点未备案会被阻断）。</td></tr>
+<tr><td><b>备案未生效 / 域名被阻断</b></td><td>查 ICP 代备案系统状态；确认域名持有者与备案主体一致；工信部短信核验是否在 24 小时内完成；域名的 A 记录是否指向正确的 ECS 公网 IP；临时用 IP+HTTP 只做技术自检，别当上线。</td></tr>
+<tr><td><b>跨域（CORS）报错</b></td><td>本方案是<b>同源静态单页</b>，正常无跨域；若把前端分离部署，需在服务端配 CORS 白名单，且 <code>allow_credentials</code> 时不能用 <code>*</code>；更推荐统一走 NGINX 同源反代。</td></tr>
+<tr><td><b>密钥缺失 / 解析报鉴权错</b></td><td><code>docker exec parse-demo env | grep -E 'PARSING|API_KEY'</code> 看注入是否生效；确认 <code>--env-file</code> 路径与换行格式；区分「离线模式未开外部调用」与「Key 真的没配」；不要为排错把 Key 打进日志。</td></tr>
+<tr><td><b>容器重启后丢环境变量</b></td><td>用 <code>--env-file</code> / compose 文件固化，别只靠交互式 <code>-e</code> 或 shell <code>export</code>（重建容器即丢）；确认 <code>.env.prod</code> 没被清理脚本删掉；<code>docker inspect</code> 核对 Env；同时确认 <code>--restart unless-stopped</code> 与 <code>systemctl enable docker</code>。</td></tr>
+<tr><td><b>超时 / 大文件上传失败</b></td><td>NGINX <code>proxy_read_timeout</code> 与 <code>client_max_body_size</code>；解析链路自身超时（仓库默认 <code>PARSING_VISION_TIMEOUT_S=60</code>）；上游网关/外部 API 超时；SSE 场景必须 <code>proxy_buffering off</code>；必要时把长任务改异步 + 进度查询。</td></tr>
+</tbody></table>
+
+<h2 id="s7">7 · 谁做什么：责任分界（醒目区分）</h2>
+<div class="role">
+<div class="ai"><h4><span class="b b-ai">我（AI）能自动生成</span></h4>
+<ul>
+<li>Dockerfile / compose 片段 / NGINX 配置 / systemd unit</li>
+<li>部署、健康检查、日志轮转、回滚、备份脚本</li>
+<li><code>.env.example</code> 模板（<b>只有占位符，无真实值</b>）</li>
+<li>上线检查单、排障手册、费用估算表（估算 + 假设）</li>
+<li>证书到期提醒脚本、预算告警的配置建议</li>
+</ul></div>
+<div class="you"><h4><span class="b b-you">必须你本人在控制台操作</span></h4>
+<ul>
+<li><b>实名认证</b>：本人扫脸 / 支付宝授权 / 企业证件</li>
+<li><b>支付</b>：ECS、域名、任何付费 API 的下单与付款</li>
+<li><b>域名购买与备案</b>：本人证件、人脸核验、工信部短信核验</li>
+<li><b>账号与凭证保管</b>：密码、MFA、AccessKey、API Key</li>
+<li><b>是否同意付费开解析 / LLM API</b>：由你决定开关与额度</li>
+</ul></div>
+</div>
+<div class="box danger"><div class="t">安全边界（务必照做）</div><p>我<b>不需要也不应该</b>拿到你的账号密码、AccessKey Secret、短信验证码或 API Key。请把它们只保存在你自己的密码管理器 / 服务器 <code>.env.prod</code>（权限 600）里。任何要求你在聊天窗口粘贴凭证的做法都是错误的。我可以帮你写「读环境变量的脚本」，但不能替你登录控制台、实名、付款、备案或做人脸核验。</p></div>
+
+<h2 id="s8">8 · 边界声明与资料来源</h2>
+<ul>
+<li><b>本页是部署指导，不是已上线证明</b>；所有命令均为待执行文本，本页未连接任何云资源、未采购、未执行部署。</li>
+<li><b>演示切片不等于生产系统</b>：未含等保测评、WAF、DDoS 高防、数据合规审批、审计留存、监控告警 SLO、容量压测与灰度回滚演练。</li>
+<li><b>费用</b>全部为「估算 + 假设前提」，以阿里云官网/控制台实时价为准；活动/促销价随时变化，文中不提供精确报价。</li>
+<li><b>备案与审核时长</b>为公开流程说明，<b>不是承诺时长</b>，以各地管局实际审核为准。</li>
+<li><b>资料来源性质</b>：阿里云帮助中心/备案平台公开文档、开发者社区文章（2026-11-15 联网检索）；解析 API 单价（阿里云文档解析大模型版基础 0.02 元/页、增强 0.04 元/页；腾讯云多模态 0.08 元/页 + 首开送 1000 页/1 年；阿里云 OCR 通用文字识别每月 200 次免费、资源包 500 次/年）为<b>主理人 2026-11-15 联网检索确认的公开计费事实</b>，非账单、非报价承诺。</li>
+<li><b>项目内依据</b>：<code>Dockerfile.parse</code>、<code>docker-compose.yml</code>（<code>parser</code> profile）、<code>.env.example</code>；参考 <code>docs/deployment-guide.md</code> 与 <code>docs/git-conventions.md</code>。<code>showcase/</code> 独立目录目前尚未在仓库出现，命令按现有 <code>parsing/</code> + <code>Dockerfile.parse</code> 给出。</li>
+</ul>
+
+<footer>阿里云上线指导 · 解析演示站点 ｜ 单文件离线页，零外部资源 ｜ 生成于团队协作 Phase 3 前置任务 ｜ 简体中文 · 浅色主题</footer>
+</main>
+</div>
+<script>
+// 纯内联脚本：代码块一键复制（file:// 下 clipboard API 不可用时回退 execCommand）
+document.querySelectorAll('.code button').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    var pre = btn.closest('.code').querySelector('pre');
+    var text = pre.innerText;
+    var done = function () { var o = btn.textContent; btn.textContent = '已复制'; setTimeout(function () { btn.textContent = o; }, 1400); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () { fallback(text, done); });
+    } else { fallback(text, done); }
+  });
+});
+function fallback(text, done) {
+  var ta = document.createElement('textarea');
+  ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.select();
+  try { document.execCommand('copy'); done(); } catch (e) { /* 离线受限时手动选中即可 */ }
+  document.body.removeChild(ta);
+}
+</script>
+</body>
+</html>

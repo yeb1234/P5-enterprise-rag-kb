@@ -11,7 +11,20 @@ ROOT = Path(__file__).resolve().parents[1]
 
 THINK_TAGS = ("<mm:think>", "</mm:think>", "<think>", "</think>")
 REJECT_MARKERS = ("INSUFFICIENT", "信息不足", "无法回答", "没有找到", "资料不足", "不能回答", "不足以回答")
-SCORE_DIMS = ("answer_accuracy", "rejection_correctness", "faithfulness", "format_compliance")
+# 组合式判定：v1 实测发现「资料与问题无关…无法基于上述资料回答」不含任何单一标记，被误判为未拒答。
+# 只要「否定词」与「资料指代」共现即认定为拒答，覆盖自然语言的多样化表达。
+NEG_WORDS = ("无法", "不能", "不足以", "没有", "未提及", "不涉及", "无关", "缺乏")
+SRC_WORDS = ("资料", "文档", "上下文", "上述", "提供的内容", "信息")
+
+
+def is_rejection(answer: str) -> bool:
+    norm = normalize(answer)
+    if any(normalize(m) in norm for m in REJECT_MARKERS):
+        return True
+    return any(w in norm for w in NEG_WORDS) and any(w in norm for w in SRC_WORDS)
+SCORE_DIMS = ("answer_accuracy", "rejection_correctness", "faithfulness",
+              "format_compliance", "answer_economy")
+ECONOMY_MARKERS = ("\n- ", "\n1.", "\n2.", "\n\n", "###")
 
 
 def normalize(text: str) -> str:
@@ -37,7 +50,7 @@ def score_sample(sample: dict, answer: str, meta: dict | None = None) -> dict:
         hits = sum(1 for f in facts if normalize(f) in norm)
         out["answer_accuracy"] = round(hits / len(facts), 4)
 
-    rejected = any(normalize(m) in norm for m in REJECT_MARKERS)
+    rejected = is_rejection(ans)
     expected_abstain = sample.get("expected_behavior") == "abstain"
     out["rejection_correctness"] = 1.0 if rejected == expected_abstain else 0.0
 
@@ -46,6 +59,10 @@ def score_sample(sample: dict, answer: str, meta: dict | None = None) -> dict:
 
     clean = bool(ans.strip()) and len(ans) <= 600 and not any(t in ans for t in THINK_TAGS)
     out["format_compliance"] = 1.0 if clean else 0.0
+
+    concise = (bool(ans.strip()) and len(ans) <= 200
+               and not any(t in ans for t in ECONOMY_MARKERS))
+    out["answer_economy"] = 1.0 if concise else 0.0
 
     out["latency_ms"] = meta.get("latency_ms")
     out["rejected"] = rejected
@@ -92,8 +109,11 @@ def aggregate(records: list[dict]) -> dict:
             "overall": round(sum(per_cat.values()) / len(per_cat), 4) if per_cat else None,
             "avg_latency_ms": None,
         }
+    # 汇总全部记录的延迟：按类别分组后若逐个赋值，最后一个类别会覆盖前面的（已修）
+    by_model_latency: dict[str, list[int]] = defaultdict(list)
     for key, vals in latency.items():
-        m = key[0]
+        by_model_latency[key[0]].extend(vals)
+    for m, vals in by_model_latency.items():
         if m in by_model_out and vals:
             by_model_out[m]["avg_latency_ms"] = round(sum(vals) / len(vals), 1)
 
