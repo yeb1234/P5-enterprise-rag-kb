@@ -93,15 +93,25 @@ PG 是状态真值，Redis 只是实时通道；**先写 PG 文本再写 Milvus 
 
 ### 10. 本机基础设施（已实跑，别再试错）
 - **5432 被 `siteyeb-pg`、6379 被 `siteyeb-redis` 占用**（别的项目容器，不停它）；
-  **Docker Hub 不可达**，本机只有 `docker.m.daocloud.io/library/postgres:16-alpine` 与 `redis:7-alpine`，
-  **没有** milvus / etcd / minio。
+  **Docker Hub 不可达**。国内源实拉结论：`milvusdb/milvus` → `docker.m.daocloud.io` ✅、
+  `coreos/etcd` → `quay.m.daocloud.io` ✅、`postgres/redis` → daocloud ✅、
+  **`minio/minio` 四源全失败**（daocloud denied / 1panel blob 403 / 1ms·rat.dev·proxy.net no such manifest）。
 - `docker-compose.infra.yml` 的宿主端口与镜像名全部可用环境变量覆盖（默认值不变）：
-  `KB_PG_PORT` / `KB_REDIS_PORT` / `KB_MILVUS_PORT` / `KB_PG_IMAGE` / `KB_REDIS_IMAGE` / …
-  本机起法：`KB_PG_PORT=55432 KB_REDIS_PORT=56379 KB_PG_IMAGE=… KB_REDIS_IMAGE=… docker compose -f docker-compose.infra.yml up -d postgres redis`
-- 一行自检：`python scripts/verify_infra.py --pg-dsn postgresql://kb:kb_demo_only@127.0.0.1:55432/kb --redis-url redis://127.0.0.1:56379/0` → `INFRA_READY`。
-- **已验证结果**：PG 迁 903 行 / 20 表 `COUNT(*)` 全一致 / 时间戳逐字节相同（`Z→+00:00` 生效）；
-  Redis 在 `limit=3` 下两进程内存放行 6 次、Redis 放行 3 次（**放大 2.0×**）。
+  `KB_PG_PORT` / `KB_REDIS_PORT` / `KB_MILVUS_PORT` / `KB_PG_IMAGE` / `KB_REDIS_IMAGE` / … / `KB_MILVUS_STORAGE`
+  本机起法：`KB_PG_PORT=55432 KB_REDIS_PORT=56379 KB_MILVUS_STORAGE=local KB_ETCD_IMAGE=quay.m.daocloud.io/coreos/etcd:v3.5.16 KB_MILVUS_IMAGE=docker.m.daocloud.io/milvusdb/milvus:v2.5.10 docker compose -f docker-compose.infra.yml up -d postgres redis etcd milvus`
+- **minio 放 `profiles:["minio"]` + milvus 对它 `depends_on.required:false`**，靠 `storageType=local` 起 Milvus。
+  local 只支持 standalone 单副本，**生产必须对象存储**，别把妥协讲成设计。
+- 一行自检：`python scripts/verify_infra.py` → PG 20 表 / Redis 放大 2.0× / Milvus 存活 83 条 + expr 反证 → `INFRA_READY`。
+- **已验证结果**：PG 迁 903 行 / 20 表全一致 / 时间戳逐字节相同；Redis `limit=3` 两进程内存 6 次 vs Redis 3 次；
+  Milvus 83 条向量 / 幽灵 0 / 漏迁 0 / 20-20 回查 score=1.0 / 错 tenant 0 条 / 收窄 46→1。
 - 迁移脚本报「尝试 / 实际写入 / 跳过」三个数（`cur.rowcount`）。**只报一个数就是没真跑过**。
+
+### 11. Milvus 三个必知陷阱
+1. **`num_entities` 是近似值且含已删未压实墓碑**：`upsert`=delete+insert，重跑 83→166；
+   正确性断言必须用 `query(count(*))`。
+2. **库里有逐元素完全相同的向量**（同一样本反复上传，实测 5 组、最多 9 条）：
+   「top1 必须是它自己」是错断言，正确断言是「在 top-k 且 score≈1」，并列单独报。
+3. `backend/app/integrations/milvus_client.py` 全用 pymilvus **ORM 风格**，2.6 已告警 3.1 移除 —— 升级前必须重写。
 
 ## 已验证的可复现坑（别再踩）
 1. **Docker 29 + Compose v5 bake 在中文路径报错**：`x-docker-expose-session-sharedkey … non-printable ASCII`。
