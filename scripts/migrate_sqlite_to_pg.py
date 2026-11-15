@@ -170,7 +170,8 @@ def apply(sqlite_path: Path, dsn: str, batch: int, truncate: bool,
 
     src = sqlite3.connect(str(sqlite_path))
     present = _existing_tables(src)
-    written = 0
+    attempted = 0
+    inserted = 0
     try:
         with psycopg.connect(dsn) as dst:
             with dst.cursor() as cur:
@@ -192,13 +193,22 @@ def apply(sqlite_path: Path, dsn: str, batch: int, truncate: bool,
                     if pk:
                         sql += f' ON CONFLICT ({", ".join(pk)}) DO NOTHING'
                     n = 0
+                    hit = 0
                     for chunk in _iter_rows(src, t, batch):
                         cur.executemany(sql, [tuple(r[c] for c in cols) for r in chunk])
+                        # rowcount 是**实际影响行数**：ON CONFLICT DO NOTHING 跳过的行不计。
+                        # 用它而不是 len(chunk)，否则重跑会虚报「写入 903 行」而实际写 0 行。
+                        hit += max(cur.rowcount or 0, 0)
                         n += len(chunk)
                     dst.commit()
-                    written += n
-                    print(f"  {t:<20} 写入 {n} 行")
-        print(f"完成：共写入 {written} 行。请核对行数并与源库比对。")
+                    attempted += n
+                    inserted += hit
+                    skipped = n - hit
+                    extra = f"，已存在跳过 {skipped}" if skipped else ""
+                    print(f"  {t:<20} 尝试 {n:>4} 行 / 实际写入 {hit:>4} 行{extra}")
+        print(f"完成：尝试 {attempted} 行，实际写入 {inserted} 行，"
+              f"跳过 {attempted - inserted} 行（主键已存在）。")
+        print("下一步必须人工核对：逐表 COUNT(*) 与源库一致，且 MAX(created_at) 未落后。")
         return 0
     finally:
         src.close()

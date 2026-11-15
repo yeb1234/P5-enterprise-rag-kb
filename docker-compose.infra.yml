@@ -9,11 +9,22 @@
 #   docker compose -f docker-compose.infra.yml down -v       # 连数据一起删
 #
 # 端口全部只绑 127.0.0.1：这些库不该直接暴露公网，应用应在同一网络内访问。
+#
+# 宿主端口可用环境变量覆盖，**默认仍是标准端口**：
+#   KB_PG_PORT / KB_REDIS_PORT / KB_MILVUS_PORT / KB_MILVUS_METRICS_PORT
+# 本机实测：5432 与 6379 已被其它项目的容器占用（siteyeb-pg / siteyeb-redis），
+# 所以本机用非默认端口起，不抢别人的端口也不停别人的容器：
+#   KB_PG_PORT=55432 KB_REDIS_PORT=56379 docker compose -f docker-compose.infra.yml up -d
+# 容器内部端口不变，应用配置只需改宿主侧连接串。
+#
+# 镜像名同样可覆盖（国内网络拉不到 Docker Hub 时用镜像站）：
+#   KB_PG_IMAGE / KB_REDIS_IMAGE / KB_MILVUS_IMAGE / KB_ETCD_IMAGE / KB_MINIO_IMAGE
+# 例：KB_PG_IMAGE=docker.m.daocloud.io/library/postgres:16-alpine
 name: kb-infra
 
 services:
   postgres:
-    image: postgres:16-alpine
+    image: ${KB_PG_IMAGE:-postgres:16-alpine}
     container_name: kb-pg
     restart: unless-stopped
     environment:
@@ -22,7 +33,7 @@ services:
       POSTGRES_DB: kb
       # 演示口令，生产必须换成密钥管理注入；不要写进仓库（本文件是示例）
     ports:
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:${KB_PG_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./scripts/pg_init.sql:/docker-entrypoint-initdb.d/10-init.sql:ro
@@ -34,12 +45,12 @@ services:
       start_period: 20s
 
   redis:
-    image: redis:7-alpine
+    image: ${KB_REDIS_IMAGE:-redis:7-alpine}
     container_name: kb-redis
     restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
     ports:
-      - "127.0.0.1:6379:6379"
+      - "127.0.0.1:${KB_REDIS_PORT:-6379}:6379"
     volumes:
       - redisdata:/data
     healthcheck:
@@ -50,7 +61,7 @@ services:
 
   # ---- Milvus standalone 最小依赖：etcd（元数据）+ minio（对象存储） ----
   etcd:
-    image: quay.io/coreos/etcd:v3.5.16
+    image: ${KB_ETCD_IMAGE:-quay.io/coreos/etcd:v3.5.16}
     container_name: kb-etcd
     restart: unless-stopped
     mem_limit: 1g
@@ -73,7 +84,7 @@ services:
       retries: 10
 
   minio:
-    image: minio/minio:RELEASE.2023-03-20T20-16-18Z
+    image: ${KB_MINIO_IMAGE:-minio/minio:RELEASE.2023-03-20T20-16-18Z}
     container_name: kb-minio
     restart: unless-stopped
     environment:
@@ -89,7 +100,7 @@ services:
       retries: 10
 
   milvus:
-    image: milvusdb/milvus:v2.5.10
+    image: ${KB_MILVUS_IMAGE:-milvusdb/milvus:v2.5.10}
     container_name: kb-milvus
     restart: unless-stopped
     mem_limit: 4g
@@ -101,8 +112,8 @@ services:
     volumes:
       - milvusdata:/var/lib/milvus
     ports:
-      - "127.0.0.1:19530:19530"
-      - "127.0.0.1:9091:9091"
+      - "127.0.0.1:${KB_MILVUS_PORT:-19530}:19530"
+      - "127.0.0.1:${KB_MILVUS_METRICS_PORT:-9091}:9091"
     depends_on:
       etcd:
         condition: service_healthy
