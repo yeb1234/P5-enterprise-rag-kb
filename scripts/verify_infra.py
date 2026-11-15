@@ -341,6 +341,9 @@ def main(argv: list[str] | None = None) -> int:
         print("  默认不启动：向量检索主链路走 pgvector。需要对照实验时：")
         print("    docker compose -f docker-compose.infra.yml --profile milvus up -d")
         print("    python scripts/verify_infra.py --with-milvus")
+        # 2026-11-16 起本机已删除 Milvus 三件套镜像与数据卷。不写明的话，
+        # 上面那条命令会静默拉 2.7GB 镜像，看起来像「卡住了」。
+        print("  注意：本机已清掉 Milvus 镜像与数据卷，首次执行会重新拉约 2.7GB 并需重灌数据。")
 
     ok = all(v is None or v.get("ok") for v in report.values())
     report["verdict"] = "INFRA_READY" if ok else "INFRA_NOT_READY"

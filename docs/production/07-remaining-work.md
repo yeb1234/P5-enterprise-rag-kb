@@ -269,7 +269,7 @@ PARSING_OFFLINE=1 python -m pytest webapp/tests parsing/tests knowledge/tests ca
 python webapp/selftest.py                 # 期望 33/33 DEMO_READY（需真实外部模型）
 ```
 
-### 10.4 两个新环境陷阱（本轮真踩过）
+### 10.4 三个新环境陷阱（本轮真踩过）
 
 1. **`pytest` 现在要求 PG 起着** —— 不再有「零依赖 clone 就能跑单测」。
    `webapp` 每进程建一个 `kb_test_<uuid8>` schema，`cache` 每用例一个 schema，跑完自动 DROP。
@@ -277,6 +277,12 @@ python webapp/selftest.py                 # 期望 33/33 DEMO_READY（需真实�
    Milvus 元数据在 etcd、数据在对象存储。换 `storageType` 后 etcd 里 collection 还在、
    segment 已不存在，`has_collection` 为真 → `ensure_collection()` 直接 return → `load()` **永久挂住**。
    看起来像「Milvus 挂了」，实际是元数据与数据不一致。
+3. **Milvus 三件套的镜像与数据卷已在 2026-11-16 从本机删除** ——
+   `milvus:v2.5.10`（2.41GB）+ `etcd:v3.5.16` + `minio` + 三个数据卷全部清掉，
+   本机已无 `kb-milvus/kb-minio/kb-etcd` 容器。**要做对照实验必须重新拉约 2.7GB 镜像**
+   （本机 Docker Hub 不可达，只能走 daocloud 加速站）**并重新灌数**。
+   所以**别在新环境里把「Milvus 已验过」当成「现在就能跑」**——历史上验过，
+   现在这台机器上没有。文档里保留的 Milvus 结论是**过去时，不是现状**。
 
 ### 10.5 一条命令自检覆盖什么
 
