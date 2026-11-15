@@ -19,11 +19,15 @@ import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 DDL_PATH = ROOT / "scripts" / "pg_init.sql"
-DSN = "postgresql://kb:kb_demo_only@127.0.0.1:55432/kb"
+DSN = "postgresql://kb:kb_demo_only@127.0.0.1:5432/kb"
 
 
 def _dsn() -> str:
     import os
+
+    from webapp.envfile import load_env
+
+    load_env()
     return os.environ.get("WEBAPP_DATABASE_URL") or DSN
 
 

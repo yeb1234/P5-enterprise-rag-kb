@@ -31,8 +31,9 @@ KB_PG_PORT=55432 docker compose -f docker-compose.infra.yml up -d postgres
 # 2) 装依赖（多了 psycopg）
 python -m pip install fastapi uvicorn python-multipart "psycopg[binary]"
 
-# 3) 起服务（DSN 必须给，默认值指向 5432 标准端口）
-export WEBAPP_DATABASE_URL=postgresql://kb:kb_demo_only@127.0.0.1:55432/kb
+# 3) 起服务。DSN 解析顺序：环境变量 → 项目根 .env → 标准 5432 默认值
+#    本机（5432 被别的项目占用）把下面这行写进 .env 即可，不必每次 export：
+#      WEBAPP_DATABASE_URL=postgresql://kb:kb_demo_only@127.0.0.1:55432/kb
 python -m uvicorn webapp.main:app --host 127.0.0.1 --port 8765
 ```
 

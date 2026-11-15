@@ -18,8 +18,13 @@ import pytest
 TEST_SCHEMA = "kb_test_" + uuid.uuid4().hex[:8]
 
 # DSN 只在这里兜底一次：外部可用 WEBAPP_DATABASE_URL 覆盖（CI / 换端口时用）。
+# DSN 解析顺序：已有环境变量 → 项目根的 .env（机器本地，gitignored）→ 标准 5432 默认值。
+# **不要把本机端口写进仓库**：换台机器会因为这个硬编码直接跑不起来。
+from webapp.envfile import load_env  # noqa: E402
+
+load_env()
 os.environ.setdefault(
-    "WEBAPP_DATABASE_URL", "postgresql://kb:kb_demo_only@127.0.0.1:55432/kb"
+    "WEBAPP_DATABASE_URL", "postgresql://kb:kb_demo_only@127.0.0.1:5432/kb"
 )
 os.environ["WEBAPP_DB_SCHEMA"] = TEST_SCHEMA
 os.environ["WEBAPP_LLM_PROVIDER"] = "offline"
