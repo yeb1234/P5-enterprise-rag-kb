@@ -482,7 +482,10 @@ def _seed(conn: sqlite3.Connection) -> None:
         cur.execute("INSERT INTO budgets(scope,key,limit_cny,policy,updated_at) VALUES (?,?,?,?,?)",
                     ("global", "default", 50.0, "warn", now))
     # 限流配额本体是三维；department 只作成本归因，不在此建规则行。
-    defaults = {"user": (1200, 60), "endpoint": (900, 60), "model": (600, 60)}
+    # ip 是**接入层防刷附加维度**（不进 RATE_DIMENSIONS，不改变三维业务配额口径），
+    # 600 次/分/IP 为演示起始值，防止未登录/匿名刷接口；可用 admin 页调小复现。
+    defaults = {"user": (1200, 60), "endpoint": (900, 60), "model": (600, 60),
+                "ip": (600, 60)}
     for dim, (lim, win) in defaults.items():
         if not cur.execute("SELECT 1 FROM rate_rules WHERE dimension=?", (dim,)).fetchone():
             cur.execute(

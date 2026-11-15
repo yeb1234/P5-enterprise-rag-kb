@@ -38,6 +38,9 @@ DIMENSIONS = {"project", "department_id", "call_type", "model", "user_id"}
 # 限流配额本体是用户 / 接口 / 模型调用三维（用户任务 3 原文）；
 # department 是成本归因标签，不参与计数、不产生按部门的 429 隔离。
 RATE_DIMENSIONS = ("user", "endpoint", "model")
+# 接入层防刷附加维度：**不进** RATE_DIMENSIONS（业务配额口径锁定三维，前端与文档按三维展示），
+# 仅当 rate_check(ip=...) 显式传入且 rate_rules 存在启用规则时才计数。
+IP_DIMENSION = "ip"
 
 
 def _now() -> str:
@@ -101,17 +104,43 @@ def record_usage(*, project: str = "default", department_id: str = "default", us
     return row
 
 
-def check_budget(*, actor: str = "", role: str = "") -> dict:
-    """预算检查。默认 warn 只留痕；policy=block 且已超额时拒绝新的付费调用。"""
+def check_budget(*, actor: str = "", role: str = "", user_id: str = "") -> dict:
+    """预算检查（支持按用户配额隔离）。
+
+    配置优先级：``budgets(scope='user', key=user_id)`` → 回退
+    ``budgets(scope='global', key='default')``。用户级命中时 ``scope="user"``、
+    ``overridden=True``；否则 ``"global"`` / ``False``。
+    花费口径：用户级按 ``usage_events.user_id`` 聚合，全局按全表聚合——
+    因此**一个用户超支不会把其他人一起拦住**（配额隔离）。
+    默认 warn 只留痕；policy=block 且已超额时拒绝新的付费调用。
+    """
     conn = db.get_conn()
     try:
-        b = conn.execute(
-            "SELECT limit_cny,policy,updated_at FROM budgets WHERE scope='global' AND key='default'"
-        ).fetchone()
+        scope, overridden, b = "global", False, None
+        if user_id:
+            b = conn.execute(
+                "SELECT limit_cny,policy,updated_at FROM budgets"
+                " WHERE scope='user' AND key=?",
+                (user_id,),
+            ).fetchone()
+            if b is not None:
+                scope, overridden = "user", True
+        if b is None:
+            b = conn.execute(
+                "SELECT limit_cny,policy,updated_at FROM budgets WHERE scope='global' AND key='default'"
+            ).fetchone()
         limit_cny = float(b["limit_cny"]) if b else 50.0
         policy = b["policy"] if b else "warn"
         updated = b["updated_at"] if b else ""
-        spend = float(conn.execute("SELECT COALESCE(SUM(cost_cny),0) AS c FROM usage_events").fetchone()["c"])
+        if scope == "user":
+            spend = float(conn.execute(
+                "SELECT COALESCE(SUM(cost_cny),0) AS c FROM usage_events WHERE user_id=?",
+                (user_id,),
+            ).fetchone()["c"])
+        else:
+            spend = float(conn.execute(
+                "SELECT COALESCE(SUM(cost_cny),0) AS c FROM usage_events"
+            ).fetchone()["c"])
     finally:
         conn.close()
     exceeded = spend >= limit_cny
@@ -120,13 +149,17 @@ def check_budget(*, actor: str = "", role: str = "") -> dict:
         "remaining_cny": round(max(0.0, limit_cny - spend), 4),
         "usage_rate": round(spend / limit_cny, 4) if limit_cny > 0 else 1.0,
         "policy": policy, "exceeded": exceeded, "updated_at": updated,
+        # 原有字段一个不改；新增两个只读语义字段，便于调用方判断配额来源。
+        "scope": scope, "overridden": overridden,
         "period": "累计（演示切片不重置周期）", "price_note": PRICE_NOTE,
         "prices": PRICES,
     }
     if exceeded:
+        target = f"user/{user_id}" if scope == "user" else "global/default"
         log_event("WARN", "budget_exceeded",
-                  f"spend={state['spend_cny']} >= limit={limit_cny}, policy={policy}", actor=actor)
-        db.log_action(actor or "system", role or "system", "budget", "global/default",
+                  f"scope={scope} spend={state['spend_cny']} >= limit={limit_cny}, policy={policy}",
+                  actor=actor)
+        db.log_action(actor or "system", role or "system", "budget", target,
                       f"exceeded={exceeded}, policy={policy}")
     state["allowed"] = not (exceeded and policy == "block")
     return state
@@ -204,12 +237,15 @@ def rate_hits(limit: int = 50) -> list[dict]:
     return [dict(r) for r in rows]
 
 
-def rate_check(*, path: str, user_id: str, department: str = "default", model: str = "") -> dict | None:
+def rate_check(*, path: str, user_id: str, department: str = "default", model: str = "",
+               ip: str = "") -> dict | None:
     """返回命中超限的维度信息；None 表示放行。
 
     中间件调用它，命中时返回统一 429 错误体所需字段。计数落库用于可观测。
     department 只作统计归因标签：不进入 RATE_DIMENSIONS、不参与计数、
     **不做按部门的 429 隔离断言**；用户 / 接口 / 模型调用三维才是配额本体。
+    ip 是**接入层防刷附加维度**（防未登录 / 匿名刷接口），同样不进 RATE_DIMENSIONS；
+    只有显式传入且存在启用的 ip 规则时才计数，命中结构与三维一致。
     """
     keys = {
         "user": user_id or "anonymous",
@@ -239,6 +275,25 @@ def rate_check(*, path: str, user_id: str, department: str = "default", model: s
                     "department": department or "default",
                 }
             q.append(now)
+        # 附加维度：IP 只做接入层防刷，不属于业务配额三维；未传 ip 或规则未启用则跳过。
+        if ip:
+            r = rules.get(IP_DIMENSION)
+            if r and r["enabled"]:
+                lim, win = int(r["limit_count"]), int(r["window_s"])
+                k = (IP_DIMENSION, ip)
+                q = _WINDOWS[k]
+                while q and q[0] <= now - win:
+                    q.popleft()
+                if len(q) >= lim:
+                    _persist_hit(IP_DIMENSION, ip, path, lim, win)
+                    return {
+                        "dimension": IP_DIMENSION, "key": ip, "path": path,
+                        "limit": lim, "window_s": win,
+                        "retry_after": max(1, int(win - (now - q[0]))) if q else win,
+                        "current": len(q),
+                        "department": department or "default",
+                    }
+                q.append(now)
     return None
 
 

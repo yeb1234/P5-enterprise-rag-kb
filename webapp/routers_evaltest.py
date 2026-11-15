@@ -113,13 +113,17 @@ def get_usage(dim: str = Query("project"), user: dict = Depends(get_current_user
 @router.get("/budget")
 def get_budget(user: dict = Depends(get_current_user)):
     is_admin, _ = _scope(user)
-    b = obs.check_budget(actor=user["username"], role=user["role"])
+    # admin 看全局口径；普通用户传自己的 user_id，优先看是否有个人配额（配额隔离）。
+    b = obs.check_budget(actor=user["username"], role=user["role"],
+                         user_id="" if is_admin else user["id"])
+    # scope 保持 check_budget 的语义值（user / global），中文说明放 scope_note，
+    # 不再覆盖语义字段（前端只读金额 / 策略，不读 budget.scope，无影响）。
     if not is_admin:
         # 普通用户只看「是否受限」，不暴露全局配置细节
         b.pop("prices", None)
-        b["scope"] = "只读；预算配置仅 admin 可改"
+        b["scope_note"] = "只读；预算配置仅 admin 可改"
     else:
-        b["scope"] = "全局（admin）"
+        b["scope_note"] = "全局（admin）"
     return b
 
 
@@ -148,6 +152,48 @@ def put_budget(body: BudgetPatch, user: dict = Depends(require_admin)):
     return obs.check_budget(actor=user["username"], role="admin")
 
 
+@router.put("/budget/user/{user_id}")
+def put_user_budget(user_id: str, body: BudgetPatch,
+                   user: dict = Depends(require_admin)):
+    """按用户覆盖预算（配额隔离）：一个用户超支不会把其他人一起拦住。
+
+    `limit_cny <= 0` 允许写入，表示该用户**立即阻断**；响应里带 `warning` 提示。
+    未设置用户级预算的用户仍走全局预算（回退行为不变）。
+    """
+    if body.limit_cny < 0:
+        raise HTTPException(status_code=400, detail="预算上限不能为负")
+    if body.policy not in ("warn", "block"):
+        raise HTTPException(status_code=400, detail="policy 只能是 warn 或 block")
+    now = obs._now()
+    conn = db.get_conn()
+    try:
+        conn.execute(
+            "INSERT INTO budgets(scope,key,limit_cny,policy,updated_at) VALUES (?,?,?,?,?) "
+            "ON CONFLICT(scope,key) DO UPDATE SET limit_cny=excluded.limit_cny,"
+            " policy=excluded.policy, updated_at=excluded.updated_at",
+            ("user", user_id, body.limit_cny, body.policy, now),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    obs.log_event("INFO", "user_budget_updated",
+                  f"user={user_id} limit={body.limit_cny} policy={body.policy}",
+                  actor=user["username"])
+    db.log_action(user["username"], "admin", "budget", f"user/{user_id}",
+                  f"limit={body.limit_cny}, policy={body.policy}")
+    state = obs.check_budget(actor=user["username"], role="admin", user_id=user_id)
+    if body.limit_cny <= 0:
+        state["warning"] = "该用户将被立即阻断（limit_cny <= 0）"
+    return state
+
+
+# 兼容别名：文档 / 页面里写的路径是 /api/eval/budget/user/{uid}；
+# 与主路径 /api/evaltest/budget/user/{uid} 指向**同一个**处理函数，
+# 避免两套实现漂移（两处都可用，行为完全一致）。
+router_alias = APIRouter(prefix="/api/eval", tags=["evaltest（别名）"])
+router_alias.add_api_route("/budget/user/{user_id}", put_user_budget, methods=["PUT"])
+
+
 @router.get("/ratelimit")
 def get_ratelimit(_: dict = Depends(get_current_user)):
     return {
@@ -158,7 +204,7 @@ def get_ratelimit(_: dict = Depends(get_current_user)):
                      "body": {"code": "RATE_LIMIT_USER_EXCEEDED|RATE_LIMIT_ENDPOINT_EXCEEDED|RATE_LIMIT_MODEL_EXCEEDED",
                               "kind": "rate_limit_exceeded", "message": "请求过于频繁，请稍后重试",
                               "detail": "请求过于频繁（<维度> 维度，<上限> 次 / <窗口>s）",
-                              "trace_id": "<16 位十六进制>", "dimension": "user|endpoint|model",
+                              "trace_id": "<16 位十六进制>", "dimension": "user|endpoint|model|ip",
                               "limit": 0, "window_s": 0, "retry_after": 0},
                      "policy": "rate_limit_exceeded 退避重试；quota_exceeded 不重试"},
         "boundary": "进程内滑动窗口，单实例有效；生产换网关层 Redis 令牌桶",
@@ -167,7 +213,8 @@ def get_ratelimit(_: dict = Depends(get_current_user)):
 
 @router.put("/ratelimit")
 def put_ratelimit(body: RatePatch, user: dict = Depends(require_admin)):
-    allowed = set(obs.RATE_DIMENSIONS)
+    # 业务配额三维 + IP 接入层防刷附加维度；ip 不在 RATE_DIMENSIONS，单独并进来。
+    allowed = set(obs.RATE_DIMENSIONS) | {obs.IP_DIMENSION}
     for r in body.rules:
         if r.get("dimension") not in allowed:
             raise HTTPException(status_code=400, detail="未知限流维度: " + str(r.get("dimension")))

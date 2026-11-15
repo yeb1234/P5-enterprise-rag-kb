@@ -51,7 +51,9 @@ def test_new_tables_and_defaults(client):
         rules = {r["dimension"]: r["limit_count"] for r in conn.execute(
             "SELECT dimension,limit_count FROM rate_rules")}
         # 限流配额本体是用户 / 接口 / 模型调用三维；部门只作成本归因，不产生按部门 429。
-        assert set(rules) == {"user", "endpoint", "model"}
+        # ip 是**接入层防刷附加维度**（不进 RATE_DIMENSIONS），用于挡未登录/匿名刷接口。
+        assert {"user", "endpoint", "model"} <= set(rules)
+        assert rules.get("ip", 0) > 0
         assert all(v > 0 for v in rules.values())
         # 口径锁定：台账物理列名必须是 department_id，旧 tenant 列必须已迁移掉。
         cols = {r["name"] for r in conn.execute("PRAGMA table_info(usage_events)")}

@@ -39,7 +39,7 @@ python -m uvicorn webapp.main:app --host 127.0.0.1 --port 8765
 API 文档：`http://127.0.0.1:8765/api-docs`（共 36 条 API，含 12 条 `/api/evaltest/*`）。
 
 > **外观**：顶栏可切换中文 / English、6 套主题色、浅色 / 深色模式，三者独立持久化、刷新保留。
-> **评估测试子页**：评估配置、运行记录、指标、日志追踪、按项目/租户/调用维度统计 token 与成本、
+> **评估测试子页**：评估配置、运行记录、指标、日志追踪、按项目/部门/调用维度统计 token 与成本、
 > 预算上限与超限处理、限流配额与插件边界；规则与验收标准见 `docs/enterprise-readiness.md`。
 
 ---
@@ -78,9 +78,9 @@ API 文档：`http://127.0.0.1:8765/api-docs`（共 36 条 API，含 12 条 `/ap
 | 工作台 | 智能问答 | SSE 流式 | 已实现 | 断线续传、检索为空拒答、占位生成明确标注；**来源可追溯**：回答下方展示引用来源卡片（文档/分块/得分/方式），点开看原文，历史会话可回放来源 |
 | 工作台 | 文档管理 | `/api/docs` | 已实现 | 繁忙排队、格式降级留痕 |
 | 工作台 | 检索调试 | `GET /api/search/preview` | 已实现（演示级） | **先滤权限再召回、再重排、再进模型**；切片只有 `status='ready'` 一层前置条件，Rerank 标「未启用」 |
-| 质量与治理 | 任务中心 | `/api/system/busy` + `/api/docs` | 已实现 | `queued→analyzing→ready/error` 状态机；生产还有批次/页级 chord 与 SSE 权威快照 |
+| 质量与治理 | 任务中心 | `GET /api/system/queue` + `/api/system/busy` + `/api/docs` | 已实现 | `queued→analyzing→ready/error` 状态机；全局队列按**用户/部门**聚合（普通用户看部门+短码+计数，文件名明细仅 admin）；生产还有批次/页级 chord 与 SSE 权威快照 |
 | 质量与治理 | 评测中心 | `GET /api/eval/objects`（直读 `eval/config/registry.json`）+ 完成度 | 数据真实 / 质量结论不可比 | 14 个版本化对象、禁原地改、变体只在内存生效；`comparable=false`、`NOT_COMPARABLE`、真实 API 仍 `__TBC__` |
-| 质量与治理 | **评估测试** | `GET /api/evaltest/*` + `evalbench/runs/` 留存 | 已实现（演示级） | 评估配置 / 运行记录 / 指标 / 日志追踪 / token 与成本按项目·租户·调用维度聚合 / 预算上限与超限 / 四维限流 / 插件边界；只读真实数据，写接口仅 admin |
+| 质量与治理 | **评估测试** | `GET /api/evaltest/*` + `evalbench/runs/` 留存 | 已实现（演示级） | 评估配置 / 运行记录 / 指标 / 日志追踪 / token 与成本按项目·部门·调用维度聚合 / 预算上限与超限（全局 + 按用户覆盖）/ **三维业务配额（user / endpoint / model）+ IP 接入层防刷** / 插件边界；只读真实数据，写接口仅 admin |
 | 质量与治理 | 管理后台 | badcase + 完成度 | 已实现（仅 admin） | 采集与查看权限分离，导出与列表共用筛选 |
 | 质量与治理 | 审计日志 | `GET /api/admin/audit` | 已实现（演示级） | 只追加台账，可按动作/人回放「谁在什么时候做了什么」；**未接** `trace_id`、留存策略与脱敏 |
 | 系统 | 模型设置（仅 admin） | `GET/PUT /api/settings` + `/api/settings/test` | 已实现 | LLM 本地/外部/离线可切、Bge M3 向量、Rerank 可配（不可用优雅跳过）；配置落 SQLite、**即时生效** |
@@ -98,7 +98,7 @@ localStorage、head 同步防闪烁）× `static/style.css`（CSS 变量分层�
 
 | 常见企业级入口 | 为什么这版不做 |
 |---|---|
-| 知识库/空间管理、分类标签树、文档版本 diff、回收站 | 生产骨架有 API 设计，但切片是单库单租户；做了只会是假数据或空壳 |
+| 知识库/空间管理、分类标签树、文档版本 diff、回收站 | 生产骨架有 API 设计，但切片是单库单组织；做了只会是假数据或空壳 |
 | 权限编辑、部门树、角色授权 | 只做只读成员列表；写授权会引出完整审批与审计闭环，超出演示范围 |
 | 监控告警大盘、trace 瀑布图 | P0/P1 设计，无真实指标源；画假曲线不如明确标「未做」 |
 | 渠道入口（飞书/企微）、MCP 工具网关 | P2 扩展，边界讲清楚即可，不做假入口 |
@@ -226,7 +226,7 @@ SQLite（`app_settings`），即时生效、无需重启**，不动检索 / 权�
 |---|---|
 | 可观测（OTel / LangSmith 等价） | **演示级**：繁忙横幅、会话连接状态、降级原因、审计台账（8 类动作）；真实 trace/span 与按 trace_id 回放仍是 P0 设计 |
 | 评测 CI 闸门 | **数据侧落地**：badcase 采集闭环 + 完成度看板；闸门接入 CI 仍未做，占位结果仍 `comparable=false` |
-| 缓存与配额治理 | **演示级**：并发上限（配额）与 tenant 无关（切片单租户）；缓存串租户的治理仍是 P1 设计 |
+| 缓存与配额治理 | **演示级**：并发上限（配额）与 department 无关（切片单组织）；缓存跨部门串用的治理仍是 P1 设计 |
 | Embedding | **已落地三档**：`offline` / `local`（LM Studio Bge M3）/ `external`（硅基流动 `BAAI/bge-m3`，当前默认）；1024 维，hybrid 检索排序；向量缓存 `chunk_embeddings` 按 provider + 模型隔离 |
 | Rerank | **已落地三档**：`off` / `llm`（用当前 LLM 打分重排）/ `external`（硅基流动 `BAAI/bge-reranker-v2-m3`，实测 0.9316 vs 0.0160，区分度优于 LLM 打分）；LM Studio 本体不支持 `/rerank`，故无 local 档 |
 | 中文分词 / ParserProvider | 未做：中文仍用二元组近似；解析器只支持纯文本 |

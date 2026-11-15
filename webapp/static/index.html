@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>企业级知识库 · 可运行演示切片</title>
   <!-- 同步执行：在 CSS 应用前写好 data-theme / data-mode，首屏无主题闪烁 -->
-  <script src="/theme.js?v=18"></script>
-  <script src="/i18n.js?v=18"></script>
-  <link rel="stylesheet" href="/style.css?v=18" />
+  <script src="/theme.js?v=19"></script>
+  <script src="/i18n.js?v=19"></script>
+  <link rel="stylesheet" href="/style.css?v=19" />
 </head>
 <body>
 
@@ -576,7 +576,7 @@
 
         <div class="tab-panel" id="et-gov">
           <div class="card" style="margin-bottom:16px">
-            <div class="section-title padded" style="padding-bottom:0">限流配额（用户 / 接口 / 模型调用）</div>
+            <div class="section-title padded" style="padding-bottom:0">限流配额（用户 / 接口 / 模型调用 + IP 接入层防刷）</div>
             <div class="table-wrap" id="et-rate-table"></div>
             <div class="padded muted small">超限反馈：HTTP 429 + Retry-After + 统一错误体 + 审计留痕；
               <code>rate_limit_exceeded</code> 退避重试，<code>quota_exceeded</code> 不重试。</div>
@@ -906,6 +906,6 @@
 <div id="modal-root"></div>
 <div id="toasts"></div>
 
-<script src="/app.js?v=18"></script>
+<script src="/app.js?v=19"></script>
 </body>
 </html>

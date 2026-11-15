@@ -60,6 +60,44 @@ def _row_to_source(r) -> dict:
 async def chat_stream(
     body: ChatIn, request: Request, user: dict = Depends(get_current_user)
 ):
+    # 配额隔离：进模型前先查预算（用户级优先，回退全局）。
+    # policy=block 且本人已超额 → 结构化拒绝，绝不在超支情况下静默继续消耗额度；
+    # 用户 A 超支不影响用户 B（各自按 usage_events.user_id 聚合）。
+    from webapp import observability as obs
+
+    budget = obs.check_budget(actor=user["username"], role=user["role"],
+                              user_id=user["id"])
+    if not budget["allowed"]:
+        # 结构化拒绝 + 审计留痕：不在超支时静默继续消耗额度。
+        # 流式端点用 SSE **首个 error 事件**告知（前端本就按 event 解析，比裸 JSON 更契合），
+        # 同时写审计台账，便于事后追责与成本核对。
+        tid = security.new_id()[:16]
+        db.log_action(user["username"], user["role"], "budget_block", f"chat/{tid}",
+                      f"scope={budget['scope']} spend={budget['spend_cny']} "
+                      f"limit={budget['limit_cny']} policy={budget['policy']}")
+        blocked = {
+            "ok": False,
+            "reason": "budget_exceeded",
+            "trace_id": tid,
+            "budget": {
+                "scope": budget["scope"],
+                "overridden": budget["overridden"],
+                "spend_cny": budget["spend_cny"],
+                "limit_cny": budget["limit_cny"],
+                "remaining_cny": budget["remaining_cny"],
+                "policy": budget["policy"],
+            },
+        }
+
+        async def _blocked_gen():
+            yield _sse("error", blocked)
+
+        return StreamingResponse(
+            _blocked_gen(),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no",
+                     "Connection": "keep-alive"},
+        )
     conv_id = body.conversation_id or security.new_id()
     g = guard_default()
     # 检索必须用原文：脱敏后的问题会破坏词法召回，顺序是「先检索、后脱敏」。

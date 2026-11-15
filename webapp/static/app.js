@@ -69,10 +69,21 @@ async function api(path, opts = {}) {
     try { j = await res.json(); } catch (_) { }
     const ra = Number(res.headers.get('Retry-After') || j.retry_after || 0);
     const kind = j.kind || 'rate_limit_exceeded';
+    const traceId = j.trace_id || res.headers.get('X-Trace-Id') || '';
+    // IP 是「接入层防刷」附加维度（不进业务配额三维）。后端可能用专用码
+    // RATE_LIMIT_IP_EXCEEDED，也可能回落通用 RATE_LIMIT_EXCEEDED + dimension=ip
+    // （当前 main.py 实现）。两种判据任一命中都按 IP 提示，避免旧实现下提示不到。
+    const isIp = (j.dimension === 'ip') || (j.code === 'RATE_LIMIT_IP_EXCEEDED');
+    const tail = (j.code ? `（${j.code}）` : '') +
+      (ra > 0 ? ` · retry_after=${ra}s` : '') +
+      (traceId ? ` · trace_id=${traceId}` : '');
+    if (isIp) {
+      throw new Error('当前网络出口请求过多（同一出口共享限流），请稍后重试或更换网络' + tail);
+    }
     const hint = kind === 'quota_exceeded'
       ? '额度已用尽，不会自动重试；请稍后重试或更换模型 / 供应商'
       : (ra > 0 ? `请 ${ra}s 后重试` : '请稍后重试');
-    throw new Error(`${j.message || '请求被限流'}：${hint}${j.code ? `（${j.code}）` : ''}`);
+    throw new Error(`${j.message || '请求被限流'}：${hint}${tail}`);
   }
   if (!res.ok) {
     let detail = '请求失败 (' + res.status + ')';
@@ -1384,16 +1395,21 @@ async function loadEtGov() {
       api('/api/evaltest/ratelimit'), api('/api/evaltest/plugins'),
     ]);
     const rules = r.rules || [], hits = r.hits || [];
-    const dimKey = { user: '用户', endpoint: '接口', model: '模型调用',
+    // 业务配额三维 + 历史维度别名 + IP 接入层防刷附加维度。
+    // ip 不进 RATE_DIMENSIONS，仅作接入层防刷，不计入业务配额三维。
+    const dimKey = { user: '用户', endpoint: '接口', model: '模型调用', ip: 'IP 出口',
                      department_id: '部门', project: '项目', call_type: '调用类型' };
     const hitCount = {};
     hits.forEach(h => { hitCount[h.dimension] = (hitCount[h.dimension] || 0) + 1; });
     $('et-rate-table').innerHTML = '<table class="table"><thead><tr>' +
       [etTh('配额维度'), etTh('限额'), etTh('窗口'), etTh('命中次数')].join('') +
-      '</tr></thead><tbody>' + rules.map(x =>
-        `<tr><td>${esc(t(dimKey[x.dimension] || x.dimension))}</td>
+      '</tr></thead><tbody>' + rules.map(x => {
+        const ipTag = x.dimension === 'ip'
+          ? ` <span class="badge badge-gray">${esc(t('接入层防刷，不计入业务配额三维'))}</span>` : '';
+        return `<tr><td>${esc(t(dimKey[x.dimension] || x.dimension))}${ipTag}</td>
          <td class="mono">${esc(x.limit_count)}</td><td>${esc(x.window_s)} s</td>
-         <td><span class="badge ${hitCount[x.dimension] ? 'badge-amber' : 'badge-green'}">${esc(hitCount[x.dimension] || 0)}</span></td></tr>`).join('') +
+         <td><span class="badge ${hitCount[x.dimension] ? 'badge-amber' : 'badge-green'}">${esc(hitCount[x.dimension] || 0)}</span></td></tr>`;
+      }).join('') +
       '</tbody></table>';
     const stBadge = { '已落地': 'badge-green', '已落地（演示级）': 'badge-green',
       '演示级': 'badge-blue', '架构预留': 'badge-amber', '未做': 'badge-gray' };
