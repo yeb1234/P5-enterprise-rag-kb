@@ -257,7 +257,7 @@ def main() -> None:
                      "改档 → snapshot_version 变 → run_id 变",
                      "没有的字段一律空占位，不编造"],
              right=['  "llm_route": {', '    "tier": "standard",',
-                    '    "difficulty": 0.735,',
+                    f'    "difficulty": {dc:.3f},',
                     '    "hysteresis": {',
                     '      "enter": 0.60, "exit": 0.40,',
                     '      "consecutive_hits": 1 } },',

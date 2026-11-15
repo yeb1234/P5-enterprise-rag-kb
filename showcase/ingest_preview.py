@@ -189,6 +189,11 @@ def build_views(payload: bytes, *, filename: str, mime: str, params: Any,
         "run_id": run_id,
         "created_at": as_of,
         "doc_id": rep.get("doc_id", ""),
+        # 复现三要素：manifest 需要 params_hash / config_snapshot，
+        # 放在顶层让 snapshot.write_pair() 直接取到（compact 档也保留，体量很小）。
+        "params_hash": _p(params, "params_hash", ""),
+        "config_snapshot": dict(parser_cfg),
+        "params_snapshot": {**pmap, "params_hash": _p(params, "params_hash", "")},
         "source": {
             "filename": filename,
             "mime": mime,

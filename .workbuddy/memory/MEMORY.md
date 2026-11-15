@@ -245,3 +245,34 @@ cd frontend && npm run build
 - **边界别夸大**：规则级检测≠模型级 NER；`backend/app/agent/orchestrator.py` 骨架**未接本包**；
   可逆 token 默认关闭；默认哈希盐 `demo-salt-change-me` 只是演示占位；
   图片/表格内 PII、合规审计、SIEM、压测标定未做。
+
+## 2026-11-15 追加：showcase 解析工作台硬约束（改动时别破）
+
+- `showcase/` 是**独立演示站点**（FastAPI + 同源静态，端口 8767），单向 import `parsing/` `guardrails/`
+  `cache/` `knowledge/`，纯函数包禁止反向依赖；不改 `webapp/`、不动冻结区 `eval/ demo/`。
+  唯一事实源是 `docs/showcase/03-phase2-spec.md`，Phase 1 的 01-scope / 02-architecture 不回改。
+- **演示默认全离线**：`PARSING_OFFLINE=1`、A5 恒定 `ParseConfig(offline=True)`、
+  `runtime.external_request_count=0`。复杂档视觉结果是**预先留存的真实解析产物回放**，
+  不是实时在线识别；`warnings[]` 与 `ingest.note` 必须有「回放」。
+- **确定性三件套**：`created_at` 取固定 `as_of=2026-11-15T00:00:00Z`（绝不用挂钟）；
+  `run_id = sha256(source_sha + params_hash + snapshot_version)[:20]`；
+  `snapshot_version` 只由配置性字段派生（**排除 `reason` / `hysteresis`**），`route_id` 用全字段。
+  V5「同参双跑一致」判定对象是 `canonical()` **路径感知投影**：剔除 `manifest` 整块、
+  `llm_route` 的 `route_id/hysteresis/reason`、任意层级耗时字段，**保留** `trace[].reason` 与 `source.sha256`。
+- **LLM 路由**：难度 `Σ w_i×norm_i`（权重见 spec §1）、双阈值滞回 `0.60/0.40`、连续 `k=2` 才切档。
+  `api.py` 用 `(source_sha, params_hash)` 的进程内 LRU（≤32）缓存 `TierState`，
+  否则每次新建状态会让 Pro 永不触发；不串用户、重启清零。
+  **选出 Pro 档 ≠ 调用 Pro 模型**：离线演示不发起外部 LLM 调用，
+  `model/model_snapshot_at/prompt/prompt_version/params` 一律空占位 + `placeholder=true`。
+- **收费解析 API**：演示效果最好 = Reducto（$0.01/页、$150 免费额度）；国内上线 = 阿里云文档解析
+  （0.02/0.04 元每页）。`showcase/adapters/` 只是静态 profile（`available=False`、`__TBC__`），
+  **不得改 `parsing/strategies/ocr_api.py::_call()`**、不代用户开通/付费。
+- **样本与录像**：`showcase/samples/` 的真实 PDF/PNG 与 `*.report.json` / `*.canonical.json`
+  由 `make_samples.py` 从真实解析链路生成；`server.py` 必须在根 `/` 挂载**之前**挂 `/showcase/samples`，
+  A5 另有 `sample_id` 白名单兜底。录像由 `make_video.py` 用真实产物渲染帧 + ffmpeg concat 合成
+  （84 秒 / 10 镜 / 20 帧），帧里右栏字体必须用微软雅黑（Consolas 缺中文与 `✓` / `θ` 字形）。
+  `interview/index.html` 用外链 mp4，`index-standalone.html` 由脚本自动 base64 内嵌，改页面后要重跑录像脚本同步。
+- **验证命令**：`PARSING_OFFLINE=1 python showcase/verify_integration.py`（31 项 `INTEGRATION_READY`）、
+  `python -m pytest showcase/tests -q`（12 项）、全量 9 包 260 项、webapp e2e 33/33（报告按字节还原）。
+- **边界**：`aliyun-guide.html` 只是指导，不是上线证明；实名/支付/备案/凭证保管必须用户本人完成；
+  Pro 模型与单价未选定，保持空占位；所有阈值是演示起始值、非压测结论。

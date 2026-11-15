@@ -95,7 +95,8 @@ multipart 的调用方用的兼容分支。两者都缺 / `sample_id` 不在白�
 `run_id = sha256(f"{source_sha256}:{params_hash}:{route_snapshot_version}")[:20]`
 （`02-architecture.md §5.2` 的实现形式，分隔符固定为 `:`），不含挂钟时间。
 
-错误统一 `{"code","message","trace_id"}`：
+错误统一 `{"code","message","trace_id"}`；框架级 422 额外带 `errors[{loc,msg,type}]` 明细，
+**刻意剔除 `input` / `ctx`**（FastAPI 默认会把完整请求体回显到 `detail[].input`，含潜在密钥，是泄漏面）：
 
 | 码 | HTTP | 触发 |
 |---|---|---|
@@ -106,7 +107,10 @@ multipart 的调用方用的兼容分支。两者都缺 / `sample_id` 不在白�
 | `UPSTREAM_TIMEOUT` / `UPSTREAM_ERROR` | 504 / 502 | 在线档超时 / 上游错误（本轮离线不触发，契约保留） |
 | `PII_BLOCKED` | 422 | guardrails 命中 `ACTION_BLOCK`，不回显原文 |
 | `OFFLINE_ONLY` | 503 | 离线状态请求实时档（A5 内以 `errors[]` 留痕 + 降级） |
-| `RUN_NOT_FOUND` | 404 | `run_id` 不存在 / 摘要校验失败 / 样本缺失 |
+| `RUN_NOT_FOUND` | 404 | `/api/` 下资源不存在 / A8 摘要校验失败（失败响应带 `checks` 全 false）/ 样本缺失 |
+| `METHOD_NOT_ALLOWED` | 405 | 方法不允许（如对只读路由发 DELETE） |
+| `NOT_FOUND` | 404 | **非** `/api/` 路径的 404（静态资源等） |
+| `HTTP_<status>` | 其它 | 其余框架级 HTTP 状态码兜底，仍保持三要素 |
 | `INTERNAL_ERROR` | 500 | 未预期异常，只回 `trace_id`，不回堆栈 |
 
 ---

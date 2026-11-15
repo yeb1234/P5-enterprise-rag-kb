@@ -76,8 +76,13 @@ class Rule:
 
 RULES: tuple[Rule, ...] = (
     Rule("API_KEY", "API 密钥 / Token",
-         re.compile(r"(?:sk-[A-Za-z0-9]{16,}|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{20,}|xox[baprs]-[A-Za-z0-9-]{10,})"),
-         1.0, note="密钥命中默认 block，不进任何日志"),
+         # 真实供应商密钥常带分段连字符或下划线（sk-proj-… / sk-or-v1-… /
+         # sk-<TENANT>-…）。字符集只写 [A-Za-z0-9] 会在第一个连字符处截断，
+         # 导致整条密钥漏检并被原文回显；故把 - 与 _ 纳入。
+         # 首字符仍限定字母数字，总长 ≥16，避免把普通短标识误判成密钥。
+         re.compile(r"(?:sk-[A-Za-z0-9][A-Za-z0-9_-]{15,}|AKIA[0-9A-Z]{16}"
+                    r"|ghp_[A-Za-z0-9]{20,}|xox[baprs]-[A-Za-z0-9-]{10,})"),
+         1.0, note="密钥命中默认 block，不进任何日志；含连字符/下划线分段形态"),
     Rule("ID_CARD_CN", "中国身份证（18 位）",
          re.compile(r"(?<!\d)\d{17}[\dXx](?!\d)"), 1.0, validator=_valid_id18,
          note="含出生日期合法性 + MOD 11-2 校验位，避免把订单号误判"),

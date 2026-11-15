@@ -19,6 +19,7 @@ import uuid
 from pathlib import Path
 
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -55,25 +56,68 @@ def _trace_id(request: Request) -> str:
     return str(tid) if tid else uuid.uuid4().hex[:16]
 
 
-def _error_body(code: str, message: str, trace_id: str) -> dict:
-    """02-architecture.md §4.3：统一 {"code","message","trace_id"}，不回堆栈。"""
-    return {"code": code, "message": message, "trace_id": trace_id}
+def _error_body(code: str, message: str, trace_id: str,
+                extra: dict | None = None) -> dict:
+    """02-architecture.md §4.3：统一 {"code","message","trace_id"}，不回堆栈。
+
+    `extra` 只平铺非保留键（如 A8 的 checks），不会覆盖三个保留字段。
+    """
+    body = {"code": code, "message": message, "trace_id": trace_id}
+    if extra:
+        body.update({k: v for k, v in extra.items()
+                     if k not in ("code", "message", "trace_id")})
+    return body
 
 
 @app.exception_handler(ApiError)
 async def _api_error(request: Request, exc: ApiError) -> JSONResponse:
     return JSONResponse(
         status_code=exc.status,
-        content=_error_body(exc.code, exc.message, exc.trace_id or _trace_id(request)),
+        content=_error_body(exc.code, exc.message,
+                            exc.trace_id or _trace_id(request), extra=exc.extra),
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def _validation_error(request: Request,
+                            exc: RequestValidationError) -> JSONResponse:
+    """D-02：框架级 422 也走统一契约，且**剔除 input / ctx**。
+
+    FastAPI 默认 `detail[].input` 会回显完整请求体（含可能的密钥串），是真实泄漏面；
+    这里只保留 `loc` / `msg` / `type` 三个字段，`json.dumps(响应)` 不含用户输入原文。
+    """
+    errors = [
+        {
+            "loc": list(err.get("loc") or []),
+            "msg": str(err.get("msg") or ""),
+            "type": str(err.get("type") or ""),
+        }
+        for err in exc.errors()
+    ]
+    return JSONResponse(
+        status_code=422,
+        content=_error_body("INVALID_PARAM", "请求体校验失败", _trace_id(request),
+                            extra={"errors": errors}),
     )
 
 
 @app.exception_handler(StarletteHTTPException)
 async def _http_error(request: Request, exc: StarletteHTTPException) -> JSONResponse:
-    # 404 / 405 等框架异常也归一到同一契约，避免前端解析两套形状
-    code = "RUN_NOT_FOUND" if exc.status_code == 404 else "INTERNAL_ERROR"
+    """D-09：按状态码细分语义，仍保持 {code,message,trace_id}。
+
+    405 → `METHOD_NOT_ALLOWED`；`/api/` 下的 404 → `RUN_NOT_FOUND`（资源/快照不存在），
+    其余 404 → `NOT_FOUND`（静态资源等）；其它 → `HTTP_<status>`。
+    """
+    status = exc.status_code
+    path = request.url.path or ""
+    if status == 405:
+        code = "METHOD_NOT_ALLOWED"
+    elif status == 404:
+        code = "RUN_NOT_FOUND" if path.startswith("/api/") else "NOT_FOUND"
+    else:
+        code = f"HTTP_{status}"
     return JSONResponse(
-        status_code=exc.status_code,
+        status_code=status,
         content=_error_body(code, str(exc.detail), _trace_id(request)),
         headers=getattr(exc, "headers", None),
     )

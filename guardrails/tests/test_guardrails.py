@@ -134,6 +134,28 @@ def test_block_only_applies_to_api_key_by_default():
     assert redact_text(f"手机 {PHONE}", gate="ingest").blocked is False
 
 
+@pytest.mark.parametrize("secret", [
+    "sk-abcdefghijklmnopqrstuvwxyz123456",          # 无连字符
+    "sk-proj-abcdefghijklmnopqrstuvwxyz1234567890",  # OpenAI 项目密钥形态
+    "sk-QAENGINEER-abcdefghijklmnop1234567890",      # 租户分段
+    "sk-or-v1-abcdef1234567890abcdef1234567890",     # OpenRouter 形态
+    "sk-1234567890123456",                           # 纯数字 16 位
+])
+def test_api_key_variants_are_blocked(secret):
+    """真实密钥常带分段连字符；旧正则 [A-Za-z0-9]{16,} 会在第一个 - 处截断而漏检。
+    这是 QA 验收报出的 P0：漏检会导致 A9 回显原文、A5 落盘明文。"""
+    r = redact_text(f"请使用 {secret} 调用接口。", gate="ingest")
+    assert r.blocked is True and r.blocked_kinds == ["API_KEY"]
+    assert secret not in r.text
+    assert scan(f"token={secret}") != []
+
+
+def test_short_sk_like_token_is_not_treated_as_key():
+    """过短的 sk- 片段不算密钥，避免把普通标识误判；它仍不应被当成已泄露密钥。"""
+    assert scan("sk-abc") == []
+    assert scan("sk-proj-xy") == []
+
+
 def test_policy_disabled_is_explicit_passthrough():
     p = RedactionPolicy(enabled=False)
     r = redact_text(f"手机 {PHONE}", gate="audit", policy=p)

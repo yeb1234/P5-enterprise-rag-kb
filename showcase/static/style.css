@@ -122,7 +122,7 @@ small { font-size: 12px; }
 .source-check.warn { color: var(--rose); }
 .cur-sample code { color: var(--text-2); }
 .tri-inline { display: flex; gap: 6px; flex-wrap: wrap; }
-/* 手动载入真实样本（后端未挂载 samples/ 时的兜底，字节真实、不伪造） */
+/* 手动载入真实样本（部署异常/离线打开时的兜底；正常由 /showcase/samples 窄路径提供，字节真实、不伪造） */
 .manual-pick {
   display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
   font-size: 11px; font-weight: 600; color: var(--primary-ink);

@@ -1,7 +1,14 @@
 # showcase 站点镜像（阿里云上线指导素材，可选）。
 # 只 COPY showcase 与它依赖的纯函数包；不 COPY webapp/ backend/ eval/ demo/。
 # 密钥只从环境变量注入：本文件不含任何密钥值，也不读取 .env。
-FROM python:3.11-slim
+#
+# 国内网络构建（可选，本机已用 DaoCloud 加速）：
+#   docker build -f showcase/Dockerfile -t kb-showcase:dev \
+#     --build-arg BASE_IMAGE=docker.m.daocloud.io/library/python:3.11-slim \
+#     --build-arg PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple .
+ARG BASE_IMAGE=python:3.11-slim
+FROM ${BASE_IMAGE}
+ARG PIP_INDEX_URL=https://pypi.org/simple
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
@@ -9,7 +16,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 # 站点运行依赖（parsing/ 的可选增强 pypdf / Pillow 也在其中）
-RUN pip install --no-cache-dir \
+RUN pip install --no-cache-dir -i ${PIP_INDEX_URL} \
       "fastapi>=0.110" \
       "uvicorn>=0.29" \
       "python-multipart>=0.0.9" \

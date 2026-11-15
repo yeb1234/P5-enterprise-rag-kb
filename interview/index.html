@@ -257,12 +257,14 @@ footer .fine{border-top:1px solid var(--border);padding-top:16px;line-height:1.8
   <div class="wrap">
     <div class="brand"><span class="mark">KB</span> 企业级知识库 · 面试讲解</div>
     <nav class="navlinks">
+      <a href="#showcase">解析工作台</a>
       <a href="#boundary">三态边界</a>
       <a href="#highlights">核心亮点</a>
       <a href="#flow">数据流</a>
       <a href="#layers">架构分层</a>
       <a href="#verify">验证快照</a>
       <a href="#qa">面试 Q&amp;A</a>
+      <a href="journey.html">项目演进讲解 →</a>
     </nav>
   </div>
 </header>
@@ -298,6 +300,153 @@ footer .fine{border-top:1px solid var(--border);padding-top:16px;line-height:1.8
     </div>
   </div>
 </div>
+
+<!-- ============ 文档解析工作台导览 ============ -->
+<section id="showcase">
+  <div class="wrap">
+    <div class="sec-head"><span class="sec-num">00</span><h2>文档解析工作台 · 录像与全功能导览</h2></div>
+    <p class="sec-desc">本轮新增的独立演示站点 <code>showcase/</code>（端口 8767）：<b>左边分析、右边入库 JSON</b>，
+      参数可调，主要展示图片与 PDF 的解析结果及对应入库结构。下面的 84 秒录像由
+      <b>真实解析产物程序化渲染</b>而成，帧数据来自 <code>parsing.ParseRouter</code> 的离线实跑结果，
+      不是摆拍、不是伪造 JSON。</p>
+
+    <div class="card rise" style="--d:.05s;padding:20px;margin-bottom:18px">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+        <h3 style="margin:0">84 秒演示录像 · 10 镜</h3>
+        <span class="chip">简单档 ①–④</span><span class="chip">复杂档 ⑤–⑧</span>
+        <span class="chip">离线与上线 ⑨–⑩</span>
+        <span class="badge a">真实产物渲染</span>
+      </div>
+      <video controls preload="metadata" playsinline
+             style="width:100%;max-width:960px;border:1px solid #d0d7de;border-radius:8px;background:#f6f8fa;display:block">
+        <source src="showcase-demo.mp4" type="video/mp4" />
+        当前环境无法内嵌播放，请直接打开 mp4 文件：<code>interview/showcase-demo.mp4</code>。
+      </video>
+      <p class="muted small" style="margin:12px 0 0">
+        录像文件：<code>interview/showcase-demo.mp4</code>（84.04 秒，约 316 KiB）。
+        需要<b>真正单文件分发</b>时用
+        <a href="index-standalone.html"><code>interview/index-standalone.html</code></a>（录像已以 data URI 内嵌，无需同目录 mp4；若浏览器不支持 data URI 视频，请直接打开 mp4 文件）。
+        生成脚本 <code>showcase/make_video.py</code>、样本与真实解析产物在 <code>showcase/samples/</code>，均可复跑。
+        想从头看懂「这个项目是怎么长出来的」——架构为什么这么分、每一轮改了什么、踩过哪些坑、面试怎么讲，
+        见 <a href="journey.html"><b>项目演进讲解</b></a>（单文件，含 5 段演进、8 个亮点、8 个真实坑点、15 个面试问答）。
+      </p>
+    </div>
+
+    <div class="tbl-wrap rise" style="--d:.10s;margin-bottom:18px">
+      <table class="table">
+        <thead><tr><th>能力</th><th>做了什么</th><th>现场怎么看</th><th>三态</th></tr></thead>
+        <tbody>
+          <tr><td>左右分栏同源</td><td>一次 <code>ParseRouter.parse_document()</code> 同时组装分析视图与入库 JSON，共用 <code>run_id</code> 与参数快照</td><td>页头同一个 <code>run_id</code>，两侧同时出内容</td><td><span class="chip">已实现（演示级）</span></td></tr>
+          <tr><td>两类文件</td><td>带文本层 PDF（<code>simple.pdf</code>，1673 字符）与扫描图片（<code>complex.png</code>）</td><td>两档一键切换</td><td><span class="chip">已实现（演示级）</span></td></tr>
+          <tr><td>参数面板</td><td>7 类 / 10 项配置：策略、置信度阈值、分块大小与重叠、视觉预算、LLM 档位、脱敏开关、入库格式，外加固定逻辑时间 <code>as_of</code></td><td>改任一项重跑，右区 JSON 同步变化</td><td><span class="chip">已实现（演示级）</span></td></tr>
+          <tr><td>分块可观测</td><td>实跑：<code>800/80 → 3 块</code>，<code>400/80 → 6 块</code></td><td>录像第 ③ 镜直接看数字变化</td><td><span class="chip">已实现（演示级）</span></td></tr>
+          <tr><td>质量门禁与视觉预算</td><td>无文本层 / 低置信 / 表格不稳触发升级；<code>VisionBudget</code> 是最贵链路的页级熔断线</td><td>复杂档 <code>local → multimodal</code> 留痕</td><td><span class="chip">已实现（解析层）</span></td></tr>
+          <tr><td>确定性 JSON</td><td><code>created_at</code> 取固定逻辑时间 <code>as_of</code>；挂钟与耗时只进左侧 <code>runtime</code>；<code>canonical()</code> 剥离观测字段</td><td>「同参双跑对拍」按钮逐字节比对</td><td><span class="chip">已实现（演示级）</span></td></tr>
+          <tr><td>LLM 路由分流</td><td>6 项难度信号加权评分、双阈值滞回（0.60/0.40）、连续 2 次才切档</td><td>实算：简单档 <code>0.005 → standard</code>，复杂档 <code>0.735</code> 命中升档方向，连续 2 次后 <code>→ pro</code></td><td><span class="chip">已实现（演示级）</span></td></tr>
+          <tr><td>Pro 档兜底</td><td>解析难度变大且连续命中时路由到 Pro 档；<b>演示不发起外部 LLM 调用</b></td><td>快照里 <code>consecutive_hits 1/2 → 2/2</code>、<code>tier=pro</code>、<code>trigger=difficulty_threshold</code></td><td><span class="chip">已实现（决策层）</span></td></tr>
+          <tr><td>快照单文件</td><td>每次选择一个 <code>out/&lt;run_id&gt;.manifest.json</code>，与入库 JSON 双向摘要互引、原子落盘</td><td>展开快照看 15 字段，空占位显式显示</td><td><span class="chip">只设计 → 本轮实现中</span></td></tr>
+          <tr><td>PII 四出口</td><td>入库前 / 进模型前 / 输出前 / 日志导出前共用一套规则</td><td>实跑四出口命中数 <code>[2,2,2,2]</code></td><td><span class="chip">已实现（规则级）</span></td></tr>
+          <tr><td>收费解析 API</td><td>可插拔 profile + 离线兜底；<b>未开通、未付费</b></td><td>A4 显示「未接通，跳过」</td><td><span class="chip">只设计</span></td></tr>
+          <tr><td>阿里云实际上线</td><td>注册 / 实名 / 备案 / 支付的逐步指导 HTML</td><td><a href="../docs/showcase/aliyun-guide.html"><code>aliyun-guide.html</code></a></td><td><span class="chip">未做（指导已交付）</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card rise" style="--d:.15s;padding:20px;margin-bottom:18px">
+      <h3 style="margin-top:0">收费解析 API 调研结论（2026-11-15 联网检索）</h3>
+      <p class="muted small">用户问「平时演示效果最好的是哪个公司的收费 API 合适」。结论分两层：
+        <b>演示效果最好 = Reducto</b>（复杂表格 / 多栏 / 合并单元格 / 引用框最稳，质量分 92，
+        $0.01/页、含 $150 免费额度）；<b>国内上线首选阿里云文档解析（大模型版）</b>（0.02/0.04 元每页，
+        境内可达、无数据出境、人民币结算）。<b>本轮免费自搭路径</b>直接复用项目已有的
+        <code>parsing/</code> P0 local + P2 多模态离线回放，零外部请求，不花一分钱也能完整演示。</p>
+      <div class="tbl-wrap">
+        <table class="table">
+          <thead><tr><th>服务</th><th>公开价</th><th>适合</th><th>本轮取舍</th></tr></thead>
+          <tbody>
+            <tr><td><b>Reducto</b></td><td>$0.01/页，$150 免费额度</td><td>复杂表格、版式、引用；演示效果最好</td><td>推荐（海外），仅做 profile</td></tr>
+            <tr><td>LlamaParse</td><td>Fast ≈ $0.00125/页；Agentic Plus ≈ $0.056/页</td><td>干净的数字原生 PDF</td><td>备选；高档位约 15 倍价差，硬文档不划算</td></tr>
+            <tr><td>Mistral OCR</td><td>$0.004–0.005/页</td><td>40+ 语言、Markdown 输出</td><td>失败链第三位，结构差异带来互补</td></tr>
+            <tr><td>Docling / PaddleOCR</td><td>免费自托管</td><td>有 GPU / 工程能力</td><td>否决：部署门槛与冷启动，不适合一键演示</td></tr>
+            <tr><td><b>阿里云文档解析</b></td><td>0.02 / 0.04 元每页</td><td>境内上线、同云、人民币结算</td><td>推荐（国内），仅做 profile</td></tr>
+            <tr><td>腾讯云多模态解析</td><td>0.08 元/页，首开送 1000 页</td><td>对照</td><td>不采用：单价高于阿里云</td></tr>
+            <tr><td><b>免费自搭（本轮采用）</b></td><td>0</td><td>离线演示、零流量、可复现</td><td><b>默认路径</b>：复用 <code>parsing/</code> 三级策略</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="muted small" style="margin:10px 0 0">以上为公开价与免费额度的调研口径，<b>不是账单、不是实测质量结论</b>；
+        真实语料需自行试跑比对。收费服务开通与付费由用户本人决定，本轮未开通任何账号。</p>
+    </div>
+
+    <div class="card rise" style="--d:.20s;padding:20px;margin-bottom:18px">
+      <h3 style="margin-top:0">LLM 路由快照：跟着这次选择走的「单文件」</h3>
+      <p class="muted small">用户要求「LLM、对应的快照时间版本、提示词、参数等都要同步单文件跟着这个 LLM 走；
+        没有就空占位」。落地是每次路由选择生成一个物理 manifest，与同次入库 JSON 双向摘要互引；
+        换模型 / 提示词 / 参数都会改变 <code>snapshot_version</code> 进而改变 <code>run_id</code>，旧 manifest 不复用。</p>
+      <pre style="background:#f6f8fa;border:1px solid #d0d7de;border-radius:8px;padding:14px;overflow:auto;font-size:13px;line-height:1.6">{
+  "schema_version": "showcase-manifest@1.0",
+  "run_id": "&lt;sha256(文件摘要 + params_hash + snapshot_version)[:20]&gt;",
+  "created_at": "2026-11-15T00:00:00Z",   // 固定逻辑时间，非挂钟
+  "route": {
+    "tier": "pro",                        // 复杂档 difficulty=0.735，连续 2 次命中后
+    "trigger": "difficulty_threshold",
+    "difficulty": 0.735,
+    "hysteresis": { "enter": 0.60, "exit": 0.40,
+                    "consecutive_hits": 2, "state": "pro" },
+    "fallback_chain": ["pro", "standard", "fallback"],
+    "model": "",                          // 空占位：未选定供应商
+    "model_snapshot_at": null,            // 空占位
+    "prompt": "", "prompt_version": "",   // 空占位
+    "params": {},                         // 空占位
+    "placeholder": true,
+    "cost_hint": { "estimated": false, "note": "仅路由决策，未发起外部调用" }
+  },
+  "ingest_ref": { "path": "out/&lt;run_id&gt;.ingest.json", "sha256": "…" },
+  "offline": true, "external_request_count": 0
+}</pre>
+      <p class="muted small" style="margin:10px 0 0"><b>诚实边界</b>：选出 Pro 档<b>不代表</b>调用了 Pro 模型。
+        本轮演示一律离线、不发起外部 LLM 调用，所以模型 / 快照时间 / 提示词 / 参数按用户要求保持空占位，
+        绝不填编造值；在线填真值属「只设计」。阈值与权重均为演示起始值，非压测结论。
+        另外滞回要求连续 2 次命中：<b>单次复杂档解析是 <code>standard</code>(1/2)，同一份文件再跑一次才升 <code>pro</code>(2/2)</b>；
+        路由状态按「文件摘要 + 参数哈希」隔离，不串用户，进程重启清零。</p>
+    </div>
+
+    <div class="card rise" style="--d:.25s;padding:20px;margin-bottom:18px">
+      <h3 style="margin-top:0">简单 / 复杂两档演示准备清单</h3>
+      <table class="table">
+        <thead><tr><th>档位</th><th>演示前准备</th><th>现场讲什么</th><th>明确不讲什么</th></tr></thead>
+        <tbody>
+          <tr><td><b>简单档</b></td><td>载入 <code>simple.pdf</code>（带文本层）、策略 <code>local_only/auto</code>、入库格式 <code>compact</code></td>
+            <td>P0 零依赖直接读文本层；改分块参数看 3 → 6 块；同参双跑逐字节一致；改参 <code>run_id</code> 必变</td>
+            <td>不谈准确率、不谈 QPS、不把演示替身说成 Milvus 集群</td></tr>
+          <tr><td><b>复杂档</b></td><td>载入 <code>complex.png</code>（扫描发票图）、策略 <code>auto</code>、格式 <code>full</code>、开脱敏</td>
+            <td>无文本层 → 质量门禁升级 → 离线降级为「图片结构事实 · 非视觉理解」；视觉预算是熔断线；难度 0.735 连续 2 次命中才触发 Pro 档（滞回防抖动）；四出口命中一致；全字段 JSON</td>
+            <td><b>不把离线回放讲成实时在线识别</b>；不把空占位讲成已配置 Pro 模型</td></tr>
+        </tbody>
+      </table>
+      <p class="muted small" style="margin:10px 0 0">两档共用同一套左右分栏与参数定义，差别在输入、策略、是否升级、是否触发 Pro、JSON 字段完备度。
+        样本与解析产物由 <code>showcase/samples/make_samples.py</code> 从真实解析链路生成，可随时复跑核对。</p>
+    </div>
+
+    <div class="card rise" style="--d:.30s;padding:20px">
+      <h3 style="margin-top:0">上线：一竿子捅到阿里云</h3>
+      <p class="muted small">完整逐步指导见
+        <a href="../docs/showcase/aliyun-guide.html"><code>docs/showcase/aliyun-guide.html</code></a>
+        （441 行、单文件离线、含 11 步路径 / 费用估算 / 14 项检查单 / 回滚 / 故障排查）。
+        页面用醒目双栏区分「AI 可生成脚本」与「必须本人操作」。</p>
+      <table class="table">
+        <thead><tr><th>必须你本人完成</th><th>为什么</th></tr></thead>
+        <tbody>
+          <tr><td>账号注册与实名认证</td><td>法律主体与实名核验，购买内地云资源的前置条件</td></tr>
+          <tr><td>支付、ECS / 域名购买</td><td>涉及本人资金与账单</td></tr>
+          <tr><td>域名 ICP 备案</td><td>需主体资料、人脸核验；中国大陆节点对外服务前置</td></tr>
+          <tr><td>凭证保管、是否开通付费 API</td><td>不要把账号密码 / AccessKey / 验证码发给 AI 或贴进聊天窗口、文档、Git</td></tr>
+        </tbody>
+      </table>
+      <p class="muted small" style="margin:10px 0 0"><b>边界</b>：指导页不是上线证明；本轮未注册、未采购、未部署、未备案，
+        演示切片也不是生产系统。费用一律为「假设 + 估算区间」，以控制台实时价为准。</p>
+    </div>
+  </div>
+</section>
 
 <!-- ============ 三态边界 ============ -->
 <section id="boundary">
@@ -849,9 +998,18 @@ footer .fine{border-top:1px solid var(--border);padding-top:16px;line-height:1.8
       <code>guardrails/README.md</code>
       <code>docs/CONTENT-SAFETY-DELIVERY.md</code>
       <code>docs/content-safety/02-design.md</code>
+      <code>docs/showcase/01-scope.md</code>
+      <code>docs/showcase/02-architecture.md</code>
+      <code>docs/showcase/03-phase2-spec.md</code>
+      <code>docs/showcase/aliyun-guide.html</code>
+      <code>showcase/samples/make_samples.py</code>
+      <code>showcase/make_video.py</code>
+      <code>interview/showcase-demo.mp4</code>
     </div>
     <div class="fine">
-      本页为<b>单文件、零外部依赖</b>的静态演示页，可直接双击打开、可离线投屏；未引用任何 CDN、字体、脚本或图片资源，未运行任何真实外部 LLM 调用。<br />
+      本页为<b>单文件 HTML + 同目录一个本地 mp4</b>的静态演示页，可直接双击打开、可离线投屏；
+      未引用任何 CDN、字体、脚本或远程图片资源，未运行任何真实外部 LLM 调用。
+      需要把录像也塞进单个 HTML 时用 <code>index-standalone.html</code>（data URI 内嵌）。<br />
       组织模型口径：<b>当前为多用户多部门（单组织 + 部门树逻辑隔离）；多租户仅作为未来研发方向写入文档，暂不实现。</b>
       历史材料中的「单租户 default / 多租户隔离已实现」均为作废口径。<br />
       验证数字为<b>历史实测快照</b>，不同日期快照已分别标注且不可混用；最新结果以上列事实源为准，不确定处宁可不写或注「以报告为准」。

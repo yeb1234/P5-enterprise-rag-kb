@@ -76,7 +76,12 @@
     btnSnapshot: $('btn-snapshot'),
     snapshotStatus: $('snapshot-status'),
     snapshotRoute: $('snapshot-route'),
-    snapshotView: $('snapshot-view')
+    snapshotView: $('snapshot-view'),
+    guardrailsText: $('guardrails-text'),
+    btnGuardrails: $('btn-guardrails'),
+    btnGuardrailsDemo: $('btn-guardrails-demo'),
+    btnGuardrailsBlock: $('btn-guardrails-block'),
+    guardrailsResult: $('guardrails-result')
   };
 
   /* ---------------------------------------------------------------------
@@ -89,6 +94,7 @@
     strategies: '/api/strategies',
     samples: '/api/samples',
     analyze: '/api/analyze',
+    guardrails: '/api/guardrails/scan',
     manifest: '/api/manifest/'
   };
 
@@ -114,10 +120,10 @@
     { id: 'complex', tier: 'complex', filename: 'complex.png', mime: 'image/png', replay: true }
   ];
 
-  // 样本静态路径候选：任务指定 /showcase/samples/<name>，其余为不同静态挂载方式下的兼容路径。
-  // 实查 server.py：仅 app.mount("/", StaticFiles(showcase/static/))，samples/ 未挂载，
-  // 因此这些同源路径在本轮部署下多半取不到字节；此时依赖「手动载入真实样本」兜底
-  // 或由主理人协调 backend-engineer 补一条 samples 静态挂载（本文件不改后端）。
+  // 样本静态路径候选：任务指定 /showcase/samples/<name> 为第一候选，其余为不同部署方式下的兼容路径。
+  // 事实（server.py:98-102）：样本由后端在根挂载 "/" 之前以 `/showcase/samples` 窄路径提供，
+  // 因此候选 1 在本轮部署下会命中（实测 GET /showcase/samples/simple.pdf → 200 且字节一致）。
+  // 若某部署下仍取不到字节，保留 sample_id 白名单兜底与「手动载入真实样本」兜底，均不伪造字节。
   var SAMPLE_PATHS = [
     '/showcase/samples/',   // 任务指定：项目根作静态根时命中
     '/samples/',            // server.py 若把 samples 挂到 /samples
@@ -1405,8 +1411,9 @@
     D.sampleSimple.addEventListener('click', function () { if (!S.busy) { switchTier('simple'); } });
     D.sampleComplex.addEventListener('click', function () { if (!S.busy) { switchTier('complex'); } });
 
-    // 手动载入真实样本兜底：server.py 未挂载 samples/ 时，用户选本地已落盘的
-    // simple.pdf / complex.png。字节真实、由后端 ParseRouter 真实解析，前端不伪造任何数据。
+    // 手动载入真实样本兜底：正常路径下样本由后端 /showcase/samples 窄路径提供（事实见上），
+    // 此处保留为部署异常/离线打开时的兜底——用户选本地已落盘的 simple.pdf / complex.png，
+    // 字节真实、由后端 ParseRouter 真实解析，前端不伪造任何数据。
     D.sampleFile.addEventListener('change', function () {
       var f = D.sampleFile.files && D.sampleFile.files[0];
       if (!f) { return; }

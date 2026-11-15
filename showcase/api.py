@@ -98,7 +98,11 @@ router = APIRouter(prefix="/api")
 
 
 class ApiError(Exception):
-    """统一错误契约：{"code","message","trace_id"}，由 server.py 的 handler 渲染。"""
+    """统一错误契约：{"code","message","trace_id"}，由 server.py 的 handler 渲染。
+
+    `extra` 携带结构化补充（如 A8 的 `checks`），随响应体平铺；
+    约定不使用 `code` / `message` / `trace_id` 三个保留键，避免覆盖三要素。
+    """
 
     def __init__(
         self,
@@ -107,16 +111,26 @@ class ApiError(Exception):
         *,
         status: int | None = None,
         trace_id: str | None = None,
+        extra: dict | None = None,
     ) -> None:
         self.code = code
         self.message = message or code
         self.status = status or ERROR_STATUS.get(code, 500)
         self.trace_id = trace_id or uuid.uuid4().hex[:16]
+        self.extra = {
+            k: v for k, v in (extra or {}).items()
+            if k not in ("code", "message", "trace_id")
+        }
         super().__init__(self.message)
 
 
-def _fail(code: str, message: str) -> None:
-    raise ApiError(code, message)
+def _fail(code: str, message: str, *, extra: dict | None = None) -> None:
+    """抛统一错误。D-14：上游 `parse_params` 已带 "INVALID_PARAM:" 前缀时不再重复叠加。"""
+    msg = message or code
+    prefix = f"{code}:"
+    if msg.startswith(prefix):
+        msg = msg[len(prefix):].strip()
+    raise ApiError(code, msg, extra=extra)
 
 
 # ---------------------------------------------------------------------------
@@ -394,8 +408,9 @@ async def analyze(
     # params 是可选 JSON 字符串；as_of 单独 form 字段，合并后一次校验
     try:
         raw: dict = json.loads(params) if params else {}
-    except ValueError as exc:
-        _fail("INVALID_PARAM", f"params 不是合法 JSON：{exc}")
+    except ValueError:
+        # D-14：不回显 JSON 解析异常文本（含行列位置等内部细节），只给概要
+        _fail("INVALID_PARAM", "params 不是合法 JSON 对象")
     if not isinstance(raw, dict):
         _fail("INVALID_PARAM", "params 必须是 JSON 对象")
     if as_of:
@@ -485,6 +500,17 @@ async def analyze(
 
     # 硬约束：created_at 取 as_of；挂钟时间绝不进 ingest
     ingest["created_at"] = p.as_of
+
+    # 安全加固（defense in depth）：落盘前对最终入库 JSON 再扫一遍密钥形态，
+    # 命中 API_KEY 一律阻断、**不写任何文件**（防止检测漏检把原文带进产物）。
+    from guardrails.detectors import scan as _pii_scan
+
+    try:
+        ingest_blob = json.dumps(ingest, ensure_ascii=False)
+    except (TypeError, ValueError):
+        _fail("INTERNAL_ERROR", "入库 JSON 序列化失败，已阻断落盘")
+    if any(f.kind == "API_KEY" for f in _pii_scan(ingest_blob)):
+        _fail("PII_BLOCKED", "入库内容疑似含密钥，已阻断落盘")
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     written = write_pair(run_id, route, ingest, OUT_DIR)
@@ -626,8 +652,23 @@ def get_manifest(run_id: str) -> dict:
     try:
         manifest = read_manifest(run_id, OUT_DIR)
     except ManifestError as exc:
-        # 摘要不符绝不静默回放
-        _fail("INTERNAL_ERROR", f"manifest 摘要校验失败：{exc}")
+        # D-04：摘要不符 → 404 RUN_NOT_FOUND（与 README / 02-architecture §4.3 对齐），不静默回放。
+        # D-03：失败响应也带 checks，明确「三项都无法确认通过」，而不是只在成功时出现恒 True。
+        _fail(
+            "RUN_NOT_FOUND",
+            f"manifest 校验失败，拒绝静默回放：{str(exc)[:200]}",
+            extra={
+                "checks": {
+                    "ingest_sha256_match": False,
+                    "route_snapshot_match": False,
+                    "manifest_sha256_match": False,
+                },
+                "checks_note": (
+                    "read_manifest 抛 ManifestError：三项规范化重算至少一项未通过，"
+                    "失败即拒绝回放"
+                ),
+            },
+        )
     if not isinstance(manifest, dict):
         _fail("INTERNAL_ERROR", "read_manifest 返回结构异常")
 
@@ -636,25 +677,28 @@ def get_manifest(run_id: str) -> dict:
     #   ② manifest 规范化摘要  == ingest.manifest.sha256
     #   ③ snapshot_version_for(route) == route.snapshot_version
     # 任一不符即抛 ManifestError。因此 A8 **不重复实现**同伴的私有投影/哈希算法，
-    # 否则两套规则不一致会让 A8 恒 500（假阴性）。成功返回即代表前两项通过。
+    # 否则两套规则不一致会让 A8 恒 500（假阴性）。成功返回即代表三项都通过。
     ingest = _read_json(ingest_path) if ingest_path.is_file() else {}
     expected_sv = str((manifest.get("route") or {}).get("snapshot_version") or "")
     actual_sv = str((ingest.get("llm_route") or {}).get("snapshot_version") or "")
     checks = {
-        "ingest_sha256_match": True,   # 由 read_manifest 的投影重算保证（成功即通过）
-        "route_snapshot_match": True,  # 由 read_manifest 的 snapshot_version_for 保证
+        "ingest_sha256_match": True,
+        "route_snapshot_match": True,
+        "manifest_sha256_match": True,
     }
     if expected_sv and actual_sv:
         # 两侧字段齐全时额外做一次字段级交叉核对（不依赖哈希算法，不脆弱）
         checks["route_snapshot_match"] = expected_sv == actual_sv
     if not all(checks.values()):
-        _fail("INTERNAL_ERROR", f"双向摘要校验未通过：{checks}；拒绝回放")
+        # 字段级交叉核对失败也是校验失败：D-04 统一 404，D-03 带真实 checks
+        _fail("RUN_NOT_FOUND", "双向摘要校验未通过，拒绝静默回放",
+              extra={"checks": checks, "checks_note": "字段级交叉核对未通过"})
     return {
         **manifest,
         "checks": checks,
         "checks_note": (
-            "两项 checks 由 read_manifest() 的规范化投影重算保证（不符抛 ManifestError，"
-            "不静默回放）；llm_route.snapshot_version 另做字段级交叉核对"
+            "三项 checks 由 read_manifest() 的规范化投影/摘要/snapshot_version 重算保证"
+            "（不符抛 ManifestError → 404 不静默）；llm_route.snapshot_version 另做字段级交叉核对"
         ),
     }
 
@@ -676,11 +720,24 @@ def guardrails_scan(body: dict) -> dict:
     report = dict(pii.get("report") or {})
     if report.get("blocked"):
         _fail("PII_BLOCKED", "guardrails 命中 ACTION_BLOCK，已拒绝；不回显原文")
+
+    # 安全加固（defense in depth）：A9 不得成为原文回显通道。
+    # 将来出现新形态漏检时，results[].text 会把未打码原文带回前端，故统一置空；
+    # findings.preview 已由 guardrails._preview() 做成「首尾各 2 位 + ***」，安全，保留。
+    safe_results: list[dict] = []
+    for item in report.get("results") or []:
+        row = dict(item)
+        row["text"] = ""
+        safe_results.append(row)
+    report["results"] = safe_results
+    report["echo_suppressed"] = True
+
     report["gates"] = list(gates)
     report.setdefault("rule_version", pii.get("rule_version") or "PII-RULES@1.0")
     report["note"] = (
         "protect_text 固定依次走 ingest/context/output/audit 四出口，命中数一致；"
-        "gates 为本次请求子集，最终文本只取第一次 ingest 的结果"
+        "gates 为本次请求子集；results[].text 统一置空（echo_suppressed=true），"
+        "findings.preview 仅回显首尾各 2 位"
     )
     return report
 

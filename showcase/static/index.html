@@ -242,6 +242,22 @@
           <div id="snapshot-route" class="snapshot-route" hidden></div>
           <div id="snapshot-view" class="json-view" hidden></div>
         </div>
+
+        <!-- A9 脱敏预演（安全加固后不回显原文）-->
+        <div class="guardrails-block">
+          <div class="guardrails-head">
+            <h3>脱敏预演 <span class="pane-en">A9 guardrails/scan</span></h3>
+            <span class="guardrails-sub">四出口 · PII-RULES@1.0 · 不回显原文</span>
+          </div>
+          <p class="guardrails-tip">输入文本预演 <code>ingest</code> / <code>context</code> / <code>output</code> / <code>audit</code> 四出口命中。安全加固后<b>不回显原文</b>：<code>results[].text</code> 恒为空串（<code>echo_suppressed=true</code>），仅 <code>findings[].preview</code> 显示首尾各 2 位。</p>
+          <textarea id="guardrails-text" rows="3" spellcheck="false" placeholder="粘贴一段文本后点「预演脱敏」…（文档里若含 sk- 形式的示例密钥，A5 上传会被阻断落盘）"></textarea>
+          <div class="btn-row">
+            <button id="btn-guardrails" type="button" class="btn tiny">预演脱敏</button>
+            <button id="btn-guardrails-demo" type="button" class="btn tiny">填入 PII 示例</button>
+            <button id="btn-guardrails-block" type="button" class="btn tiny">填入假密钥示例</button>
+          </div>
+          <div id="guardrails-result" class="guardrails-result">未运行。安全契约：只显示命中类别 / 数量 / findings.preview，不回显原文。</div>
+        </div>
       </section>
 
     </div>
