@@ -84,9 +84,14 @@ services:
       retries: 10
 
   minio:
-    image: ${KB_MINIO_IMAGE:-minio/minio:RELEASE.2023-03-20T20-16-18Z}
+    image: ${KB_MINIO_IMAGE:-minio/minio:RELEASE.2025-04-22T22-12-26Z}
     container_name: kb-minio
     restart: unless-stopped
+    # 只有 `--profile minio` 才起它。Milvus 的对象存储可用本地磁盘代替：
+    #   KB_MILVUS_STORAGE=local → 不需要 minio（仅 standalone 单副本可用）
+    #   KB_MILVUS_STORAGE=minio → 默认，生产形态，需要先拉 minio 镜像
+    # 这样「拉不到 minio 的机器」也能把 Milvus 链路跑通，而不是整条链路卡住。
+    profiles: ["minio"]
     environment:
       MINIO_ACCESS_KEY: minioadmin
       MINIO_SECRET_KEY: minioadmin
@@ -109,6 +114,9 @@ services:
     environment:
       ETCD_ENDPOINTS: etcd:2379
       MINIO_ADDRESS: minio:9000
+      # common.storageType：minio（默认，生产形态）| local（standalone 本地磁盘）
+      COMMON_STORAGETYPE: ${KB_MILVUS_STORAGE:-minio}
+      LOCALSTORAGE_PATH: /var/lib/milvus/data
     volumes:
       - milvusdata:/var/lib/milvus
     ports:
@@ -117,8 +125,11 @@ services:
     depends_on:
       etcd:
         condition: service_healthy
+      # required:false —— 只起 milvus 而不起 minio（KB_MILVUS_STORAGE=local）时，
+      # 不能让「缺一个可选依赖」把启动卡死。
       minio:
         condition: service_healthy
+        required: false
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
       interval: 10s

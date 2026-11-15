@@ -194,21 +194,105 @@ def check_redis(url: str, limit: int = 3, attempts: int = 5) -> dict:
     }
 
 
+def check_milvus(uri: str, tenant: str = "default", min_vectors: int = 1) -> dict:
+    """Milvus：集合存在、条数达标、权限 expr 真的能收窄、错 tenant 查不到。
+
+    最后两条是关键。只验「连上了」没有意义——连上但 expr 失效，就是全库越权。
+    """
+    try:
+        from pymilvus import Collection, connections, utility  # type: ignore
+    except ImportError:
+        return {"ok": False, "error": "未安装 pymilvus（pip install 'pymilvus>=2.4,<3.0'）"}
+
+    sys.path.insert(0, str(ROOT / "backend"))
+    os.environ.setdefault("MILVUS_URI", uri)
+    try:
+        from app.integrations.milvus_client import get_vector_store
+
+        store = get_vector_store()
+        store.ensure_collection()
+        col = Collection(store.collection_name, using="default")
+        col.load()
+        approx = col.num_entities
+        exact = int(col.query(expr=f'tenant_id == "{tenant}"', output_fields=["count(*)"])[0]["count(*)"])
+    except Exception as exc:
+        return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+
+    problems: list[str] = []
+    # 必须用 count(*) 的精确值判定：num_entities 是**近似统计且包含已删未压实的墓碑**。
+    # upsert 在 Milvus 内部是 delete+insert，重跑一次 num_entities 就会翻倍（实测 83 → 166），
+    # 用它当正确性断言会得到假告警；用它当「有没有数据」的快速探测可以。
+    detail: dict = {"collection": store.collection_name, "entities": exact,
+                    "num_entities_approx": approx}
+    if approx > exact:
+        detail["tombstones"] = approx - exact
+    if exact < min_vectors:
+        problems.append(f"集合内只有 {exact} 条存活向量，少于期望 {min_vectors}"
+                        "（先跑 migrate_vectors_to_milvus.py --apply）")
+
+    # expr 必须永远带 tenant + is_deleted，且不可被调用方移除
+    base = store.build_permission_expr(tenant_id=tenant)
+    detail["expr"] = base
+    if f'tenant_id == "{tenant}"' not in base or "is_deleted == false" not in base:
+        problems.append(f"权限 expr 缺少强制条件：{base}")
+
+    # 错 tenant 必须查不到：这是「过滤发生了」的反证
+    try:
+        wrong = store.build_permission_expr(tenant_id="__no_such_org__")
+        probe = col.query(expr=wrong, output_fields=["chunk_id"], limit=5)
+        detail["wrong_tenant_hits"] = len(probe)
+        if probe:
+            problems.append(f"错 tenant 仍查到 {len(probe)} 条，隔离失效")
+    except Exception as exc:
+        problems.append(f"expr 查询失败：{type(exc).__name__}: {exc}")
+
+    # 按 doc_id 收窄必须真的变少（否则 expr 是摆设）
+    try:
+        rows = col.query(expr=base, output_fields=["doc_id"], limit=200)
+        docs = sorted({r["doc_id"] for r in rows if r.get("doc_id")})
+        detail["distinct_docs"] = len(docs)
+        if len(docs) >= 2:
+            narrow = store.build_permission_expr(tenant_id=tenant, extra=f'doc_id == "{docs[0]}"')
+            got = col.query(expr=narrow, output_fields=["doc_id"], limit=200)
+            got_docs = {r["doc_id"] for r in got}
+            detail["narrowed_docs"] = len(got_docs)
+            if got_docs and got_docs != {docs[0]}:
+                problems.append(f"按 doc_id 收窄后仍返回其它文档：{sorted(got_docs)[:3]}")
+            if len(got) >= len(rows):
+                problems.append("按 doc_id 收窄后条数没有减少，expr 可能没生效")
+        else:
+            detail["narrowed_docs"] = None
+            detail["narrow_skipped"] = "只有 1 个 doc_id，收窄测试无意义"
+    except Exception as exc:
+        problems.append(f"收窄测试失败：{type(exc).__name__}: {exc}")
+
+    return {"ok": not problems, "problems": problems, "detail": detail}
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     if argv and argv[0] == "--child":
         return child_main(argv[1:])
 
-    ap = argparse.ArgumentParser(description="本机基础设施自检（PG / Redis）")
+    # pymilvus 2.6 会对 ORM 风格 API 逐行打 PyMilvusDeprecationWarning（会打印源码行，淹没输出）。
+    # 这条技术债记在 docs/production/01 §5.4，不在这里反复刷屏。
+    import warnings
+
+    warnings.filterwarnings("ignore", message=".*ORM-style PyMilvus API.*")
+
+    ap = argparse.ArgumentParser(description="本机基础设施自检（PG / Redis / Milvus）")
     ap.add_argument("--pg-dsn", default="postgresql://kb:kb_demo_only@127.0.0.1:55432/kb")
     ap.add_argument("--redis-url", default="redis://127.0.0.1:56379/0")
+    ap.add_argument("--milvus-uri", default="http://127.0.0.1:19530")
+    ap.add_argument("--tenant", default="default")
     ap.add_argument("--skip-pg", action="store_true")
     ap.add_argument("--skip-redis", action="store_true")
+    ap.add_argument("--skip-milvus", action="store_true")
     ap.add_argument("--limit", type=int, default=3, help="限流共享验证用的窗口上限")
     args = ap.parse_args(argv)
 
     started = time.time()
-    report: dict = {"pg": None, "redis": None}
+    report: dict = {"pg": None, "redis": None, "milvus": None}
     if not args.skip_pg:
         print("== PostgreSQL ==")
         report["pg"] = check_pg(args.pg_dsn)
@@ -226,6 +310,18 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  {report['redis']['detail']['conclusion']}")
         else:
             print(f"  不通过：{report['redis'].get('error') or report['redis'].get('problems')}")
+
+    if not args.skip_milvus:
+        print("== Milvus（集合与权限 expr）==")
+        report["milvus"] = check_milvus(args.milvus_uri, tenant=args.tenant)
+        if report["milvus"].get("ok"):
+            d = report["milvus"]["detail"]
+            tomb = f"（另有 {d['tombstones']} 条已删墓碑未压实）" if d.get("tombstones") else ""
+            print(f"  {d['collection']} · 存活 {d['entities']} 条向量{tomb} · "
+                  f"覆盖 {d.get('distinct_docs')} 个文档 · "
+                  f"错 tenant 命中 {d.get('wrong_tenant_hits')} 条 · 收窄后 {d.get('narrowed_docs')} 个文档")
+        else:
+            print(f"  不通过：{report['milvus'].get('error') or report['milvus'].get('problems')}")
 
     ok = all(v is None or v.get("ok") for v in report.values())
     report["verdict"] = "INFRA_READY" if ok else "INFRA_NOT_READY"
