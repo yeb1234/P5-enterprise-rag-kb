@@ -3,6 +3,7 @@
 ## 定位与约定
 **开发框架骨架**（学习+面试+逐步生产化），A/B/C 三档，**面试别把 A 档说成 C 档**。栈固定 React/FastAPI/PG/Milvus/Redis + 外部 DeepSeek。
 用户学 FastAPI+DB（后 SpringBoot）：注释讲**设计取舍**，文档必分「已实现/只设计/未做」。v1.0.0 三态定版 ≠ 可上线；未做 18 项（20 项中 2 项已闭环）见 `docs/production/07-remaining-work.md`，§11 已分档「值得做 1 / 只值得说 17」。
+**向量层真实现状**：PG 文本列（22.2KB/条）+ Python 余弦算 top-k，无 ANN 索引；Milvus 已灌 83 条但**未进主链路**。选型论证（推荐 pgvector）见 `docs/production/08-vector-store-decision.md`，路线未拍板。
 v1.1.0 `evalfmt/`；v1.2.0 公开基准（tag `v1.2.0`）。回归全绿：六个包 pytest + backend + eval + evalbench 全过；e2e 33/33；demo 16/16。
 应用层 `webapp/`(8765, admin/admin123) + `backend/` + `frontend/` + `eval/`/`evalbench/`；六个纯函数包与 `demo/`(冻结区) 见 README。
 
