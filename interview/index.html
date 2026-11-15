@@ -310,6 +310,24 @@ footer .fine{border-top:1px solid var(--border);padding-top:16px;line-height:1.8
       <b>真实解析产物程序化渲染</b>而成，帧数据来自 <code>parsing.ParseRouter</code> 的离线实跑结果，
       不是摆拍、不是伪造 JSON。</p>
 
+    <div class="card rise" style="--d:.07s;padding:20px;margin-bottom:18px">
+      <h3 style="margin-top:0">本地已跑起来 · 两个端口</h3>
+      <p class="muted small" style="margin:0 0 10px">两个页面都已容器化，双向互链；点不动时可直接把地址复制到浏览器地址栏。</p>
+      <table class="table">
+        <thead><tr><th>页面</th><th>地址</th><th>内容</th><th>入口</th></tr></thead>
+        <tbody>
+          <tr><td><b>完整功能首页</b></td><td><code>http://127.0.0.1:8765</code></td>
+            <td>登录 / 文档管理 / 流式问答 / 评测 / badcase / 内容安全（admin / admin123）</td>
+            <td><a href="http://127.0.0.1:8765">打开</a></td></tr>
+          <tr><td><b>解析工作台</b></td><td><code>http://127.0.0.1:8767</code></td>
+            <td>左侧分析 / 右侧入库 JSON / 7 类参数可调 / LLM 路由快照（无需登录）</td>
+            <td><a href="http://127.0.0.1:8767">打开</a></td></tr>
+        </tbody>
+      </table>
+      <p class="muted small" style="margin:10px 0 0">启动 / 停止：<code>bash run-demo.sh</code>；<code>docker stop kb-webapp kb-showcase</code>。
+        两个地址都只绑 <code>127.0.0.1</code>，外网与局域网默认访问不到。</p>
+    </div>
+
     <div class="card rise" style="--d:.05s;padding:20px;margin-bottom:18px">
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px">
         <h3 style="margin:0">84 秒演示录像 · 10 镜</h3>

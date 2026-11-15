@@ -204,6 +204,15 @@ html.kb-boot *, html.kb-boot *::before, html.kb-boot *::after { transition:none 
   transition:background-color var(--tr-fast),color var(--tr-fast);
 }
 .nav button:hover { background:var(--sidebar-2); color:var(--sidebar-hover); }
+/* 外链导航项（解析工作台）用 <a> 实现，复用按钮视觉；
+   <a> 不受 window.open 弹窗拦截影响，内嵌预览面板里也能点。 */
+.nav a.nav-item {
+  display:flex; align-items:center; gap:11px; width:100%; padding:10px 12px;
+  border:0; border-radius:var(--radius-sm); background:transparent; color:var(--sidebar-text);
+  font-weight:600; text-align:left; line-height:1.35; text-decoration:none;
+  transition:background-color var(--tr-fast),color var(--tr-fast);
+}
+.nav a.nav-item:hover { background:var(--sidebar-2); color:var(--sidebar-hover); text-decoration:none; }
 .nav button.active { background:var(--primary); color:var(--on-primary); }
 .nav .ico { width:18px; height:18px; flex:0 0 18px; }
 .nav .nav-tag { margin-left:auto; font-size:10px; padding:1px 6px; border-radius:4px; background:var(--nav-tag-bg); white-space:nowrap; }

@@ -1463,7 +1463,13 @@
   function bindMainSiteLink() {
     var a = document.getElementById('main-site-link');
     if (!a) return;
-    a.href = location.protocol + '//' + location.hostname + ':8765';
+    // 预览面板/内嵌 WebView 的 hostname 可能是代理域名，直接拼会拼错；
+    // 只有本机回环才按 hostname 拼，其余先用固定本机地址，再由后端 links.main_site 覆盖。
+    var host = location.hostname;
+    var isLoopback = (host === '127.0.0.1' || host === 'localhost' || host === '::1' || host === '');
+    a.href = isLoopback
+      ? location.protocol + '//' + host + ':8765'
+      : 'http://127.0.0.1:8765';
     fetch(API.health, { headers: { 'Accept': 'application/json' } })
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (h) {

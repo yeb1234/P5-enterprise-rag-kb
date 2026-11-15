@@ -150,6 +150,7 @@ async function bootApp() {
   $('nav-admin').classList.toggle('hidden', !isAdmin);
   $('nav-audit').classList.toggle('hidden', !isAdmin);
   $('nav-settings').classList.toggle('hidden', !isAdmin);
+  syncShowcaseLink();
   // 预取评估任务（chat 标记 badcase 与 admin 筛选共用）
   try { S.evalTasks = await api('/api/eval-tasks'); } catch (_) { S.evalTasks = []; }
   fillTaskSelect();
@@ -210,12 +211,21 @@ function switchView(view) {
 }
 function refreshCurrentView() { const l = LOADERS[S.view]; if (l) l(); }
 
-/* 双向导航：打开专门的解析工作台（showcase，默认 8767）。
- * 同主机名 + 端口，部署时可用 window.WEBAPP_SHOWCASE_URL 覆盖。 */
+/* 双向导航：解析工作台（showcase，默认 8767）。
+ * 用 <a> 同标签跳转，避免内嵌预览面板拦截 window.open；
+ * 这里只按当前环境修正 href：本机回环按 hostname 拼，其余保留默认或环境变量覆盖。 */
+function syncShowcaseLink() {
+  const a = document.getElementById('nav-showcase');
+  if (!a) return;
+  const host = location.hostname;
+  const isLoopback = host === '127.0.0.1' || host === 'localhost' || host === '::1' || host === '';
+  if (isLoopback) a.href = location.protocol + '//' + host + ':8767';
+  else if (window.WEBAPP_SHOWCASE_URL) a.href = window.WEBAPP_SHOWCASE_URL;
+}
 function openShowcase() {
-  const url = window.WEBAPP_SHOWCASE_URL
-    || (location.protocol + '//' + location.hostname + ':8767');
-  window.open(url, '_blank', 'noopener');
+  syncShowcaseLink();
+  const a = document.getElementById('nav-showcase');
+  if (a) location.href = a.href;
 }
 
 /* ---------------- 外观（语言 / 主题色 / 明暗） ---------------- */
