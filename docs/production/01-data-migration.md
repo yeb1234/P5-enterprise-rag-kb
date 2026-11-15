@@ -6,8 +6,8 @@
 > - `docker-compose.infra.yml` — PG 16 / Redis 7 / Milvus（etcd + minio + standalone）
 >
 > **三态**：PG 建表与迁移脚本 **已实现且已在本机真 PG 上跑通**（2026-11-15，PG 16-alpine，
-> `--apply` 903 行、逐表比对 20/20 一致、时间戳逐字节相同）；infra 编排 **已实现并实起过 PG + Redis**；
-> Milvus 向量迁移 **只设计**（本机拉不到 milvus/etcd/minio 镜像，未起）；
+> `--apply` 903 行、逐表比对 20/20 一致、时间戳逐字节相同）；**Milvus 向量迁移已实测**
+> （真 Milvus 2.5.10 standalone，83 条向量、幽灵 0 / 漏迁 0、20/20 回查命中自己、权限 expr 收窄生效）；
 > Celery 映射 **只设计**（`backend/` 有 13 个任务骨架，`webapp/` 仍是进程内队列）。
 > 本文不编造任何「迁移耗时」「QPS 提升」数字。**没跑过的一律标「未验证」。**
 
@@ -161,17 +161,54 @@ text-embedding-bge-m3         1024    46
 `chunk_embeddings` 在 PG 里只留元数据（`chunk_id` / `model` / `dim` / `updated_at`），
 `vec` 列保留仅为双写过渡期可回滚 —— **不是**长期存储方案。
 
-### 5.3 向量迁移四步（只设计，未做）
+### 5.3 向量迁移：四步 + 实测结果（**已跑通**）
 
-1. **冻结写入**：停 worker，或把 `documents.status` 全部置 `frozen`，保证迁移期间不新增 chunk。
-2. **建 collection**：`ensure_collection()`，注意分区数 `MILVUS_NUM_PARTITIONS` 建成后**不可改**。
-3. **批量 upsert**：按 `chunk_id` 幂等（`upsert` 主键是 `chunk_id`，重跑只覆盖不新增），
-   批次建议 500–1000 条；**每批 `flush()`** 否则数据在内存里查不到。
-4. **对账**：`list_chunk_ids()` 分页遍历 Milvus 主键，与 PG `chunks` 做差集。
-   - Milvus 有、PG 无 → **幽灵向量**，删。
-   - PG 有、Milvus 无 → **漏迁**，补。
-   该对账逻辑在 `webapp` 侧已有等价的启动自检（`cache/recovery.py::run_startup_checks()` 里的 ghost 检查），
-   Milvus 版本**未实现**。
+配套脚本：`scripts/migrate_vectors_to_milvus.py`（默认只读，`--apply` 才写；复用
+`backend/app/integrations/milvus_client.py` 的 `MilvusVectorStore`，**不另抄一份 schema**）。
+
+1. **冻结写入**：停 worker，或把 `documents.status` 置 `frozen`，保证迁移期间不新增 chunk。
+   （本次是演示库静态迁移，未做冻结。）
+2. **建 collection**：`ensure_collection()`，分区数 `MILVUS_NUM_PARTITIONS=32` 建成后**不可改**。
+3. **批量 upsert**：主键 `chunk_id`，批 200 条，写完 `flush()`。重跑只覆盖不新增存活行。
+4. **对账**：`list_chunk_ids()` 与源库期望集合做差集；Milvus 有而源库无 = **幽灵**，反之 = **漏迁**。
+
+**本机实测（Milvus 2.5.10 standalone，对象存储用 local）**：
+
+```
+覆盖率：chunks 共 119 条，其中本命名空间 83 条（69.7%），完全没向量 31 条
+       其它命名空间（本次跳过）：{'text-embedding-bge-m3': 46}
+待迁向量：83 条，维度 1024
+  upsert   83/83
+写入完成：83 条，耗时 3.2s
+对账：Milvus 内 83 条 / 期望 83 条 | 幽灵 0 | 漏迁 0
+回查断言（expr: tenant_id == "default" and is_deleted == false）
+  OK   0440d55da70b4a3b… rank=1 score=1.0000
+  OK   06eff01648a644bd… rank=3 并列 3 条同向量 score=1.0000
+{"written": 83, "ghost": 0, "missing": 0, "checked": 20, "in_topk": 20,
+ "top1_exact": 11, "verdict": "VECTORS_READY"}
+```
+
+**覆盖率 69.7% 不是 bug，是真实状态**：119 条 chunk 里 31 条根本没有向量（历史上传未跑嵌入），
+另有 5 条只有 legacy 命名空间的向量。**迁 83 条并明确报出缺口，比「搬了 119 条但混了两个模型」正确得多。**
+
+#### 三个必须知道的坑
+
+**① `num_entities` 是近似值，且包含「已删未压实」的墓碑。**
+Milvus 的 `upsert` 内部是 delete + insert，所以重跑一次后 `num_entities` 会**翻倍**（实测 83 → 166），
+但 `query(count(*))` 的精确存活数仍是 83。用它做正确性断言会得到假告警；
+**正确做法**：用 `count(*)`（本项目的 `verify_infra.py` 就是这么做的，并把墓碑数一并打印）。
+
+**② 演示库里存在「逐元素完全相同」的向量。**
+同一份样本文档被 e2e 反复上传，产生了同文本重复分块 → 同向量，实测 **5 组、最多 9 条一模一样**。
+后果：`top1 == 自己` 这种断言会**假失败**（返回同分的另一条，`score` 也是 1.0000）。
+**正确断言**：自己必须出现在 top-k 且 `score ≈ 1`；并列条数单独报出来。
+向量库无法也不应该为相同向量定义先后。
+
+**③ pymilvus 2.6 对 ORM 风格 API 全面告警**（`connections.connect` / `Collection` / `create_index` /
+`col.upsert` / `col.search` 等），提示 PyMilvus 3.1 将移除。本项目 `milvus_client.py` 全用 ORM 风格，
+**这是已知技术债**：迁移到 `MilvusClient` 属于独立改造，不在本次范围。
+两个脚本里用 `warnings.filterwarnings` 压掉了逐行打印（否则会连源码行一起刷屏），
+但**没有掩盖问题本身**——升级 pymilvus 3.x 前必须重写这个客户端。
 
 ---
 
@@ -258,6 +295,36 @@ PG 密码 `kb_demo_only` 是明显可识别的占位值，上线必须换。
 **为什么端口做成环境变量而不是写死成 55432**：写死就把「本机端口冲突」变成了项目约束。
 默认值仍是标准端口，换机器不用改文件；只有冲突的机器才用变量覆盖。
 
+#### 镜像从哪来（国内网络实拉记录，2026-11-15）
+
+Docker Hub 直连不通（`dialing registry-1.docker.io` 超时）。逐个源实测的结果：
+
+| 镜像 | 可用源 | 不可用源与原因 |
+|---|---|---|
+| `milvusdb/milvus:v2.5.10` | **`docker.m.daocloud.io/…`**（约 3.5 分钟） | Docker Hub 直连超时 |
+| `coreos/etcd:v3.5.16` | **`quay.m.daocloud.io/…`** | Docker Hub 直连超时 |
+| `postgres:16-alpine` / `redis:7-alpine` | `docker.m.daocloud.io/…`（本机已有） | — |
+| `minio/minio` | **没找到可用源** | daocloud **denied**（该仓库被挡）；`1panel.live` manifest 可解析但 **blob 稳定 403**；`1ms.run` / `hub.rat.dev` / `dockerproxy.net` 均 `no such manifest`（镜像已迁 quay，旧 tag 不在 Docker Hub 上） |
+
+**MinIO 拉不到怎么办**：不要为了一个对象存储把整条链路卡死。Milvus 2.5 standalone 支持
+`common.storageType: local`，用本地磁盘代替对象存储。本项目把 minio 放进 `profiles: ["minio"]`，
+并把 `depends_on` 标成 `required: false`，于是：
+
+```bash
+# 没有 minio 也能跑通 Milvus（standalone 单副本；生产不能用这个）
+KB_MILVUS_STORAGE=local \
+KB_ETCD_IMAGE=quay.m.daocloud.io/coreos/etcd:v3.5.16 \
+KB_MILVUS_IMAGE=docker.m.daocloud.io/milvusdb/milvus:v2.5.10 \
+  docker compose -f docker-compose.infra.yml up -d etcd milvus
+
+# 有 minio 时（生产形态）：
+docker compose -f docker-compose.infra.yml --profile minio up -d
+```
+
+**这是明知的妥协，不是设计**：`local` 存储只支持 standalone 单副本，没有对象存储的
+共享与扩容能力。生产必须 minio 或云对象存储。写在这里是为了「本机能跑通」，
+不是为了「这样就够了」。
+
 ### 8.2 建表（PG 首次启动自动执行）
 
 `pg_init.sql` 挂在 `/docker-entrypoint-initdb.d/`，**只在数据卷为空时执行一次**。
@@ -330,21 +397,32 @@ users                尝试   15 行 / 实际写入   15 行
 | 尾部对齐 | `MAX(audit_logs.created_at)` 等 3 张表 | SQLite 与 PG **逐字节相同** |
 | 类型抽检 | `chat_logs.degraded` / `documents.scope_json` / `usage_events.cost_cny` / `users.created_at` | `bool` / `dict` / `Decimal` / `datetime` |
 | 真实查询 | `documents JOIN chunks` 按文件名聚合 | 返回真实分布（`全景设计…md` 48 块等） |
+| 起 Milvus | `KB_MILVUS_STORAGE=local docker compose … up -d etcd milvus` | `kb-etcd` healthy → `kb-milvus` healthy |
+| 建集合 | `MilvusVectorStore.ensure_collection()` | `kb_chunks`，1024 维 / HNSW COSINE / 32 分区 |
+| 迁向量 | `migrate_vectors_to_milvus.py --apply` | 83 条写入，耗时 3.2s |
+| 向量对账 | `list_chunk_ids()` vs 源库期望 | **幽灵 0 / 漏迁 0** |
+| 回查自证 | 20 条真实向量回查 | **20/20 在 top-k 且 `score=1.0000`**（其中 9 条与同向量并列） |
+| 权限 expr | 错 tenant 查 / 按 `doc_id` 收窄 | 错 tenant **0 条**；收窄后 **1 个文档** |
 
 **一条自检脚本**（把上面这些断言变成可复跑的一条命令）：
 
 ```bash
 python scripts/verify_infra.py \
   --pg-dsn "postgresql://kb:kb_demo_only@127.0.0.1:55432/kb" \
-  --redis-url "redis://127.0.0.1:56379/0"
-# → == PostgreSQL == 表 20 张 · documents 75 · chunks 119 · 无限流种子偏差 · created_at=timestamp with time zone
-# → == Redis（多副本窗口共享）== limit=3：内存 6 次 vs Redis 3 次，放大倍数 2.0×
-# → {"verdict": "INFRA_READY"}
+  --redis-url "redis://127.0.0.1:56379/0" \
+  --milvus-uri "http://127.0.0.1:19530"
+# == PostgreSQL ==  表 20 张 · documents 75 · chunks 119 · 无限流种子偏差 · created_at=timestamp with time zone
+# == Redis（多副本窗口共享）==  limit=3：内存 6 次 vs Redis 3 次，放大倍数 2.0×
+# == Milvus（集合与权限 expr）==  kb_chunks · 存活 83 条向量 · 覆盖 46 个文档 · 错 tenant 命中 0 条 · 收窄后 1 个文档
+# {"verdict": "INFRA_READY"}
 ```
 
-最后那行不是顺带测的，它是 `03` 的核心论据（详见 `03-ratelimit-and-metrics.md` §3.1）：
-**同样的 `limit=3`，两个进程用内存实现放行 6 次，用 Redis 放行 3 次**。
-这就是「多副本部署时进程内限流会把配额放大 N 倍」的实测数字，不是理论推演。
+后两行不是顺带测的，它们分别是 `03` 和本节的核心论据：
+
+- **Redis 那行**：同样的 `limit=3`，两个进程用内存实现放行 6 次、用 Redis 放行 3 次。
+  这就是「多副本部署时进程内限流会把配额放大 N 倍」的实测数字，不是理论推演。
+- **Milvus 那行**：`错 tenant 命中 0 条` 是「过滤真的发生了」的反证；
+  `收窄后 1 个文档` 是「expr 不是摆设」的反证。只验「连上了」等于没验。
 
 **时间戳「逐字节相同」这一条尤其重要**：它是 `Z → +00:00` 归一化真的生效的证据。
 如果没做这层转换，PG 会把 `2026-11-12T13:48:56Z` 当本地时间，整体偏 8 小时 ——
@@ -373,6 +451,9 @@ python scripts/verify_infra.py \
 | 重跑报「写入 903 行」而实际 0 行 | 以为重复插入了 | 计数用的是 `len(chunk)`（尝试数），不是 `cur.rowcount`（实际影响行数） | 已改为同时报「尝试 / 实际写入 / 跳过」；重跑能明确看到 `跳过 903` |
 | `up` 报 `port is already allocated` | 起不来 PG | 本机 5432 已被 `siteyeb-pg` 占用，6379 被 `siteyeb-redis` 占用（**别的项目**的容器） | compose 端口改成 `${KB_PG_PORT:-5432}` 等，默认值不变；本机用 `55432/56379` 起，不停别人的容器 |
 | 拉镜像超时 `dialing registry-1.docker.io` | `up` 卡在 Pulling 后失败 | Docker Hub 不可达 | 镜像名同样参数化（`KB_PG_IMAGE` 等），用本机已有的 `docker.m.daocloud.io/library/postgres:16-alpine` |
+| `minio/minio` 三个源都拿不到 | daocloud `denied`；1panel manifest 通了但 blob `403`；1ms/rat.dev/proxy.net `no such manifest` | MinIO 官方镜像已迁 quay，Docker Hub 上那些 tag 不存在；部分镜像站按仓库屏蔽 | Milvus 改 `KB_MILVUS_STORAGE=local`（standalone）；minio 放 `profiles: ["minio"]` + `depends_on.required: false`，不让可选依赖卡死启动 |
+| 权限 expr 看着对但没生效 | 收窄后条数没变 | 只验「连上了」，没验「过滤发生了」 | 加两条反证：错 tenant 必须 0 条；按 `doc_id` 收窄后文档数必须变少 |
+| `num_entities` 重跑后翻倍 | 以为 upsert 插了重复行 | 它是**近似值且含已删未压实墓碑**，upsert = delete + insert | 用 `query(count(*))` 取精确存活数，并把墓碑数一起打印 |
 
 **列集合比对脚本**（每次改 `pg_init.sql` 都该跑一遍，比人眼看靠谱）：
 
@@ -397,10 +478,12 @@ python scripts/verify_infra.py \
 - [x] `audit_logs` / `chat_logs` / `usage_events` 的 `MAX(时间)` 与源库**逐字节相同**（无 8 小时偏移）
 - [x] 重跑一次 `--apply`：实际写入 0、跳过 903（可重入性可观测）
 - [x] `--apply --truncate` 清空 20 表后完整重建 903 行
-- [ ] `chunk_embeddings` 只保留**一个**嵌入命名空间，另一个有明确处置 ← **未做**（需先判定两个模型是否同一向量空间，见 §5.2）
-- [ ] Milvus collection 已建、`num_partitions` 已定 ← **未做**（本机拉不到 milvus 镜像）
-- [ ] 对账跑过：幽灵向量 = 0，漏迁 = 0 ← **未做**（依赖 Milvus）
+- [ ] `chunk_embeddings` 只保留**一个**嵌入命名空间，另一个有明确处置 ← **部分做**：Milvus 只迁了 `external:BAAI/bge-m3`（83 条），`text-embedding-bge-m3`（46 条）显式跳过并报数；但**两个模型是否同一向量空间仍未判定**（需对同文本分别 re-embed 比对距离）
+- [x] Milvus collection 已建、`num_partitions` 已定（32，建成后不可改）
+- [x] 对账跑过：幽灵向量 = 0，漏迁 = 0
+- [x] 权限 expr 反证：错 tenant 命中 0 条；按 `doc_id` 收窄后文档数从 46 → 1
 - [ ] 影子读阶段的两库结果比对不一致率 < 0.1% ← **未做**（需应用侧双读改造）
+- [ ] `webapp/rag.py` 真正改走 Milvus 召回 ← **未做**（本次只迁数据 + 验 expr，主链路仍用 SQLite 向量）
 - [ ] 回滚判据写进值班文档 ← 判据已写在 §7，**尚未进值班文档**
 
 ---
@@ -425,6 +508,11 @@ python scripts/verify_infra.py \
 把「尝试 / 实际写入 / 跳过」分开报，才是跑过的人才会做的设计。
 
 **诚实边界**：`--apply` 已在真 PG 上跑通（903 行 / 20 表一致 / 时间逐字节对齐），
-但 **Milvus 向量迁移只设计未实现**（本机拉不到镜像），**Celery 映射只设计未实现**，
-**影子读双跑未做**（需应用侧改造）。
+向量迁移也已在真 Milvus 上跑通（83 条 / 幽灵 0 / 漏迁 0 / 回查 20-20 命中 / expr 收窄生效）。
+但 **Celery 映射只设计未实现**，**影子读双跑未做**（需应用侧改造），
+**`webapp/rag.py` 主链路仍走 SQLite 向量、没有真正切到 Milvus 召回**。
 **说清楚哪一步没做，比把设计说成实现更值钱。**
+
+**再加一条能立刻分辨真假的**：问他「Milvus 里有多少条向量」。
+答得出「存活 83 条、另有 N 条已删墓碑」的是真跑过；
+只报 `num_entities` 的，八成没注意它是近似值。

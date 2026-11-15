@@ -546,10 +546,12 @@ footer .fine{border-top:1px solid var(--border);padding-top:16px;line-height:1.8
       <div class="card rise" style="--d:.13s">
         <h3>只设计 <span class="badge a">生产基础设施 · 未接入</span></h3>
         <p><b>要分层说，不能一句「没做」糊过去</b>：<code>backend/</code> 骨架里<b>算法与契约层有代码、有单测</b>；
-          真实 PG / Milvus / Redis / Celery 集群<b>没接、没集成测</b>。下面逐条标清测到哪一层。</p>
+          真实 PG / Milvus / Redis 已在 2026-11-15 起在本机并跑通迁移与过滤验证，**Celery 集群仍未接**；
+          但 <code>webapp/</code> 演示切片走的仍是 SQLite 替身。下面逐条标清测到哪一层。</p>
         <ul>
           <li>混合检索：<code>rrf_fuse()</code> + <code>decide()</code> 召回前 expr / 召回后逐条复核，<b>契约层已实测</b>；
-            PG <code>tsvector</code> 全文、真实 Milvus expr 执行、端到端 MRR/NDCG <b>未测</b></li>
+            真实 Milvus <code>expr</code> 执行 <b>已实测</b>（错 tenant 0 条、按 doc 收窄 46→1）；
+            PG <code>tsvector</code> 全文、端到端 MRR/NDCG <b>未测</b></li>
           <li>进度：阶段权重单调性、体积加权、取消排除 <b>已实测（纯函数）</b>；
             Celery 批次/页级 chord、Redis pub/sub 快照与断线重连 <b>未测</b></li>
           <li>部门权限：<code>decide()</code> 的越权红线 8 项（显式 deny / 跨部门 / 子树 / 敏感度上限）<b>已实测</b>；
@@ -916,8 +918,11 @@ footer .fine{border-top:1px solid var(--border);padding-top:16px;line-height:1.8
         <p><code>evalbench/</code> 用 <b>12 条自建样本</b>做多轮迭代对照，指标是 <code>recall@k</code>、
           引用命中率、<code>answer_economy</code>。但样本是自建、口径是 RGB/SQuAD 的任务借鉴而非官方抽样，
           所以结果标 <code>comparable=false</code>，<b>不进任何质量结论、不据此冻结阈值</b>。</p>
-        <div class="note"><b>没测什么</b>：真实 PG 全文检索与 Milvus expr 执行、混合检索的 MRR/NDCG、P95 延迟、
-          Redis 断线重连、Celery 页级 chord。原因是这些组件在本仓没有接入，拿 SQLite 替身的通过结果说「生产测过了」是失真。</div>
+        <div class="note"><b>已补上的一条</b>：真 Milvus 2.5.10 上的 <code>expr</code> 执行已实测——
+          错 tenant 命中 <b>0 条</b>、按 <code>doc_id</code> 收窄后文档数 <b>46 → 1</b>。
+          这说明「先按权限过滤再检索」不只是代码里写了对的字符串，而是<b>真的在过滤</b>。
+          <br><b>仍没测</b>：真实 PG 全文检索、混合检索的 MRR/NDCG、P95 延迟、Redis 断线重连、Celery 页级 chord，
+          以及 <code>rag.py</code> 主链路切到 Milvus 之后的召回变化。<b>拿 SQLite 替身的通过结果说「生产测过了」是失真。</b></div>
         <div class="rfoot">复跑：<code>python webapp/selftest.py</code>（33 项）· <code>python -m pytest webapp/tests -q</code>（134 项）</div>
       </div>
 
@@ -1634,6 +1639,18 @@ footer .fine{border-top:1px solid var(--border);padding-top:16px;line-height:1.8
             <td class="num">内存 6 次 vs Redis 3 次</td>
             <td><b>放大 2.0×</b>：进程内窗口各算各的，配额被复制到每个副本</td>
             <td class="src">scripts/verify_infra.py --skip-pg</td></tr>
+          <tr><td><b>向量迁移</b>：83 条 → 真 Milvus 2.5.10</td>
+            <td class="num">幽灵 0 / 漏迁 0</td>
+            <td>只报「写入 83 行」不算证据；必须对账主键集合</td>
+            <td class="src">scripts/migrate_vectors_to_milvus.py --apply</td></tr>
+          <tr><td><b>向量回查</b>：20 条真实向量自检索</td>
+            <td class="num">20/20 在 top-k · score=1.0000</td>
+            <td>字段错位或向量写坏时回查必失败；<b>但不断言 top1 = 自己</b>——库里有 5 组逐元素相同的重复向量，同向量先后是未定义的</td>
+            <td class="src">同上 · <code>in_topk=20</code></td></tr>
+          <tr><td><b>权限 expr 反证</b>：错 tenant / 按 doc 收窄</td>
+            <td class="num">0 条 / 46→1 文档</td>
+            <td>只验「连上了」等于没验；<b>过滤必须能证明真的发生了</b></td>
+            <td class="src">scripts/verify_infra.py --skip-pg --skip-redis</td></tr>
           <tr><td><b><code>/metrics</code> 真实抓取</b></td>
             <td class="num">6 指标 · 零值样本齐</td>
             <td>零值不预置，告警条件永远 no data，等于没装监控</td>
@@ -1641,9 +1658,11 @@ footer .fine{border-top:1px solid var(--border);padding-top:16px;line-height:1.8
         </tbody>
       </table>
     </div>
-    <p class="tbl-note"><b>边界</b>：Milvus 与 Celery 映射仍只设计——本机拉不到 <code>milvus/etcd/minio</code> 镜像，
-      且真实集群不是「能起容器」就等于「能上生产」。本组数字全部来自 <code>scripts/verify_infra.py</code>
-      的一条命令，可复跑；但它验的是<b>正确性</b>，不是吞吐。</p>
+    <p class="tbl-note"><b>边界</b>：Celery 映射仍只设计；<code>webapp/rag.py</code> 主链路仍走 SQLite 向量，
+      <b>尚未真正切到 Milvus 召回</b>——本次做的是「数据迁到位 + 过滤能证明」。
+      Milvus 用 <code>storageType=local</code> 起（minio 镜像在国内几个源都拿不到），
+      这是 standalone 妥协，生产必须对象存储。本组数字全部来自 <code>scripts/verify_infra.py</code>
+      与两个迁移脚本的一条命令，可复跑；但它验的是<b>正确性</b>，不是吞吐。</p>
   </div>
 </section>
 
@@ -1828,9 +1847,10 @@ footer .fine{border-top:1px solid var(--border);padding-top:16px;line-height:1.8
       <details class="rise" style="--d:.56s">
         <summary>你说这些「只设计」，那到底测没测？</summary>
         <div class="ans">
-          <p><b>先分两层，别一句「没做」糊过去</b>：① <b>算法 / 契约层</b>——<code>backend/</code> 骨架里是有代码、有单测的；② <b>基础设施集成层</b>——真实 PG <code>tsvector</code>、Milvus 集群、Redis pub/sub、Celery broker/chord 确实没接、没集成测。演示切片是 SQLite + 进程内队列替身，<b>替身跑通不等于生产组件测过</b>。</p>
+          <p><b>先分两层，别一句「没做」糊过去</b>：① <b>算法 / 契约层</b>——<code>backend/</code> 骨架里是有代码、有单测的；② <b>基础设施集成层</b>——2026-11-15 已在本机把真 PG 16 / Redis 7 / Milvus 2.5.10 起起来，跑通「903 行数据迁移 + 83 条向量迁移 + 权限 expr 反证」；但真实 PG <code>tsvector</code> 全文、Celery broker/chord 仍未接。演示切片是 SQLite + 进程内队列替身，<b>替身跑通不等于生产组件测过</b>，反过来<b>集成层跑通也不等于切片已经切过去了</b>。</p>
           <p><b>实测命令与数字</b>：<code>python -m pytest -q backend/tests</code> → <b>26 passed</b>。原有 16 项覆盖 <code>rrf_fuse()</code> 双路去重与排名、<code>decide()</code> 的八条越权红线（显式 deny 优先 / 跨部门拒绝 / 部门管理员覆盖子树 / 敏感度上限 / 精细权限开关默认关）、阶段进度单调性与体积加权。本轮又补了 <code>backend/tests/test_retrieval_contract.py</code> 的 10 项离线对拍：把「召回前 expr 收窄 → 召回后逐条 <code>decide()</code> → RRF 融合」的<b>顺序纪律</b>锁住，其中 A13 双向一致性验证 expr 排除的候选不会被 <code>decide()</code> 放行，以及<b>融合不能把被过滤的片段重新带回来</b>（对照实验里不过滤时跨部门片段会排第一）。全部离线可跑、不连真库。</p>
-          <p><b>明确没测，也不假装测过</b>：真实 PG 全文/BM25 与真实 Milvus expr 执行、混合检索的 MRR/NDCG 与 P95 延迟、Redis 快照的断线重连、Celery 页级 chord 与失败重试、完整部门树拓扑 <code>visible_department_ids()</code>、逐段落/逐行 ACL、trace→span 全链路与全局并发闸。原因是这些组件在本仓<b>没有接入</b>，也没有评估集和压测环境；拿 SQLite 替身的通过结果去说「生产测过了」是失真。</p>
+          <p><b>集成层另有实测</b>：<code>python scripts/verify_infra.py</code> 一条命令验完三项 —— PG 20 表 / 种子无偏差 / <code>created_at</code> 真的是 <code>timestamptz</code>；Redis 在 <code>limit=3</code> 下两进程内存放行 6 次、Redis 放行 3 次（放大 2.0×）；Milvus 存活 83 条向量、错 tenant 命中 0 条、按 <code>doc_id</code> 收窄后文档数 46→1。向量的自证是「20 条真实向量回查，20/20 在 top-k 且 <code>score=1.0000</code>」。</p>
+          <p><b>明确没测，也不假装测过</b>：真实 PG 全文/BM25 与端到端 MRR/NDCG、P95 延迟、Redis 快照的断线重连与 Cluster 形态、Celery 页级 chord 与失败重试、完整部门树拓扑 <code>visible_department_ids()</code>、逐段落/逐行 ACL、trace→span 全链路与全局并发闸，以及 <code>rag.py</code> 主链路切到 Milvus 之后的召回变化。这些都是<b>真的没做</b>：没有评估集、没有压测环境，切片也还没切过去。拿替身的通过结果去说「生产测过了」是失真。</p>
           <p><b>面试标准答法</b>：先把卡片上的四项按「已实测（契约层）／未测（集成层）」拆开，报出可复跑命令和 26 passed，再主动列出没测清单和缺什么才能测（真实集群 + 评估集 + 压测），最后说明演示替身与生产实现的边界。<b>把「只设计」当挡箭牌会被追问穿，分层说清楚反而加分。</b></p>
         </div>
       </details>
