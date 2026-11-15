@@ -2,7 +2,7 @@
 
 ## 定位与约定
 **开发框架骨架**（学习+面试+逐步生产化），A/B/C 三档，**面试别把 A 档说成 C 档**。栈固定 React/FastAPI/PG/Milvus/Redis + 外部 DeepSeek。
-用户学 FastAPI+DB（后 SpringBoot）：注释讲**设计取舍**，文档必分「已实现/只设计/未做」。v1.0.0 三态定版 ≠ 可上线；未做 20 项见 `docs/production/07-remaining-work.md`。
+用户学 FastAPI+DB（后 SpringBoot）：注释讲**设计取舍**，文档必分「已实现/只设计/未做」。v1.0.0 三态定版 ≠ 可上线；未做 18 项（20 项中 2 项已闭环）见 `docs/production/07-remaining-work.md`，§11 已分档「值得做 1 / 只值得说 17」。
 v1.1.0 `evalfmt/`；v1.2.0 公开基准（tag `v1.2.0`）。回归全绿：六个包 pytest + backend + eval + evalbench 全过；e2e 33/33；demo 16/16。
 应用层 `webapp/`(8765, admin/admin123) + `backend/` + `frontend/` + `eval/`/`evalbench/`；六个纯函数包与 `demo/`(冻结区) 见 README。
 
@@ -34,7 +34,7 @@ nDCG@10：BM25 16.29% → **bge-m3 33.93%**；前缀 31.05%、融合 w=0.85 31.9
 
 ## 已验证的坑
 网关末尾 `choices: []` 纯 usage 块要跳过；`/metrics` 只输出有样本的行；内嵌预览面板拦 `window.open`→改同标签 `<a>`；
-旁路 `except: pass` 会把「功能已坏」伪装成「什么都没发生」；Docker 中文路径→拆 `docker build`+`run`；`docker exec`→`MSYS_NO_PATHCONV=1`。
+旁路 `except: pass` 会把「功能已坏」伪装成「什么都没发生」；同名 bge-m3 跨实现同文本余弦仅 **0.977**（同端点重调 0.99996）→ 缓存 key 必带实现前缀，不能按模型名认亲。
 **三条已证伪误报别再写**：内联处理器全有定义 / 两个 Dockerfile 都在 / `npm run build` 通过。
 
 ## 命令与三查
