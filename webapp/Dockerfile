@@ -1,5 +1,8 @@
 # webapp 演示切片镜像：登录 / 文档管理 / 流式问答 / 评测 / badcase / 内容安全。
-# 只 COPY webapp 与它依赖的纯函数包；不 COPY backend/ eval/ demo/。
+# 只 COPY webapp 与它依赖的纯函数包；不 COPY backend/ demo/。
+# **例外**：`eval/config/` 必须进镜像 —— `/api/eval/objects` 直接读它做事实源
+#   （避免页面写死对象清单与评测体系不一致）。漏了这行会让该端点 500。
+#   只带 config/，不带 eval/objects、results、tests 等冻结物料。
 # 密钥只从环境变量注入：本文件不含任何密钥值，也不读取 .env。
 #
 # 国内网络构建（可选）：
@@ -30,6 +33,9 @@ COPY knowledge/ ./knowledge/
 
 # 演示切片本体（含静态前端与 out/ 事实源）
 COPY webapp/ ./webapp/
+
+# 评测注册表：`/api/eval/objects` 的运行期只读事实源（见文件头说明）
+COPY eval/config/ ./eval/config/
 
 # 运行期数据目录（SQLite 与上传）；挂 volume 可持久化
 RUN mkdir -p /app/.data/webapp/uploads /app/webapp/out

@@ -98,8 +98,18 @@ def search_preview(q: str = Query(..., min_length=1), top_k: int = Query(4, ge=1
 
 @router.get("/eval/objects")
 def eval_objects(_: dict = Depends(get_current_user)):
-    """版本化对象清单，直接读 eval/config/registry.json（与评测体系同一事实源）。"""
-    data = json.loads(REGISTRY.read_text(encoding="utf-8"))
+    """版本化对象清单，直接读 eval/config/registry.json（与评测体系同一事实源）。
+
+    文件缺失/损坏时返回 503 + 明确原因，而不是让 `read_text` 抛出去变 500。
+    真实发生过：镜像只 COPY 了 `webapp/`，没带 `eval/config/`，
+    端点直接 500（plain text，连 JSON 都不是），排查时先怀疑代码，实际是打包漏文件。
+    """
+    try:
+        data = json.loads(REGISTRY.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        raise HTTPException(503, f"评测注册表缺失：{REGISTRY.name}（镜像需 COPY eval/config/）")
+    except (OSError, json.JSONDecodeError) as exc:
+        raise HTTPException(503, f"评测注册表不可读：{type(exc).__name__}")
     return {
         "registry_id": data.get("registry_id"),
         "registry_version": data.get("version"),

@@ -25,6 +25,17 @@ DB_PATH = Path(os.environ.get("WEBAPP_DB_PATH", str(DATA_DIR / "app.db")))
 
 _lock = threading.Lock()
 
+# 限流默认配额（唯一事实源）。`_seed()` 用它插种子，测试隔离用它还原，
+# `scripts/pg_init.sql` 的种子值必须与此逐字对齐（PG 侧无法 import，只能人工同步）。
+# 业务配额是三维 user/endpoint/model；ip 是接入层防刷附加维度，不进 RATE_DIMENSIONS。
+# department 只作成本归因，**不建规则行**（按部门限流是明确不做的）。
+RATE_RULE_DEFAULTS: dict[str, tuple[int, int]] = {
+    "user": (1200, 60),
+    "endpoint": (900, 60),
+    "model": (600, 60),
+    "ip": (600, 60),
+}
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
     id           TEXT PRIMARY KEY,
@@ -484,9 +495,8 @@ def _seed(conn: sqlite3.Connection) -> None:
     # 限流配额本体是三维；department 只作成本归因，不在此建规则行。
     # ip 是**接入层防刷附加维度**（不进 RATE_DIMENSIONS，不改变三维业务配额口径），
     # 600 次/分/IP 为演示起始值，防止未登录/匿名刷接口；可用 admin 页调小复现。
-    defaults = {"user": (1200, 60), "endpoint": (900, 60), "model": (600, 60),
-                "ip": (600, 60)}
-    for dim, (lim, win) in defaults.items():
+    # 数值来自模块级 RATE_RULE_DEFAULTS（唯一事实源，测试隔离也用它还原）。
+    for dim, (lim, win) in RATE_RULE_DEFAULTS.items():
         if not cur.execute("SELECT 1 FROM rate_rules WHERE dimension=?", (dim,)).fetchone():
             cur.execute(
                 "INSERT INTO rate_rules(dimension,limit_count,window_s,enabled,updated_at)"
