@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>公开检索基准报告 · CmedqaRetrieval</title>
+<style>
+  :root {
+    --bg:#f8fafc; --panel:#ffffff; --fg:#0f172a; --muted:#64748b;
+    --line:#e2e8f0; --accent:#0ea5e9; --up:#16a34a; --down:#dc2626;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#0b1220; --panel:#111a2b; --fg:#e2e8f0; --muted:#94a3b8;
+             --line:#1e2b45; --up:#4ade80; --down:#f87171; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:32px 20px 64px; background:var(--bg); color:var(--fg);
+         font:15px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",
+              "Microsoft YaHei",sans-serif; }
+  .wrap { max-width:980px; margin:0 auto; }
+  h1 { font-size:26px; margin:0 0 6px; letter-spacing:-.02em; }
+  h2 { font-size:18px; margin:36px 0 12px; padding-bottom:8px;
+        border-bottom:1px solid var(--line); }
+  .sub { color:var(--muted); font-size:13px; margin:0 0 24px; }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:12px;
+            padding:18px 20px; margin:16px 0; }
+  .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+           gap:12px; margin:16px 0; }
+  .kpi { background:var(--panel); border:1px solid var(--line); border-radius:12px;
+          padding:14px 16px; }
+  .kpi b { display:block; font-size:24px; letter-spacing:-.02em; }
+  .kpi span { color:var(--muted); font-size:12px; }
+  table { width:100%; border-collapse:collapse; font-size:13.5px; }
+  th,td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); }
+  th { color:var(--muted); font-weight:600; font-size:12.5px; }
+  td.num { text-align:right; font-variant-numeric:tabular-nums; }
+  tr.best td { background:rgba(14,165,233,.10); font-weight:600; }
+  .up { color:var(--up); font-weight:600; }
+  .down { color:var(--down); font-weight:600; }
+  .flat { color:var(--muted); }
+  .cap { color:var(--muted); font-size:12.5px; margin:8px 0 0; }
+  code { background:rgba(127,127,127,.12); padding:1px 5px; border-radius:4px;
+          font-size:12.5px; }
+  ul { padding-left:20px; } li { margin:6px 0; }
+  .warn { border-left:3px solid #f59e0b; padding-left:14px; color:var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>公开检索基准 · CmedqaRetrieval</h1>
+  <p class="sub">CmedqaRetrieval（C-MTEB / MTEB 中文医疗问答检索） ·
+     生成于 2026-11-15T18:33:05Z · 全流程 83.0s</p>
+
+  <div class="kpis">
+    <div class="kpi"><b>100,001</b><span>passage（全量，未抽样）</span></div>
+    <div class="kpi"><b>3,999</b><span>query（全量）</span></div>
+    <div class="kpi"><b>7,449</b><span>相关性标注对</span></div>
+    <div class="kpi"><b>2429 / 1570</b><span>调参集 / 测试集</span></div>
+  </div>
+
+  <div class="panel">
+    <h2 style="margin-top:0">一、结论先行</h2>
+    <p>在<b>测试集</b>（未参与调参的 1570 条 query）上，最佳一阶段配置是
+       <b>向量 bge-m3</b>，nDCG@10 = <b>33.93%</b>，
+       比词法基线（BM25 16.29%）高 <b>+17.63</b> 个百分点。</p>
+    <p>三个参数各自的收敛结论：
+      查询前缀 <b>无收益，不采用</b>
+      （31.05% vs 纯向量 33.93%）；
+      BM25 与向量的融合 <b>无收益，不采用</b>
+      （加权 w=0.85 时 31.98%）；
+      重排深度取 <b>top20</b>（两档只差 0.06 个点，按成本取浅的）：在同一批 400 条 query 上，
+      重排把 nDCG@10 从 <b>32.79%</b> 提到
+      <b>36.09%</b>（<b>+3.30</b> 个百分点）。</p>
+    <p class="cap">注意：重排那一行是<b>子集</b>数字（400 条），只能和它的同子集基线比，
+    不能和右边全量测试集的数字横向比。</p>
+  </div>
+
+  <h2>二、基线 → 向量的增益（测试集 nDCG@10）</h2>
+  <div class="panel"><svg viewBox="0 0 640 176" width="100%" height="176" role="img" aria-label="nDCG@10 对比"><text x="0" y="29" font-size="13" fill="currentColor">bm25（词法基线）</text><rect x="200" y="10" width="154.4" height="26" rx="4" fill="#94a3b8"/><text x="362" y="29" font-size="13" font-weight="600" fill="currentColor">16.29%</text><text x="0" y="67" font-size="13" fill="currentColor">向量 bge-m3</text><rect x="200" y="48" width="321.4" height="26" rx="4" fill="#3b82f6"/><text x="529" y="67" font-size="13" font-weight="600" fill="currentColor">33.93%</text><text x="0" y="105" font-size="13" fill="currentColor">向量 + 查询前缀</text><rect x="200" y="86" width="294.1" height="26" rx="4" fill="#6366f1"/><text x="502" y="105" font-size="13" font-weight="600" fill="currentColor">31.05%</text><text x="0" y="143" font-size="13" fill="currentColor">向量+BM25 加权融合 w=0.85</text><rect x="200" y="124" width="302.9" height="26" rx="4" fill="#0ea5e9"/><text x="511" y="143" font-size="13" font-weight="600" fill="currentColor">31.98%</text></svg></div>
+
+  <h2>三、最终指标（测试集）</h2>
+  <div class="panel"><table><thead><tr><th>配置</th><th>nDCG@10</th><th>Recall@1</th><th>Recall@10</th><th>Recall@20</th><th>MRR@10</th><th>Δ nDCG@10</th><th>评测 query</th></tr></thead><tbody><tr><td>bm25（词法基线）</td><td class='num'>16.29%</td><td class='num'>9.23%</td><td class='num'>19.73%</td><td class='num'>24.78%</td><td class='num'>0.1956</td><td class='num'><span class="flat">0.00</span></td><td class='num'>1570</td></tr><tr><td>向量 bge-m3</td><td class='num'>33.93%</td><td class='num'>18.96%</td><td class='num'>42.93%</td><td class='num'>50.86%</td><td class='num'>0.3675</td><td class='num'><span class="up">+17.63</span></td><td class='num'>1570</td></tr><tr><td>向量 + 查询前缀</td><td class='num'>31.05%</td><td class='num'>17.04%</td><td class='num'>38.85%</td><td class='num'>47.35%</td><td class='num'>0.3417</td><td class='num'><span class="up">+14.75</span></td><td class='num'>1570</td></tr><tr><td>向量+BM25 加权融合 w=0.85</td><td class='num'>31.98%</td><td class='num'>16.72%</td><td class='num'>41.84%</td><td class='num'>50.66%</td><td class='num'>0.3416</td><td class='num'><span class="up">+15.68</span></td><td class='num'>1570</td></tr></tbody></table><p class='cap'>测试集 = 未参与调参的 1570 条 query；Δ 相对 BM25 基线。</p></div>
+
+  <h2>四、调参过程①：BM25 词项预算是多少合适</h2>
+  <div class="panel"><table><thead><tr><th>每条 query 参与打分的词项数</th><th>nDCG@10</th><th>Recall@10</th><th>评测 query</th><th>耗时</th></tr></thead><tbody><tr><td>12</td><td class='num'>11.13%</td><td class='num'>15.12%</td><td class='num'>400</td><td class='num'>0.4s</td></tr><tr><td>30</td><td class='num'>14.95%</td><td class='num'>20.25%</td><td class='num'>400</td><td class='num'>5.8s</td></tr><tr class=best><td>100</td><td class='num'>15.18%</td><td class='num'>19.92%</td><td class='num'>400</td><td class='num'>34.0s</td></tr></tbody></table>
+    <p class="cap">BM25 是<b>基线</b>，基线越强，向量的增益才算数。中文单字词项在 10 万篇里
+      df 能到 8 万，对排序没有区分度却要扫 8 万条倒排项；所以只取 df 最小的 N 项计分。
+      N 太小丢信号，太大纯烧 CPU —— 这里用实测选，不用手感选。
+      最终选 <b>100</b>。</p>
+  </div>
+
+  <h2>五、调参过程②：融合权重</h2>
+  <div class="panel"><table><thead><tr><th>向量权重 w</th><th>nDCG@10</th><th>Recall@1</th><th>Recall@10</th><th>MRR@10</th></tr></thead><tbody><tr><td>0.50 / 0.50</td><td class='num'>24.73%</td><td class='num'>13.29%</td><td class='num'>32.92%</td><td class='num'>0.2727</td></tr><tr><td>0.70 / 0.30</td><td class='num'>28.28%</td><td class='num'>14.55%</td><td class='num'>39.26%</td><td class='num'>0.3016</td></tr><tr class=best><td>0.85 / 0.15</td><td class='num'>30.46%</td><td class='num'>15.13%</td><td class='num'>41.68%</td><td class='num'>0.3241</td></tr></tbody></table>
+    <p class="cap">RRF 只用名次不用分数，避免两路分数量纲不同。但<b>等权融合是个陷阱</b>：
+      BM25 在这套数据上弱得多，等权等于把噪声按 50% 掺进来。扫描结果<b>单调上升</b>（24.73% → 28.28% → 30.46%），而再往上就是<b>纯向量本身</b>（33.93%）：权重越大越接近纯向量、指标越好，说明 BM25 在这套数据上只贡献噪声，正确做法是<b>不融合</b>，而不是把权重调小一点意思一下。</p>
+  </div>
+
+  <h2>六、调参过程③：重排深度</h2>
+  <div class="panel"><table><thead><tr><th>重排深度</th><th>nDCG@10</th><th>Recall@1</th><th>Recall@10</th><th>评测 query</th><th>调用失败</th><th>本次耗时</th><th>走缓存</th></tr></thead><tbody><tr class=best><td>top20</td><td class='num'>36.09%</td><td class='num'>20.42%</td><td class='num'>45.42%</td><td class='num'>400</td><td class='num'>0</td><td class='num'>0.0s</td><td class='num'>400/400</td></tr><tr><td>top50</td><td class='num'>36.02%</td><td class='num'>19.55%</td><td class='num'>46.80%</td><td class='num'>400</td><td class='num'>0</td><td class='num'>0.0s</td><td class='num'>400/400</td></tr></tbody></table>
+    <p class="cap">重排接在<b>一阶段最优配置「向量 bge-m3」</b>的候选上，
+      不是接在 RRF 上——如果一阶段就该用纯向量，从更差的候选集里重排毫无意义。
+      对照行「不重排」用的是<b>同一批 400 条 query</b>，所以增益是干净的。
+      深度是成本项：每次要把 top-N 条候选原文发给 cross-encoder。
+      「本次耗时 0.0s」表示分数全部命中磁盘缓存；冷跑实测 top20 约 150s、top50 约 280s
+      （400 条 query、单条约 0.38s）。
+      <b>top20 与另一档只差 0.06 个百分点，这在 400 条 query 上属于噪声</b>，不该说成「调出了最优深度」；按成本取更浅的那档。</p>
+  </div>
+
+  <h2>七、调参集全量对比（参数在这里选）</h2>
+  <div class="panel"><table><thead><tr><th>配置</th><th>nDCG@10</th><th>Recall@1</th><th>Recall@10</th><th>Recall@20</th><th>MRR@10</th><th>Δ nDCG@10</th><th>评测 query</th></tr></thead><tbody><tr><td>bm25（词法基线）</td><td class='num'>15.55%</td><td class='num'>8.95%</td><td class='num'>19.04%</td><td class='num'>23.91%</td><td class='num'>0.1801</td><td class='num'><span class="flat">0.00</span></td><td class='num'>2429</td></tr><tr><td>向量 bge-m3</td><td class='num'>33.75%</td><td class='num'>18.49%</td><td class='num'>42.15%</td><td class='num'>49.84%</td><td class='num'>0.3680</td><td class='num'><span class="up">+18.20</span></td><td class='num'>2429</td></tr><tr><td>向量 + 查询前缀</td><td class='num'>31.27%</td><td class='num'>16.86%</td><td class='num'>39.54%</td><td class='num'>46.71%</td><td class='num'>0.3398</td><td class='num'><span class="up">+15.72</span></td><td class='num'>2429</td></tr><tr><td>向量+BM25 加权融合 w=0.85</td><td class='num'>31.63%</td><td class='num'>16.53%</td><td class='num'>41.65%</td><td class='num'>49.74%</td><td class='num'>0.3395</td><td class='num'><span class="up">+16.08</span></td><td class='num'>2429</td></tr></tbody></table><p class='cap'>调参集 = 2429 条 query。最终数字报在测试集，不报这里。</p></div>
+
+  <h2>八、口径与局限（面试如实说）</h2>
+  <div class="panel">
+    <ul>
+      <li><b>不与 C-MTEB 榜首直接可比</b>：数据与 qrels 来自公开数据集，但嵌入走硅基流动 API
+          （BAAI/bge-m3）、重排只对候选 top-k 做、没有官方 corpus 清洗流程。
+          能说的是「同一套数据、同一套指标下的相对差异」，不是「我们打平了 SOTA」。</li>
+      <li><b>重排只在子集上测</b>：400 条 query，因为每次要发 top-20 条候选给
+          cross-encoder。子集数字会略高于全量，方向可信、绝对值偏高。</li>
+      <li><b>相关性是二值的</b>：qrels 只有 score=1，nDCG 用二值增益算；原数据没有分级相关性。</li>
+      <li><b>BM25 是自己实现的</b>（字符单字+二元组、k1=1.2 / b=0.75、词项预算是上面调出来的），
+          不是 Lucene。它的作用是提供同数据上的参照，不代表工业级 BM25 的上限。</li>
+      <li><b>调参集/测试集按 query-id 哈希切分</b>，不是随机种子——换机器、换 Python 版本切分都一样。</li>
+      <li><b>绝对分数偏低是数据特性</b>：CmedqaRetrieval 平均每条 query 只有 1.86 条 gold，
+          且 passage 是长回答、query 是长问题描述，中文语义匹配本身就吃力。
+          所以看的是<b>配置之间的相对差</b>，不是「0.4 算不算及格」。</li>
+    </ul>
+    <p class="warn">一句话总结：这套评测能回答「向量比词法强多少、前缀有没有用、融合与重排值不值」，
+       不能回答「我们的系统在中文检索里排第几」。</p>
+  </div>
+
+  <h2>九、两张成绩单不能互相替代</h2>
+  <div class="panel">
+    <p>本项目有两套评估，面试时<b>不要混着说</b>：</p>
+    <ul>
+      <li><b>本页（公开集 10 万篇）</b>回答「检索算法选得对不对」——
+          有官方 qrels、有 BM25 同数据基线、有调参/测试切分，所以数字可对外比。</li>
+      <li><b><code>evalfmt.run_eval</code>（自建 10 份多格式语料 / 9 道正例题）</b>回答「整条链路通不通」——
+          上传→解析（含 PDF、表格、无字图片）→分块→检索→生成→脱敏，能抓出「PDF 解析失败」
+          「内网 IP 被误判成隐私」这类工程缺陷，但样本只有 9 题，<b>它的 100% 不证明系统强</b>。</li>
+    </ul>
+    <p class="cap">一句话：公开集证明「检索能打」，自建集证明「管道没漏」。前者怕样本作弊，后者怕样本太少。</p>
+  </div>
+
+  <h2>十、复现</h2>
+  <div class="panel">
+    <p><code>python -m evalfmt.publicbench download</code> → 从 hf-mirror 拉 3 个 parquet</p>
+    <p><code>python -m evalfmt.publicbench embed</code> → 全量向量化并缓存到磁盘（断点续跑）</p>
+    <p><code>python -m evalfmt.publicbench run</code> → 扫参 + 五组配置 + 生成本页</p>
+    <p class="cap">原始数字：evalfmt/out/publicbench.json ·
+      重排分数缓存：evalfmt/.cache/rerank_scores.json（重跑不重复调 API）</p>
+  </div>
+</div>
+</body>
+</html>

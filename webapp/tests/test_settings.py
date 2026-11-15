@@ -122,6 +122,12 @@ _EXT = {
 
 
 def test_external_embedding_effective_config(monkeypatch):
+    # 这两把 key 的优先级是「独立嵌入 key > 共用的 RERANK_API_KEY」，
+    # 不清掉会带走 .env 里的真实值——那样的断言在本机能过、换台机器就挂，
+    # 而且会把真 key 打进出错信息里。
+    monkeypatch.delenv("WEBAPP_EMBEDDING_API_KEY", raising=False)
+    monkeypatch.delenv("EXTERNAL_EMBED_BASE_URL", raising=False)
+    monkeypatch.delenv("EXTERNAL_EMBED_MODEL", raising=False)
     monkeypatch.setenv("RERANK_API_KEY", "sk-test")
     eff = settings.effective_embedding(_EXT)
     assert eff["kind"] == "external"
@@ -129,6 +135,14 @@ def test_external_embedding_effective_config(monkeypatch):
     assert eff["model"] == "BAAI/bge-m3"
     assert eff["api_key"] == "sk-test"
     assert eff["name"] == "external:BAAI/bge-m3"
+
+
+def test_external_embedding_prefers_dedicated_key(monkeypatch):
+    """独立嵌入 key 存在时必须优先于共用的 RERANK_API_KEY。"""
+    monkeypatch.setenv("RERANK_API_KEY", "sk-shared")
+    monkeypatch.setenv("WEBAPP_EMBEDDING_API_KEY", "sk-dedicated")
+    eff = settings.effective_embedding(_EXT)
+    assert eff["api_key"] == "sk-dedicated"
 
 
 def test_embedding_cache_key_isolated_across_providers():
@@ -141,6 +155,9 @@ def test_embedding_cache_key_isolated_across_providers():
 
 
 def test_get_embedding_external_uses_openai_like_with_key(monkeypatch):
+    monkeypatch.delenv("WEBAPP_EMBEDDING_API_KEY", raising=False)
+    monkeypatch.delenv("EXTERNAL_EMBED_BASE_URL", raising=False)
+    monkeypatch.delenv("EXTERNAL_EMBED_MODEL", raising=False)
     monkeypatch.setenv("RERANK_API_KEY", "sk-test")
     p = providers.get_embedding(_EXT)
     assert isinstance(p, providers.OpenAILikeEmbeddingProvider)
