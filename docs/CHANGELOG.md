@@ -152,7 +152,9 @@
 
 **两个实测踩到的坑（写进 `08` §6.5.2）**
 1. `postgres:16-alpine` 里 `apk add postgresql-pgvector` 装的是 **PG 18 的扩展**（官方镜像的 PG 是源码编译在 `/usr/local`，apk 包另拉了一套 PG 18）→ 只能换镜像，不能靠 apk。
-2. 扩展是**库级**的，装不进业务 schema：测试 schema 的 `search_path` 只含自己时，`vector(1024)` 与 `a <=> b` 都解析不到 → 修 `pgkit.connect` 与 `cache/tests/conftest.py` 两处为 `SET search_path TO "<schema>", public`。
+2. 扩展是**库级**的，装不进业务 schema：测试 schema 的 `search_path` 只含自己时，`vector(1024)` 与 `a <=> b` 都解析不到 → 修 `pgkit.connect` 与 `cache/tests/conftest.py` 两处，把 `search_path` 定为 `"<schema>", public`。
+   **补记（v1.3.1）**：接连接池后这个修法不够了——`SET` 是会话级状态，会被下一个借用人继承，
+   已改为「连接建立时走 `connect_args` 的 `options` + checkout 时复核」，见 v1.3.1「池化引入的一个真实新风险」。
 
 **验证**：单测 **259 passed**（六个包 + 新 4 项）；端到端 `webapp/selftest.py` **33/33 `DEMO_READY`**（新代码 + 无 Milvus）；`verify_infra.py` → `INFRA_READY`。
 
@@ -164,6 +166,55 @@
 > 这是行为选择，留给下一步定。
 
 ---
+
+## v1.3.1 · 2026-11-16 · 连接层接入 SQLAlchemy Engine（池化），SQL 仍显式手写
+
+> **起因**：被问「SQLAlchemy 没用的话记得给系统用上」。核查发现 `backend/` 用了 SQLAlchemy 2.0 + Alembic
+> （真 ORM），而 `webapp/` 这一侧连工程都没装——连接是每次 `psycopg.connect()` 新建。
+> 于是接的是**池**，不是 ORM。
+
+| 日期 | 改进项 | 改动说明 | 影响范围 | 备注 |
+|---|---|---|---|---|
+| 2026-11-16 | **`pgkit` 换成 SQLAlchemy Engine + 连接池** | `connect()` 改为 `engine.raw_connection()` 取池化连接；`PgConn.close()` 从「断 TCP」改为 `fairy.close()`（**还池**）。全仓 **138 处** `finally: conn.close()` 零改动就从「每次重连」变成「归还」 | `pgkit.py`、`webapp/Dockerfile`（新增 `SQLAlchemy>=2.0,<2.1`） | 池按 `(DSN, schema)` 分池，测试 schema 不与生产 public 共用 |
+| 2026-11-16 | **为什么不上 ORM** | 138 处调用点是按 **SQL 文本**写的（`conn.execute("SELECT ...")` + 手写占位符），改 ORM 是**重写**而不是接入。这一层只用 Engine / 连接池 / `pool_pre_ping` / `pool_recycle`，SQL 全部保持原样 | `pgkit.py` docstring | 面试口径：说的是「接管连接生命周期」，不是「上了 ORM」 |
+| 2026-11-16 | **方言坑：必须 `postgresql+psycopg://`** | SQLAlchemy 的 `postgresql://` 默认解析成 psycopg2，本项目装的是 psycopg3 → `ModuleNotFoundError: psycopg2`。`_sqlalchemy_url()` 做前缀改写 | `pgkit.py` | 已用纯函数单测钉住 |
+| 2026-11-16 | **新增 5 项池化行为单测** | 池化是**不可见行为**：SQL 一样、功能测试全绿也证明不了池在复用。直接查 `pg_backend_pid()`：借还 20 次看到的**不同后端数 ≤ 池上限**；`autocommit` 每次 checkout 被重置；方言改写；search_path 在池复用后仍正确；**会话级 `SET` 无法污染池** | `webapp/tests/test_pgkit_pool.py` | 单测总数 259 → **264** |
+
+**为什么这次改动值得单列一版：连接开销比查询本身还贵**
+
+同一段 143 候选的 pgvector SQL，15 次取中位：
+
+| 路径 | 耗时 |
+|---|---|
+| 改前：每次 `psycopg.connect()` 直连 | **18.59 ms**（min 13.00 / max 29.80） |
+| 改后：池化 checkout | **3.77 ms**（min 3.34 / max 4.39） |
+| 提升 | **约 4.9×** |
+
+`connect()+close()` 单独计量：池化后 **0.42 ms**。剩下那点时间基本都是 TCP 建连 + PG 后端进程认证，
+不是 SQL 在跑——**v1.3.0 记的 2.18 ms 是「复用连接后只算 SQL」的口径，两者不可直接比**。
+
+**池化引入的一个真实新风险（已实测，已修）**
+
+换池之前，每次 `connect()` 都是新会话，任何会话级 `SET` 随连接一起消失。
+有了池，会话状态会**跨借用人存活**：
+
+```
+A: connect(autocommit=True) → SET search_path TO pg_catalog → close()   # 提交在物理连接上
+B: connect()                → SHOW search_path  →  pg_catalog          # 被上一个借用人污染
+```
+
+（`connect_args={"options": "-c search_path=..."}` **管不住这个**——它只在连接建立时生效。）
+修法：配置了 `WEBAPP_DB_SCHEMA` 时，`connect()` 在 checkout 处再补一条 `SET` 复核。
+代价 **1.4 ms/次**（两次往返），所以**只在用 schema 隔离的场景付这个钱**（测试 / 分环境部署），
+生产不设 schema 时零开销。验收做的是双向对拍：有复核 → `public,public`；把复核绕过 → `pg_catalog`。
+
+**验证**：单测 **264 passed**（259 + 5）；`backend/` 26、`eval/`+`evalbench/` 30、demo **16/16**；
+容器重建后 `webapp/selftest.py` **33/33 `DEMO_READY`**；`verify_infra.py` → `INFRA_READY`；
+冻结区 `eval/` `demo/` **零 diff**。容器内实测 `sqlalchemy 2.0.57`，两次取连接同一 `pg_backend_pid`。
+
+---
+
+
 
 ## 2026-11-16 追加 · 向量存储选型（`production/08-vector-store-decision.md`）
 

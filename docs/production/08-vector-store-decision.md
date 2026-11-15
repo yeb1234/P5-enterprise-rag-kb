@@ -169,6 +169,18 @@ Milvus standalone 的最小形态是 **etcd + 对象存储 + milvus 三件套**�
 > **这 32 倍不是 HNSW 的功劳，是「把计算搬进 PG + 二进制列」的功劳**。
 > HNSW 只有在数据量上去、且过滤后剩余候选仍然很多时才显效——那时才需要调 `hnsw.ef_search`。
 
+**口径补充（v1.3.1 接入连接池后重测，别把两行数字混着讲）**：上面 2.18 ms 是
+「连接已就绪、只算 SQL」的数字。端到端还要算上取连接的成本，而这块恰好被连接池改掉了：
+
+| 口径 | 改前（每次 `psycopg.connect()`） | 改后（SQLAlchemy 池 checkout） |
+|---|---|---|
+| 同一条 143 候选 SQL 的端到端（15 次中位） | **18.59 ms** | **3.77 ms** |
+| `connect()` + `close()` 单独计量 | 每次新建 TCP + PG 后端认证 | **0.42 ms**（还池） |
+
+也就是说：**连接开销曾经比查询本身贵 5 倍以上**，池化把它压到只有查询的十分之一量级。
+面试时这两组数字要分开说——`2.18 ms` 是 SQL 的功劳，`18.59 → 3.77` 是连接池的功劳。
+把 69.45 → 3.77 直接说成「32 倍」是不准确的（真实端到端倍数约 18×）。
+
 **排序一致性（A13 对拍的单次抽样结果）**：
 
 | 指标 | 结果 |
@@ -196,9 +208,24 @@ Milvus standalone 的最小形态是 **etcd + 对象存储 + milvus 三件套**�
 扩展是**库级**的，装不进业务 schema。测试用独立 schema 隔离，`SET search_path TO "kb_test_x"`
 之后 DDL 在 `embedding vector(1024)` 处直接报 `type "vector" does not exist`；
 SQL 里 `a <=> b` 则报 `operator does not exist: vector <=> vector`。
-修法是 `SET search_path TO "<schema>", public`（`pgkit.connect` 与 `cache/tests/conftest.py` 两处）。
+修法是把 `search_path` 定为 `"<schema>", public`——但**在哪设**很讲究，见坑三。
 代价要认：DDL 漏建某张表时，查询会静默落到 public 的同名表上——所以**不能让 DDL 悄悄失败**。
 （先试过把类型写成 `public.vector`，能过类型那关，但操作符仍然解析不到，只能修 search_path。）
+
+**坑三（v1.3.1 接连接池后新暴露）：`search_path` 写进一次性 `SET` 会被池化废掉。**
+`SET search_path` 是**会话级**状态。没有连接池时每次 `connect()` 都是新会话，所以怎么写都对；
+接上池之后，连接被反复借用，会话状态**跨借用人存活**：
+
+```
+A: connect(autocommit=True) → SET search_path TO pg_catalog → close()   # SET 已提交在物理连接上
+B: connect()                → SHOW search_path  →  pg_catalog          # 拿到的是上一个借用人的
+```
+
+正确修法是两层：**连接建立时**用 `connect_args={"options": "-c search_path=<schema>,public"}`，
+**checkout 时**再补一条 `SET` 复核（`options` 只在建立连接那一刻生效，管不住会话级 `SET`）。
+复核要两次往返、约 **1.4 ms**，所以只在配置了 `WEBAPP_DB_SCHEMA` 时做。
+这就是「串库」这类 bug 的可怕之处：功能测试全绿，只有第二个借用人拿到的数据不对。
+`webapp/tests/test_pgkit_pool.py` 里有一条用例专门守它（故意污染，断言下一个借用人仍然正确）。
 
 ## 7. 迁移步骤（2026-11-16 已执行；含实际路线）
 
