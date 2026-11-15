@@ -69,6 +69,16 @@ q = ("SELECT chunk_id, vec FROM chunk_embeddings WHERE model=? AND chunk_id IN (
   e2e 断言不能写死 top1；
 - 缓存 key 里 `embedding` 段是命名空间，切库后要确认 key 不串。
 
+> **2026-11-16 补充·已经改掉的两处（别按旧描述讲）**
+> ① **PDF 已接入主链路**：`rag.extract_text()` 现在对 `.pdf` 走 pypdf 文本层，
+>    有文本层的 PDF 能上传 → 分块 → 检索。仍然不支持：扫描版 PDF（无文本层）、图片、docx、xlsx。
+>    扫描件是**有意**报错而不是塞占位分块——OCR 没接主链路，宁可明确失败也不要污染检索。
+> ② **词法门禁职责改了**：原实现「先按词法筛候选，再在候选里向量排序」，中文问英文 PDF 零词法重叠，
+>    文档连进入排序的机会都没有（多格式评估实测 0 召回）。现在门禁只判定「有没有相关信号」，
+>    不挑候选；词法完全无命中时仍返回空，`retrieval_empty` 降级语义不变。
+>    这一条是 `evalfmt/` 评估抓出来的，改完 Recall@1 77.8% → 100%。
+>    但**向量仍存在 PG 的 `chunk_embeddings` 文本列**，Milvus 依旧没进主链路 —— 上面这条仍然成立。
+
 ### 2.2 两个嵌入命名空间是否同一向量空间 —— **未做**
 
 实测库里并存两套：`external:BAAI/bge-m3`（83 条）和 `text-embedding-bge-m3`（46 条）。

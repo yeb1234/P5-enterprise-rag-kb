@@ -37,6 +37,8 @@ def _now() -> str:
 
 def extract_text(path: Path) -> str | None:
     ext = path.suffix.lower()
+    if ext == ".pdf":
+        return _pdf_text(path)
     if ext not in _TEXT_EXT:
         return None  # 不支持的格式：返回 None 触发降级/错误提示
     try:
@@ -44,6 +46,29 @@ def extract_text(path: Path) -> str | None:
     except Exception:
         return None
     return raw
+
+
+def _pdf_text(path: Path) -> str | None:
+    """PDF 文本层提取（pypdf，镜像里已装）。
+
+    只取**文本层**，不做 OCR：
+    - 文件损坏 / 不是真 PDF → 抛异常 → 返回 None，走「不支持」错误路径（不静默）；
+    - 扫描件（页数正常但抽不出字符）→ 同样返回 None。**这是有意的**：
+      OCR / 视觉链路目前只在 `parsing/` 子系统里，没有接入主链路，
+      与其塞一个「[无文本层 PDF]」占位分块污染检索结果，不如明确报错。
+      接入 `parsing/` 之后这里应改成调用 ParseRouter 并保留降级痕迹。
+    """
+    try:
+        from pypdf import PdfReader  # 延迟导入：pypdf 缺失时不影响纯文本链路
+    except Exception:
+        return None
+    try:
+        reader = PdfReader(str(path))
+        pages = [(p.extract_text() or "").strip() for p in reader.pages]
+    except Exception:
+        return None
+    text = "\n\n".join(t for t in pages if t)
+    return text or None
 
 
 def chunk_text(text: str, size: int = CHUNK_SIZE, overlap: int = CHUNK_OVERLAP) -> list[str]:
@@ -74,7 +99,8 @@ def analyze_document(doc_id: str) -> None:
             _set_error(
                 conn,
                 doc_id,
-                "演示仅支持 txt/md/csv/json/py 等纯文本提取，该格式暂未解析",
+                "演示支持 txt/md/csv/json/py/log/yaml 等纯文本与**有文本层的 PDF**；"
+                "其余格式（扫描版 PDF / 图片 / docx / xlsx）暂未接入检索链路",
             )
             return
         # 入库前出口（GATE_INGEST）：分块之前一次性脱敏。晚一步做就晚了——
@@ -246,16 +272,24 @@ def retrieve(question: str, top_k: int = TOP_K, with_meta: bool = False):
     """
     cfg = settings.get_all()
     terms = _lexical_terms(question)
-    candidates = _load_ready_chunks() if terms else []
+    pool = _load_ready_chunks() if terms else []
+    gated: list[dict] = []
     if terms:
-        for c in candidates:
+        for c in pool:
             tl = (c["text"] or "").lower()
             c["_lex_score"] = sum(1 for t in terms if t in tl)
-        candidates = [c for c in candidates if c["_lex_score"] > 0]
+        gated = [c for c in pool if c["_lex_score"] > 0]
+
+    emb = settings.effective_embedding(cfg)
+    # 词法门禁的职责是「判定这批文档里有没有可能相关的」，**不是挑候选**。
+    # 一旦有词法信号且向量可用，候选集放宽到全量，排序交给向量——
+    # 否则跨语言/改述场景会被门禁直接掐死：中文问英文 PDF 时零词法重叠，
+    # 该文档连进入向量排序的机会都没有（2026-11-16 多格式评估实测 0 召回）。
+    # 词法完全无命中时仍然返回空，保留 retrieval_empty 降级语义（不硬凑）。
+    candidates = pool if (gated and emb["kind"] != "offline") else gated
 
     mode = "lexical"
     fallback_reason = None
-    emb = settings.effective_embedding(cfg)
     if candidates and emb["kind"] != "offline":
         try:
             candidates = _semantic_rank(question, candidates, cfg)

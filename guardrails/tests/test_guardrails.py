@@ -49,6 +49,20 @@ def test_luhn_and_ipv4():
     assert _valid_ipv4("999.1.1.1") is False
 
 
+def test_private_ip_is_not_pii_but_public_ip_is():
+    """内网/保留地址不脱敏，公网 IP 仍脱敏。
+
+    起因是 2026-11-16 的多格式评估：配网脚本的解析保真率只有 50%，
+    追下去发现 `10.66.8.1` 被脱敏成 `10.**.8.1` —— 运维文档因此不可检索。
+    内网地址是拓扑信息不是个人信息，脱敏它只有代价没有收益。
+    """
+    for private in ("10.66.8.1", "172.16.5.4", "192.168.1.10", "127.0.0.1",
+                    "169.254.1.1", "100.64.3.9"):
+        assert private not in {f.value for f in scan(private)}, f"{private} 不应脱敏"
+    # 公网地址仍然要拦住
+    assert {f.value for f in scan("攻击源 203.0.113.9")} == {"203.0.113.9"}
+
+
 def test_scan_finds_core_identifier_kinds():
     text = (f"身份证 {ID_OK}，手机 {PHONE}，邮箱 zhangsan@example.com，"
             f"工号：EMP-20260118，姓名：张三，卡号 {CARD_OK}。")

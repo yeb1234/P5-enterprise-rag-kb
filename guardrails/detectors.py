@@ -62,6 +62,34 @@ def _valid_ipv4(s: str) -> bool:
     return len(parts) == 4 and all(p.isdigit() and 0 <= int(p) <= 255 for p in parts)
 
 
+def _is_private_ipv4(s: str) -> bool:
+    """内网 / 保留地址段（RFC1918、环回、链路本地、CGNAT、0.0.0.0）。
+
+    这些不是「个人信息」——它们是拓扑信息。企业知识库里最常出现 IP 的地方恰好是
+    运维手册、配网脚本、防火墙说明，把 `10.66.8.1` 打成 `10.**.8.1`，
+    等于让这类文档**失去可检索性**，却换不来任何隐私收益。
+
+    这个判断是 2026-11-16 多格式评估里发现的：一份配网脚本解析保真率只有 50%，
+    查下去不是解析器的问题，是脱敏规则把默认网关地址吃掉了。
+    """
+    parts = s.split(".")
+    if len(parts) != 4 or not all(p.isdigit() for p in parts):
+        return False
+    a, b = int(parts[0]), int(parts[1])
+    return (
+        a in (0, 10, 127)                       # 0/8 本网络、10/8 私有、127/8 环回
+        or (a == 172 and 16 <= b <= 31)         # 172.16/12
+        or (a == 192 and b == 168)              # 192.168/16
+        or (a == 169 and b == 254)              # 169.254/16 链路本地
+        or (a == 100 and 64 <= b <= 127)        # 100.64/10 运营商级 NAT
+    )
+
+
+def _public_ipv4(s: str) -> bool:
+    """脱敏判定：合法 IPv4 且**不是**内网/保留地址。"""
+    return _valid_ipv4(s) and not _is_private_ipv4(s)
+
+
 @dataclass(frozen=True)
 class Rule:
     kind: str
@@ -98,9 +126,10 @@ RULES: tuple[Rule, ...] = (
          note="Luhn 校验；末尾紧跟 X/x 说明可能是身份证校验位，交给身份证规则，不误报成银行卡"),
     Rule("EMAIL", "邮箱地址",
          re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"), 0.95),
-    Rule("IPV4", "IPv4 地址",
+    Rule("IPV4", "IPv4 地址（公网）",
          re.compile(r"(?<!\d)(?:\d{1,3}\.){3}\d{1,3}(?!\d)"), 0.8,
-         validator=_valid_ipv4, note="逐段 0–255 校验"),
+         validator=_public_ipv4,
+         note="逐段 0–255 校验；内网/保留段不脱敏（见 _is_private_ipv4）"),
     Rule("MAC", "MAC 地址",
          re.compile(r"(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}"), 0.9),
     Rule("PASSPORT", "护照 / 证件号",

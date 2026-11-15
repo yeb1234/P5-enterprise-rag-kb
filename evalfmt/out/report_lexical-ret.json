@@ -1,0 +1,283 @@
+{
+  "mode": "lexical",
+  "answer_mode": false,
+  "schema": "eval_lexical",
+  "base": "http://127.0.0.1:8771",
+  "corpus": [
+    {
+      "name": "01-产品说明书.txt",
+      "bytes": 631
+    },
+    {
+      "name": "02-故障排查手册.md",
+      "bytes": 555
+    },
+    {
+      "name": "03-设备台账.csv",
+      "bytes": 305
+    },
+    {
+      "name": "04-接口配置.json",
+      "bytes": 322
+    },
+    {
+      "name": "05-配网脚本.py",
+      "bytes": 449
+    },
+    {
+      "name": "06-运行日志.log",
+      "bytes": 410
+    },
+    {
+      "name": "07-现场部署.yaml",
+      "bytes": 279
+    },
+    {
+      "name": "08-技术规范.pdf",
+      "bytes": 1154
+    },
+    {
+      "name": "09-铭牌照片.png",
+      "bytes": 14487
+    },
+    {
+      "name": "10-管线图.dxf",
+      "bytes": 193
+    }
+  ],
+  "started_at": "2026-11-15T16:55:05Z",
+  "ingest": {
+    "uploaded": 10,
+    "ready": 8,
+    "error": {
+      "10-管线图.dxf": "演示支持 txt/md/csv/json/py/log/yaml 等纯文本与**有文本层的 PDF**；其余格式（扫描版 PDF / 图片 / docx / xlsx）暂未接入检索链路",
+      "09-铭牌照片.png": "演示支持 txt/md/csv/json/py/log/yaml 等纯文本与**有文本层的 PDF**；其余格式（扫描版 PDF / 图片 / docx / xlsx）暂未接入检索链路"
+    }
+  },
+  "fidelity": [
+    {
+      "file": "01-产品说明书.txt",
+      "facts": [
+        "850W",
+        "KX-2400"
+      ],
+      "hit": [
+        "850W",
+        "KX-2400"
+      ],
+      "ratio": 1.0,
+      "chars": 258
+    },
+    {
+      "file": "02-故障排查手册.md",
+      "facts": [
+        "E4711",
+        "网关证书过期"
+      ],
+      "hit": [
+        "E4711",
+        "网关证书过期"
+      ],
+      "ratio": 1.0,
+      "chars": 268
+    },
+    {
+      "file": "03-设备台账.csv",
+      "facts": [
+        "SN-88301",
+        "仓储部"
+      ],
+      "hit": [
+        "SN-88301",
+        "仓储部"
+      ],
+      "ratio": 1.0,
+      "chars": 198
+    },
+    {
+      "file": "04-接口配置.json",
+      "facts": [
+        "18443",
+        "timeout_seconds"
+      ],
+      "hit": [
+        "18443",
+        "timeout_seconds"
+      ],
+      "ratio": 1.0,
+      "chars": 297
+    },
+    {
+      "file": "05-配网脚本.py",
+      "facts": [
+        "10.66.8.1",
+        "DEFAULT_GATEWAY"
+      ],
+      "hit": [
+        "10.66.8.1",
+        "DEFAULT_GATEWAY"
+      ],
+      "ratio": 1.0,
+      "chars": 364
+    },
+    {
+      "file": "06-运行日志.log",
+      "facts": [
+        "E4711",
+        "2026-11-05"
+      ],
+      "hit": [
+        "E4711",
+        "2026-11-05"
+      ],
+      "ratio": 1.0,
+      "chars": 409
+    },
+    {
+      "file": "07-现场部署.yaml",
+      "facts": [
+        "kb-prod-shanghai",
+        "replicas"
+      ],
+      "hit": [
+        "kb-prod-shanghai",
+        "replicas"
+      ],
+      "ratio": 1.0,
+      "chars": 258
+    },
+    {
+      "file": "08-技术规范.pdf",
+      "facts": [
+        "IP54",
+        "320x210x95",
+        "-20 to 55 C"
+      ],
+      "hit": [
+        "IP54",
+        "320x210x95",
+        "-20 to 55 C"
+      ],
+      "ratio": 1.0,
+      "chars": 392
+    }
+  ],
+  "retrieval": {
+    "n": 9,
+    "recall@1": 0.6666666666666666,
+    "recall@3": 0.7777777777777778,
+    "recall@5": 0.7777777777777778,
+    "mrr": 0.7037037037037037,
+    "citation_precision@1": 0.6666666666666666,
+    "top1_doc_accuracy": 0.6666666666666666
+  },
+  "retrieval_detail": [
+    {
+      "case": "Q01",
+      "q": "KX-2400 的额定功率是多少？",
+      "expect": "01-产品说明书.txt",
+      "rank": 1,
+      "hits": 5,
+      "top1_has_fact": true,
+      "retrieval_mode": "lexical"
+    },
+    {
+      "case": "Q02",
+      "q": "错误码 E4711 代表什么问题？",
+      "expect": "02-故障排查手册.md",
+      "rank": 1,
+      "hits": 2,
+      "top1_has_fact": true,
+      "retrieval_mode": "lexical"
+    },
+    {
+      "case": "Q03",
+      "q": "序列号 SN-88301 归属哪个部门？",
+      "expect": "03-设备台账.csv",
+      "rank": 1,
+      "hits": 1,
+      "top1_has_fact": true,
+      "retrieval_mode": "lexical"
+    },
+    {
+      "case": "Q04",
+      "q": "网关代理服务监听的端口是多少？",
+      "expect": "04-接口配置.json",
+      "rank": 3,
+      "hits": 4,
+      "top1_has_fact": false,
+      "retrieval_mode": "lexical"
+    },
+    {
+      "case": "Q05",
+      "q": "配网脚本里写死的默认网关地址是多少？",
+      "expect": "05-配网脚本.py",
+      "rank": 1,
+      "hits": 3,
+      "top1_has_fact": true,
+      "retrieval_mode": "lexical"
+    },
+    {
+      "case": "Q06",
+      "q": "运行日志里 2026-11-05 凌晨报的 E4711 是什么错误？",
+      "expect": "06-运行日志.log",
+      "rank": 1,
+      "hits": 3,
+      "top1_has_fact": true,
+      "retrieval_mode": "lexical"
+    },
+    {
+      "case": "Q07",
+      "q": "现场部署用的是哪个集群？",
+      "expect": "07-现场部署.yaml",
+      "rank": 1,
+      "hits": 3,
+      "top1_has_fact": true,
+      "retrieval_mode": "lexical"
+    },
+    {
+      "case": "Q08",
+      "q": "技术规范里的防护等级是多少？",
+      "expect": "08-技术规范.pdf",
+      "rank": null,
+      "hits": 1,
+      "top1_has_fact": false,
+      "retrieval_mode": "lexical"
+    },
+    {
+      "case": "Q09",
+      "q": "技术规范里设备的尺寸是多少？",
+      "expect": "08-技术规范.pdf",
+      "rank": null,
+      "hits": 1,
+      "top1_has_fact": false,
+      "retrieval_mode": "lexical"
+    }
+  ],
+  "answers": null,
+  "answers_detail": [],
+  "image": [
+    {
+      "offline": true,
+      "level": "multimodal",
+      "degraded": "vision_unavailable",
+      "text": "[图片结构事实 · 非视觉理解]\n格式=png 尺寸=760x420 字节=14487 熵=7.836\n探测方式=header+pillow（header_only 表示只解析了容器头）\n色彩模式=RGB 亮度范围=239 疑似空白页=False\n结论：P0 规则层只解析容器头，不识别图片内容；需由质量门禁升级到 P2 多模态层或 P1 OCR。\n\n[图片结构事实 · 非视觉理解]\n格式=png 尺寸=760x420 字节=14487 熵=7.836\n探测方式=header+pillow（header_only 表示只解析了容器头）\n色彩模式=RGB 亮度范围=239 疑似空白页=False\n结论：P0 规则层只解析容器头，不识别图片内容；需由质量门禁升级到 P2 多模态层或 P1 OCR。\n[多模态兜底已跳过] 原因：PARSING_OFFLINE=1，已按总离线开关跳过视觉调用。",
+      "facts_hit": [],
+      "facts_total": 2,
+      "latency_ms": 71
+    },
+    {
+      "offline": false,
+      "level": "multimodal",
+      "degraded": null,
+      "text": "1) 文档/图片类型：铭牌/标签设计图（肉眼可见的矩形边框与文字排版）。\n2) 可见标题与文字：右上角蓝色文字“NAME PLATE”；框内深蓝色大字“74119”；框内下方红色文字“SN-74119”。\n3) 表格结构（行列）：无表格结构（肉眼可见仅为单个矩形框内的文字布局）。\n4) 关键数值与颜色：数值“74119”与“SN-74119”（肉眼可见，OCR 结果一致）；颜色包括浅蓝色背景条、深蓝色标题与主数字、红色序列号文字、黑色边框（肉眼可见）。\n5) 不确定的部分：图片中未显示尺寸、材质、字体名称等未标注信息，无法确定。",
+      "facts_hit": [
+        "74119",
+        "SN-74119"
+      ],
+      "facts_total": 2,
+      "latency_ms": 2227
+    }
+  ],
+  "finished_at": "2026-11-15T16:55:25Z"
+}

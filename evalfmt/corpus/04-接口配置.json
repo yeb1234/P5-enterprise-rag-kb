@@ -1,0 +1,8 @@
+{
+  "service": "kx-gateway-agent",
+  "listen": {"host": "0.0.0.0", "port": 18443},
+  "upstream": {"url": "https://kb.internal/api/v1", "timeout_seconds": 30},
+  "limits": {"max_inflight": 64, "rate_per_minute": 600},
+  "tls": {"enabled": true, "min_version": "TLSv1.2"},
+  "note": "端口变更需同步防火墙策略"
+}

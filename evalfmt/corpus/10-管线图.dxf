@@ -1,0 +1,30 @@
+0
+SECTION
+2
+HEADER
+9
+$ACADVER
+1
+AC1015
+0
+ENDSEC
+0
+SECTION
+2
+ENTITIES
+0
+TEXT
+8
+LAYER-PIPE-3
+1
+DN150 main pipe, length 42.5 m
+0
+TEXT
+8
+LAYER-PIPE-3
+1
+slope 0.3 percent toward sump
+0
+ENDSEC
+0
+EOF

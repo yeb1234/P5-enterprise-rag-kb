@@ -1,0 +1,7 @@
+2026-11-05 02:11:03 INFO  agent start, version=3.2.1
+2026-11-05 02:12:44 WARN  tls handshake slow, cost=2100ms
+2026-11-05 02:14:07 ERROR code=E4711 gateway certificate expired
+2026-11-05 02:14:19 ERROR code=E4711 gateway certificate expired
+2026-11-05 02:14:31 ERROR code=E4711 gateway certificate expired
+2026-11-05 02:15:02 INFO  retry scheduled in 30s
+2026-11-05 02:16:10 INFO  agent recovered, uptime=310s

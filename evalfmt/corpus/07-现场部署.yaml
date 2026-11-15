@@ -1,0 +1,13 @@
+# 现场部署配置（生产）
+cluster: kb-prod-shanghai
+namespace: kb
+replicas: 3
+resources:
+  requests: {cpu: "500m", memory: "1Gi"}
+  limits: {cpu: "2", memory: "4Gi"}
+env:
+  LOG_LEVEL: info
+  MAX_INFLIGHT: "64"
+ingress:
+  host: kb.internal.example.com
+  tls_secret: kb-tls
