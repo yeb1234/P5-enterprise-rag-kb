@@ -126,22 +126,28 @@ ping 失败（建连探测）      → MemoryLimiter + WARN
 
 ```bash
 # 1) 起 Redis（数据卷持久化；生产用托管 Redis / Cluster）
-docker run -d --name kb-redis -p 6379:6379 redis:7-alpine
+#    走 infra 编排而不是 docker run，是为了和 PG / Milvus 用同一份定义。
+#    本机 6379 已被别的项目占用，所以宿主端口用变量覆盖（默认仍是 6379）：
+export KB_REDIS_PORT=56379 KB_REDIS_IMAGE=docker.m.daocloud.io/library/redis:7-alpine
+docker compose -f docker-compose.infra.yml up -d redis
+docker exec kb-redis redis-cli ping        # → PONG
 
 # 2) 让 webapp 指向 Redis（多副本部署时每个副本都配同一个 URL）
-export WEBAPP_REDIS_URL=redis://127.0.0.1:6379/0
+export WEBAPP_REDIS_URL=redis://127.0.0.1:56379/0
 export WEBAPP_RATE_BACKEND=auto
 
-# 3) 起两个副本（示意），验证「多副本共享同一窗口」
-#    把某维度阈值临时调小，交替打两个端口，计数应共享、不是各自 1 倍
-curl -s http://127.0.0.1:8765/api/evaltest/ratelimit   # admin 视角看 rules/hits
+# 3) 验证「多副本共享同一窗口」——不用起两个副本，用两个独立进程直接打 Limiter：
+python scripts/verify_infra.py --skip-pg --redis-url "$WEBAPP_REDIS_URL"
+# → limit=3：内存 6 次 vs Redis 3 次，放大倍数 2.0×
+# 这一行就是本节的核心结论，详见 §8.1
 
-# 4) 抓指标
+# 4) 抓指标（实测已通，不再是「代码就绪」）
 curl -s http://127.0.0.1:8765/metrics | head
-# 期望：Content-Type: text/plain; version=0.0.4，含上面 6 个指标名
+# 期望：Content-Type: text/plain; version=0.0.4，含 6 个指标名
 
 # 5) 降级验证：停掉 Redis，再打接口 —— 业务仍正常，日志出现
 #    webapp.ratelimit WARNING "rate limiter degraded: redis unavailable (...)"
+docker stop kb-redis
 ```
 
 ---
@@ -149,12 +155,71 @@ curl -s http://127.0.0.1:8765/metrics | head
 ## 8. 测试证据
 
 ```bash
-python -m pytest -q webapp/tests/test_dist_ratelimit.py   # 6 passed
-python -m pytest -q webapp/tests                          # 133 passed（含既有 127 项零回归）
+python -m pytest -q webapp/tests/test_dist_ratelimit.py   # 7 passed
+python -m pytest -q webapp/tests                          # 134 passed（含既有项零回归）
 python webapp/selftest.py                                 # 33/33 DEMO_READY
 ```
 
-覆盖：默认内存后端 / 窗口内超限与窗口外放行 / Redis 不可用回退 + WARN / `check_rate` 结构兼容 / `/metrics` 形状与无敏感值 / 动态 path 归一。
+覆盖：默认内存后端 / 窗口内超限与窗口外放行 / Redis 不可用回退 + WARN / `check_rate` 结构兼容 / `/metrics` 形状与无敏感值 / 动态 path 归一 / **`model` 空值不共桶的 HTTP 级回归**。
+
+### 8.1 真 Redis 上的窗口共享实测（2026-11-15）
+
+这一条之前只有内存模拟，现在有真 Redis 的数字。
+
+```bash
+$ python scripts/verify_infra.py --skip-pg --redis-url redis://127.0.0.1:56379/0
+== Redis（多副本窗口共享）==
+  limit=3：内存 6 次 vs Redis 3 次，放大倍数 2.0×
+```
+
+**测法**：起**两个独立子进程**，各用同一个 key 打 `limit=3 / window=60s`，每个进程最多试 5 次。
+
+| 后端 | 进程 A 放行 | 进程 B 放行 | 合计 | 说明 |
+|---|---:|---:|---:|---|
+| `MemoryLimiter` | 3 | 3 | **6** | 各算各的 → 配额被放大 2 倍（两副本） |
+| `RedisLimiter` | 3 | 0 | **3** | 共享同一 zset 窗口 → 配额正确 |
+
+**为什么必须用两个独立进程**：同一进程内 `MemoryLimiter` 刻意复用 `observability._WINDOWS`，
+两个实例共享同一份窗口，测出来必然是 3 —— 那会得出「内存实现也没问题」的**错误结论**。
+真正的放大只发生在**进程之间**，所以测试必须付出进程隔离的代价。
+
+这条断言已经写进脚本的失败判据里：如果内存侧不等于 `limit × 2`，脚本会报
+「说明测试没真正隔离进程，结论不可信」而不是「通过」——**防止测试自己变成假绿**。
+
+### 8.2 真实 `/metrics` 输出（逐字节摘自运行中的容器）
+
+```
+# TYPE kb_http_requests_total counter
+kb_http_requests_total{path="/api/chat/stream",status="200"} 4
+kb_http_requests_total{path="/api/docs",status="200"} 14
+kb_http_requests_total{path="/api/docs/seed-sample",status="200"} 1
+kb_http_requests_total{path="/api/docs/upload",status="200"} 4
+kb_http_requests_total{path="/api/docs/{id}",status="404"} 1
+
+# TYPE kb_rate_limit_hits_total counter
+kb_rate_limit_hits_total{dimension="user"} 0
+kb_rate_limit_hits_total{dimension="endpoint"} 0
+kb_rate_limit_hits_total{dimension="model"} 0
+kb_rate_limit_hits_total{dimension="ip"} 0
+
+# TYPE kb_documents_by_status gauge
+kb_documents_by_status{status="queued"} 0
+kb_documents_by_status{status="analyzing"} 0
+kb_documents_by_status{status="ready"} 16
+kb_documents_by_status{status="error"} 134
+```
+
+三个细节值得看：
+
+- **零值样本确实在**：`rate_limit_hits_total` 四个维度全 0 也照样输出。
+  如果只在有命中时才输出，Prometheus 里这个指标就是「不存在」，
+  `rate(...)` 永远 no data，对应告警**永远不会触发**——这是最典型的一种「装了监控但等于没装」。
+- **path 已归一**：我故意打了一次 `GET /api/docs/abc123def`，拿到 404，
+  指标里出现的是 `path="/api/docs/{id}",status="404"`，**不是** `abc123def`。
+  不归一会让标签基数随文档数增长，打爆 Prometheus。
+  顺带说明：归一按「纯 hex ≥6 / 纯数字 / UUID」判定，所以 `seed-sample`、`upload` 这类**字面量段没被误伤**。
+- **`error` 134 不是异常**：那是演示库里历史失败文档的累积值（`ready 16 + error 134 = 150`），
+  与本次限流改造无关；写文档时不要把它读成「服务在报错」。
 
 ---
 

@@ -1609,6 +1609,41 @@ footer .fine{border-top:1px solid var(--border);padding-top:16px;line-height:1.8
     </div>
     <p class="tbl-note">以上均为<b>历史实测记录</b>，本页未重新调用任何外部模型。最新结果以 <code>docs/enterprise-readiness.md</code> 与
       <code>webapp/out/eval_report.json</code> 为准；<code>NOT_COMPARABLE</code> / <code>comparable=false</code> 口径不因这些实测数字而改变。</p>
+
+    <div class="sec-head" style="margin-top:34px"><span class="sec-num">06.1</span><h2 style="font-size:19px">真基础设施验证（2026-11-15 本机实跑）</h2></div>
+    <p class="sec-desc" style="margin-bottom:16px">演示切片用的是 SQLite + 进程内队列与窗口。这一组数字是把
+      <b>真 PostgreSQL 16</b> 与 <b>真 Redis 7</b> 起在本机后跑出来的，用来证明「换掉替身之后仍然正确」，
+      而不是证明「性能更好」。</p>
+    <div class="tbl-wrap rise">
+      <table>
+        <thead><tr><th>验证项</th><th>数值</th><th>为什么这条重要</th><th>复跑命令</th></tr></thead>
+        <tbody>
+          <tr><td><b>PG 迁移</b>：20 张表逐表 <code>COUNT(*)</code> 双侧对比</td>
+            <td class="num">20 / 20 一致 · 903 行</td>
+            <td>只报「迁完了」没有意义，必须逐表对得上</td>
+            <td class="src">scripts/migrate_sqlite_to_pg.py --apply</td></tr>
+          <tr><td><b>时间戳对齐</b>：<code>MAX(created_at)</code> 三张表</td>
+            <td class="num">逐字节相同</td>
+            <td>没做 <code>Z → +00:00</code> 归一化会整体偏 8 小时，而这种偏差只在分页时才暴露</td>
+            <td class="src">scripts/verify_infra.py</td></tr>
+          <tr><td><b>可重入性</b>：同命令重跑</td>
+            <td class="num">写入 0 / 跳过 903</td>
+            <td>报「尝试数」会让人以为重复插入了；必须报实际影响行数</td>
+            <td class="src">migrate_sqlite_to_pg.py（不加 --truncate）</td></tr>
+          <tr><td><b>多副本限流</b>：<code>limit=3</code>，两个独立进程同一 key</td>
+            <td class="num">内存 6 次 vs Redis 3 次</td>
+            <td><b>放大 2.0×</b>：进程内窗口各算各的，配额被复制到每个副本</td>
+            <td class="src">scripts/verify_infra.py --skip-pg</td></tr>
+          <tr><td><b><code>/metrics</code> 真实抓取</b></td>
+            <td class="num">6 指标 · 零值样本齐</td>
+            <td>零值不预置，告警条件永远 no data，等于没装监控</td>
+            <td class="src">curl /metrics</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="tbl-note"><b>边界</b>：Milvus 与 Celery 映射仍只设计——本机拉不到 <code>milvus/etcd/minio</code> 镜像，
+      且真实集群不是「能起容器」就等于「能上生产」。本组数字全部来自 <code>scripts/verify_infra.py</code>
+      的一条命令，可复跑；但它验的是<b>正确性</b>，不是吞吐。</p>
   </div>
 </section>
 
