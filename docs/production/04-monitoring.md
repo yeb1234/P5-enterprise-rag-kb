@@ -26,14 +26,64 @@
 | 层 | 回答什么问题 | 典型数据 | 本项目状态 |
 |---|---|---|---|
 | **指标 Metrics** | 「整体健康度如何？趋势如何？」——聚合数字，便宜、可长期存储、适合告警 | 请求数/错误率/延迟分位/队列长度/预算消耗 | <span>**已实现（后端本轮新增 `/metrics`）**</span>；Prometheus/Grafana **未部署** |
-| **日志 Logs** | 「这一次请求到底发生了什么？」——离散事件，带上下文与堆栈 | 应用日志、访问日志、审计事件 | <span>**部分已实现**</span>：`audit_logs`（审计只追加）+ 容器 stdout 日志；**无集中采集/检索**（未接 CLS/Loki） |
-| **追踪 Traces** | 「一次调用跨了哪些服务、慢在哪一跳？」——请求级因果链 | trace_id + span 树 | <span>**未做**</span>：只有 `X-Trace-Id` 贯穿与日志关联，**没有 span 采集与可视化** |
+| **日志 Logs** | 「这一次请求到底发生了什么？」——离散事件，带上下文与堆栈 | 应用日志、访问日志、审计事件 | <span>**已实现到「结构化 + 可串联」**</span>：stdout 单行 JSON + 每请求 `trace_id` 贯穿 + 容器日志上限 10MB×3；`audit_logs` 审计只追加。**未做**集中采集/检索（未接 CLS/Loki）、日志留存策略、按 `user_id` 归因 |
+| **追踪 Traces** | 「一次调用跨了哪些服务、慢在哪一跳？」——请求级因果链 | trace_id + span 树 | <span>**未做**</span>：只有 `trace_id` 贯穿与日志关联，**没有 span 采集与可视化** |
 
 **怎么配合用**：指标告警先响（便宜、全局）→ 用 `trace_id` 或时间窗去日志里找那条请求 → 需要跨服务定位时才有必要上追踪。**顺序不要反过来**：先上追踪再补指标，通常投入大、收益慢。
 
-> 本项目已有的一个连接点：请求带 `X-Trace-Id`（`TraceIdMiddleware`），错误体里也回传 `trace_id`。这已经能支撑「指标 → 日志」的人工串联，是上追踪之前的最低成本方案。
+> 本项目的连接点：`webapp/main.py::access_log` 中间件给**每个响应**回 `X-Trace-Id`
+> （客户端传来的合法 id 会沿用），同一个 id 同时出现在响应头、错误体和访问日志里。
+> 这已经能支撑「用户截图 → 按 trace_id 捞日志 → 看到 path/status/latency」的人工串联，
+> 是上追踪之前的最低成本方案。细节见 §2.1。
 
 ---
+
+## 2.1 日志落地记录（2026-11-16）
+
+上线第一件该做的不是「上采集平台」，是**把日志写成能被机器读的形式**。顺序反了的话，
+采集平台收到的还是纯文本，白干。所以先做四件事，全部已实现：
+
+| # | 做了什么 | 为什么必须 |
+|---|---|---|
+| 1 | **容器日志上限** `max-size=10m` / `max-file=3` | `docker-compose.yml` 里的 `x-logging` 锚点只对 compose 起的服务生效；`run-demo.sh` 用 `docker run`，实测 `docker inspect` 的 `LogConfig.Config` 是空的 = **json-file 默认无上限**。这条路径上的日志会一直长到把磁盘写满 |
+| 2 | **每请求 `trace_id`** | 原来只在错误分支 `uuid4()`。成功请求没有 id → 用户说「刚才那题答错了」时无从定位 |
+| 3 | **stdout 单行 JSON**（`webapp/logging_setup.py`） | 字段固定 `ts/level/logger/msg/trace_id` + 白名单扩展（`method/path/status/latency_ms/client/user_id/...`）。堆栈压成单行，否则「一行一 JSON」的约定就破了 |
+| 4 | **访问日志接管 + 降噪** | 关掉 uvicorn 自带的纯文本访问日志，由 `access_log` 中间件自己发。**path 不含 query string**；静默路径（`/`、`/health/live`、`/metrics`）<400 时降 DEBUG |
+
+**为什么第 4 条里「不含 query string」是关键**：`/api/search/preview` 是 GET，
+搜索词走 query（`routers_ops.py:89`）。uvicorn 默认访问日志打印**完整 URL**，
+于是用户搜的原文会以明文进容器日志。审计表里存原文是设计（可追溯、有权限过滤），
+运行日志里留痕是泄漏——两者不是一个东西，别混。
+
+**实测（容器内真实输出，2026-11-16）**
+
+```
+$ curl -s -D - -o /dev/null http://127.0.0.1:8765/api/definitely-missing
+HTTP/1.1 404 Not Found
+x-trace-id: e3c0cb9a2aae41b2
+
+$ docker logs kb-webapp | grep e3c0cb9a
+{"ts":"...","level":"INFO","logger":"webapp.access","msg":"request",
+ "trace_id":"e3c0cb9a2aae41b2","method":"GET","path":"/api/definitely-missing",
+ "status":404,"latency_ms":4.91,"client":"172.25.0.1"}
+```
+
+响应头与日志里的 id **同一个值**。健康检查 `GET /` 的日志行数：**2880 行/天 → 0**。
+
+**已知边界（别当成做完了）**
+
+- `latency_ms` 是**到响应头返回**的耗时，不是流式响应的总时长。流式问答的生成长度差异极大，
+  混进同一字段会误导，所以这条日志不承担它。
+- 日志里**没有 `user_id`**：中间件在鉴权之前执行，拿不到用户。要归因得等业务层自己打，
+  或改成在拿到 token 后再补一条。**这是缺口，不是设计。**
+- **没有集中采集**：`docker logs` 只能在本机看，多副本时各看各的。上 Loki / CLS 的触发条件是
+  「多副本 + 需要按字段检索 + 需要留存 30 天以上」，本项目一条都不满足，故不做。
+- **没有留存与轮转策略**（除容器 10MB×3 外）：日志随容器删除消失，不满足合规留存。
+- 日志脱敏只做到「不主动把 query string 写进去」；业务日志里如果主动打了用户原文，这里拦不住。
+
+---
+
+
 
 ## 3. 指标清单（含义 / 正常范围 / 异常时先看什么）
 
@@ -220,9 +270,15 @@ docker start kb-app
 | 项 | 状态 |
 |---|---|
 | `GET /metrics`（6 个指标） | **已实现（后端本轮新增，已合入）**；2026-11-15 实测指标名与本文清单一致，6 个指标齐全 |
+| 结构化运行日志（stdout JSON） | **已实现**（`webapp/logging_setup.py`）；单行 JSON + 固定字段 + 白名单扩展，堆栈压成单行 |
+| 每请求 `trace_id` 贯穿 | **已实现**（`access_log` 中间件）；响应头 / 错误体 / 访问日志三处同值，客户端合法 id 会沿用 |
+| 容器日志上限 | **已实现**（`run-demo.sh` 的 `--log-opt max-size=10m --log-opt max-file=3`）；实测 `LogConfig.Config` 生效 |
+| 访问日志脱敏（query string） | **部分**：path 不含 query，故 GET 的用户原文不进日志；**业务日志主动打原文拦不住** |
+| 日志里按 `user_id` 归因 | **未做**：中间件在鉴权前执行，拿不到用户 |
 | Prometheus / Grafana / Alertmanager | **未部署**（本文给配置与步骤，未实际执行） |
-| 集中日志采集（CLS / Loki） | **未做**（现有 `audit_logs` + 容器 stdout） |
-| 分布式追踪（span / trace 树） | **未做**（仅有 `X-Trace-Id` 关联） |
+| 集中日志采集（CLS / Loki） | **未做**（单副本阶段判定为不划算，理由见 §2.1） |
+| 日志留存与轮转策略（合规） | **未做**：除容器 10MB×3 外无留存，容器删除即丢 |
+| 分布式追踪（span / trace 树） | **未做**（仅有 `trace_id` 关联） |
 | 告警通知渠道、值班表、SLO 定义 | **未做**（本文只给分级建议） |
 | 压测基线（用于校准阈值） | **未做**：本文所有「正常范围」都是演示量级**估算**，非实测 |
 

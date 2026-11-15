@@ -216,6 +216,44 @@ B: connect()                → SHOW search_path  →  pg_catalog          # 被
 
 
 
+---
+
+## v1.3.2 · 2026-11-16 · 运行日志：stdout JSON + 每请求 trace_id + 容器日志上限
+
+> **起因**：被问「上线的项目得做日志管理系统吧」。核查后判断：缺的不是采集平台，
+> 是**日志的基本卫生**——纯文本、无 trace_id、无上限，这三件不做，后面接什么采集都是垃圾进垃圾出。
+
+| 日期 | 改进项 | 改动说明 | 影响范围 | 备注 |
+|---|---|---|---|---|
+| 2026-11-16 | **容器日志上限** | `run-demo.sh` 的 `docker run` 补 `--log-opt max-size=10m --log-opt max-file=3`。原状态：`docker-compose.yml` 的 `x-logging` 锚点只对 compose 生效，`run-demo.sh` 走的是 `docker run`，实测 `LogConfig.Config` 为空 = **json-file 无上限** | `run-demo.sh` | 这是唯一会「上线第一天把磁盘写满」的那条 |
+| 2026-11-16 | **每请求 trace_id** | 原来只在错误分支 `uuid4()`。新增 `access_log` 中间件（最外层）：生成/沿用 id → 存 `ContextVar` → 响应头回 `X-Trace-Id`；`_gateway_error` 与 429 契约改为复用同一个 id | `webapp/main.py` | 客户端传来的 id 经 `safe_trace_id()` 校验（只接受 8–32 位 hex），防日志注入 |
+| 2026-11-16 | **stdout 单行 JSON** | 新增 `webapp/logging_setup.py`：`JsonFormatter`（`ts/level/logger/msg/trace_id` + 白名单扩展）、`configure_logging()` 清掉 uvicorn 自带 handler 让日志统一走 JSON、堆栈压成单行 | 新文件 + `webapp/main.py` | 思路照 `backend/app/core/logging.py`，但重写而非 import（依赖方向 + `department_id` 口径不同） |
+| 2026-11-16 | **访问日志脱敏与降噪** | 关掉 uvicorn 的纯文本访问日志，由中间件自己发：**path 不含 query string**；静默路径 `/`、`/health/live`、`/metrics` 在 <400 时降 DEBUG | `webapp/main.py`、`logging_setup.py` | `/api/search/preview?q=` 是 GET，用户原文明文进日志的路径被切断 |
+| 2026-11-16 | **新增 7 项日志契约单测** | `X-Trace-Id` 每个响应都有（含 404）、合法值沿用、非法值替换、**query string 不进日志**、错误体/响应头/访问日志三者同 id、静默路径、JSON 单行 + 固定字段 | `webapp/tests/test_logging.py` | 单测 264 → **271** |
+
+**实测（容器内真实输出）**
+
+```
+$ curl -s -D - -o /dev/null http://127.0.0.1:8765/api/definitely-missing
+x-trace-id: e3c0cb9a2aae41b2
+
+$ docker logs kb-webapp | grep e3c0cb9a
+{"ts":"...","level":"INFO","logger":"webapp.access","msg":"request",
+ "trace_id":"e3c0cb9a2aae41b2","method":"GET","path":"/api/definitely-missing",
+ "status":404,"latency_ms":4.91,"client":"172.25.0.1"}
+```
+
+健康检查 `GET /` 的日志量：**约 2880 行/天 → 0**。
+`docker inspect kb-webapp` 的 `LogConfig`：`json-file map[]` → `local map[max-file:3 max-size:10m]`。
+
+**明确没做（写清边界，别当成做完了）**：集中采集（Loki/CLS）、日志留存与合规轮转、
+`user_id` 归因（中间件在鉴权前执行，拿不到用户）、span 采集。
+`latency_ms` 只到**响应头返回**，不是流式响应总时长——刻意不加进去，否则会误导。
+
+---
+
+
+
 ## 2026-11-16 追加 · 向量存储选型（`production/08-vector-store-decision.md`）
 
 > 起因：被问「Milvus 和 pgvector 什么区别、中小企业是不是 pgvector 就够」。
