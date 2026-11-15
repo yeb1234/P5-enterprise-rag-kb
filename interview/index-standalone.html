@@ -249,6 +249,58 @@ footer .fine{border-top:1px solid var(--border);padding-top:16px;line-height:1.8
   section{break-inside:avoid;padding:22px 0}
   .rise{opacity:1;transform:none}
 }
+/* ===== 全面研究：七项目 × 三视角 ===== */
+.research{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+  box-shadow:var(--shadow);overflow:hidden}
+.rbar{display:flex;flex-wrap:wrap;gap:14px;padding:14px 16px;background:var(--surface-2);
+  border-bottom:1px solid var(--border);align-items:center}
+.rbar .grp{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
+.rbar .lbl{font-size:10.5px;font-weight:800;color:var(--faint);letter-spacing:.1em;
+  margin-right:3px;white-space:nowrap}
+.rbtn{font:inherit;font-size:12.5px;font-weight:700;padding:6px 11px;border-radius:8px;
+  border:1px solid var(--border-2);background:var(--surface);color:var(--text-2);cursor:pointer;
+  transition:background .15s ease,color .15s ease,border-color .15s ease}
+.rbtn:hover{background:var(--surface-3)}
+.rbtn[aria-selected="true"]{background:var(--primary);border-color:var(--primary);color:#fff}
+.rbtn.view[aria-selected="true"]{background:var(--teal);border-color:var(--teal)}
+.rpanes{padding:0}
+.rpane{display:none;padding:24px 24px 26px}
+.rpane.on{display:block;animation:rise .38s cubic-bezier(.2,.7,.3,1) both}
+.rpane .phead{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;
+  padding-bottom:12px;margin-bottom:16px;border-bottom:1px dashed var(--border)}
+.rpane .phead .pnum{font-size:11px;font-weight:800;color:var(--primary);letter-spacing:.1em}
+.rpane .phead h4{margin:0;font-size:17px;font-weight:800;letter-spacing:-.2px}
+.rpane .phead .ptag{margin-left:auto;font-size:11px;padding:2px 8px;border-radius:999px;
+  font-weight:700;background:var(--slate-soft);color:var(--slate)}
+.rpane .phead .ptag.g{background:var(--teal-soft);color:var(--teal)}
+.rpane .phead .ptag.a{background:var(--amber-soft);color:var(--amber)}
+.rpane h5{margin:20px 0 8px;font-size:13px;font-weight:800;color:var(--primary-ink);
+  letter-spacing:.02em;display:flex;align-items:center;gap:7px}
+.rpane h5::before{content:"";width:3px;height:13px;border-radius:2px;background:var(--primary);
+  display:inline-block}
+.rpane h5:first-of-type{margin-top:0}
+.rpane p{margin:0 0 10px;font-size:13.5px;color:var(--text-2);line-height:1.78}
+.rpane ul{margin:0 0 10px;padding-left:19px;font-size:13px;color:var(--text-2)}
+.rpane li{margin:5px 0;line-height:1.7}
+.rpane code{background:var(--surface-3);padding:1px 5px;border-radius:5px;font-size:12px;
+  font-family:ui-monospace,Menlo,Consolas,monospace;color:var(--primary-ink)}
+.rpane .chain{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:0 0 12px}
+.rpane .chain .n{background:var(--surface-2);border:1px solid var(--border);
+  border-radius:7px;padding:6px 10px;font-size:12px;font-weight:700;color:var(--text)}
+.rpane .chain .n small{display:block;font-weight:600;color:var(--muted);font-size:10.5px}
+.rpane .chain .ar{color:var(--faint);font-size:12px;font-weight:800}
+.rpane .note{margin:12px 0 0;padding:10px 13px;border-radius:9px;background:var(--amber-soft);
+  border-left:3px solid var(--amber);font-size:12.5px;color:var(--amber);line-height:1.7}
+.rpane .note b{color:var(--amber)}
+.rpane .tbl-wrap{box-shadow:none}
+.rpane table{min-width:640px}
+.rfoot{margin-top:16px;padding-top:11px;border-top:1px dashed var(--border);
+  font-size:11.5px;color:var(--faint);line-height:1.7}
+.rfoot code{font-size:11px}
+@media(max-width:900px){
+  .rbar{gap:9px}
+  .rpane{padding:18px 15px 20px}
+}
 </style>
 </head>
 <body>
@@ -262,6 +314,7 @@ footer .fine{border-top:1px solid var(--border);padding-top:16px;line-height:1.8
       <a href="#highlights">核心亮点</a>
       <a href="#flow">数据流</a>
       <a href="#layers">架构分层</a>
+      <a href="#research">全面研究</a>
       <a href="#verify">验证快照</a>
       <a href="#qa">面试 Q&amp;A</a>
       <a href="cases.html">故障案例 →</a>
@@ -724,10 +777,758 @@ footer .fine{border-top:1px solid var(--border);padding-top:16px;line-height:1.8
   </div>
 </section>
 
+<!-- ============ 全面研究 ============ -->
+<section id="research">
+  <div class="wrap">
+    <div class="sec-head"><span class="sec-num">05</span><h2>全面研究 · 七个子系统 × 三个视角</h2></div>
+    <p class="sec-desc">每个子系统都按 <b>架构拆解 / 竞品对照 / 评测口径</b> 三页展开：先用「架构拆解」讲清模块边界与失败路径，
+      再用「竞品对照」说明它在现有产品版图里的位置与差距，最后用「评测口径」回答「凭什么说它是对的」。
+      <b>竞品部分全部基于公开资料整理，没有做同条件实测</b>，因此只比能力结构、不比分数；评测部分的数字则只写本仓实跑过的。</p>
+
+    <div class="research">
+      <div class="rbar">
+        <div class="grp">
+          <span class="lbl">子系统</span>
+          <button class="rbtn" data-p="1" aria-selected="true">RAG 主链</button>
+          <button class="rbtn" data-p="2" aria-selected="false">解析 parsing</button>
+          <button class="rbtn" data-p="3" aria-selected="false">治理 knowledge</button>
+          <button class="rbtn" data-p="4" aria-selected="false">缓存 cache</button>
+          <button class="rbtn" data-p="5" aria-selected="false">安全 guardrails</button>
+          <button class="rbtn" data-p="6" aria-selected="false">评测 evalbench</button>
+          <button class="rbtn" data-p="7" aria-selected="false">演示 showcase</button>
+        </div>
+        <div class="grp">
+          <span class="lbl">视角</span>
+          <button class="rbtn view" data-m="a" aria-selected="true">架构拆解</button>
+          <button class="rbtn view" data-m="b" aria-selected="false">竞品对照</button>
+          <button class="rbtn view" data-m="c" aria-selected="false">评测口径</button>
+        </div>
+      </div>
+
+      <div class="rpanes">
+      <!-- ===== P1 架构拆解 ===== -->
+      <div class="rpane on" data-p="1" data-m="a">
+        <div class="phead"><span class="pnum">P1 · 架构</span><h4>RAG 主链：七跳链路，每一跳都有独立的失败出口</h4>
+          <span class="ptag g">已实现 · 33/33 实跑</span></div>
+        <div class="chain">
+          <span class="n">上传<small>分片 / 去重</small></span><span class="ar">→</span>
+          <span class="n">入队<small>进程内 deque</small></span><span class="ar">→</span>
+          <span class="n">解析<small>parsing/ 三级</small></span><span class="ar">→</span>
+          <span class="n">分块<small>ChunkSpec</small></span><span class="ar">→</span>
+          <span class="n">向量<small>chunk_embeddings</small></span><span class="ar">→</span>
+          <span class="n">检索<small>词法门禁+向量</small></span><span class="ar">→</span>
+          <span class="n">权限复核<small>逐条 decide</small></span><span class="ar">→</span>
+          <span class="n">流式生成<small>SSE</small></span><span class="ar">→</span>
+          <span class="n">引用卡片<small>chat_sources</small></span>
+        </div>
+        <h5>模块边界：谁只负责一件事</h5>
+        <div class="tbl-wrap"><table class="table">
+          <thead><tr><th>模块</th><th>唯一职责</th><th>不允许做的事</th></tr></thead>
+          <tbody>
+            <tr><td><code>db.py</code></td><td>SQLite 真值与 SCHEMA（生产对应 PG）</td><td>不做业务判断、不拼 SQL 给外部</td></tr>
+            <tr><td><code>providers.py</code></td><td>LLM / Embedding / Rerank 三个 Protocol 适配器</td><td>不知道 RAG 存在，只谈消息与向量</td></tr>
+            <tr><td><code>rag.py</code></td><td>检索 → 重排 → 生成 → 引用</td><td>不直连数据库以外的外部服务</td></tr>
+            <tr><td><code>queue.py</code></td><td>进程内异步与进度快照</td><td>不写文档状态真值（写 PG 由 router 负责）</td></tr>
+            <tr><td><code>observability.py</code></td><td>预算 / 限流 / 用量 / 指标</td><td>不决定业务是否放行，只报数字</td></tr>
+          </tbody>
+        </table></div>
+        <h5>三个「唯一事实源」——重复实现就是事故</h5>
+        <ul>
+          <li><code>settings.effective_embedding()</code>：端点 / 模型名 / key / 缓存命名空间的<b>唯一</b>来源。缓存 key 必须含模型名，否则换模型会复用旧向量，维度不一致时余弦<b>静默返回 0</b>（检索看似正常实则全错）。</li>
+          <li><code>providers.thinking_fields()</code>：发不发低思考字段只在这里决定，三条请求路径共用，避免「修了一条路径就宣称修好」。</li>
+          <li><code>db.RATE_RULE_DEFAULTS</code>：限流默认配额的唯一来源，<code>_seed()</code> 与测试隔离共用，防止三方漂移。</li>
+        </ul>
+        <h5>失败路径：宁可看得见降级，也不要静默给错答案</h5>
+        <div class="tbl-wrap"><table class="table">
+          <thead><tr><th>失败</th><th>行为</th><th>为什么不选另一种</th></tr></thead>
+          <tbody>
+            <tr><td>检索为空</td><td>诚实拒答 + <code>degrade_reason=retrieval_empty</code></td><td>拿通用知识硬答会污染引用可信度</td></tr>
+            <tr><td>模型 429 限流</td><td>退避 1/2/4s + 抖动，尊重 <code>Retry-After</code>，最多 3 次</td><td>立即失败对用户是体验灾难</td></tr>
+            <tr><td>配额耗尽</td><td><b>不重试</b>，标 <code>quota_exceeded</code> 让用户换模型</td><td>重试只会继续扣不存在的额度</td></tr>
+            <tr><td>模型返回空正文</td><td><code>degraded=empty_model_output</code> + 检索片段兜底</td><td>空白气泡比降级更糟，用户不知道发生了什么</td></tr>
+            <tr><td>流式已出字后中断</td><td>标 <code>stream_interrupted</code>，<b>不</b>拼接兜底文案</td><td>已出字再拼会重复内容</td></tr>
+          </tbody>
+        </table></div>
+        <h5>取舍：为什么演示切片不用 React + PG + Milvus</h5>
+        <p>因为演示的第一要求是<b>别人能跑起来</b>。零依赖意味着双击就能开、离线也能讲、面试现场不怕没网。
+          所以这里做了明确的替身映射：SQLite → PG、进程内 <code>deque</code> → Celery、进程内滑动窗口 → Redis、
+          文本列存 JSON 向量 → Milvus。<b>替身跑通不等于生产组件测过</b>，这句话在页面和文档里写了三遍。</p>
+        <div class="note"><b>边界</b>：单进程；进程内队列重启会丢在跑任务（靠 <code>documents.status</code> 幂等重投兜底）；
+          没有全局并发闸之外的背压；SSE 断线续传按原始 token 索引，重连时尾部可能少几个字。</div>
+        <div class="rfoot">事实源：<code>webapp/main.py</code> · <code>webapp/rag.py</code> · <code>webapp/providers.py</code> · <code>webapp/db.py</code> · <code>webapp/selftest.py</code></div>
+      </div>
+
+      <!-- ===== P1 竞品对照 ===== -->
+      <div class="rpane" data-p="1" data-m="b">
+        <div class="phead"><span class="pnum">P1 · 竞品</span><h4>企业知识库问答：Dify / RAGFlow / FastGPT / QAnything 各自强在哪</h4>
+          <span class="ptag a">公开资料整理 · 未实测</span></div>
+        <p>这一页只比<b>能力结构</b>，不比速度、不比准确率——因为我没有在同一批语料、同一套指标下跑过它们。
+          任何「我们比 X 快 3 倍」的说法在这里都是编的。</p>
+        <div class="tbl-wrap"><table class="table">
+          <thead><tr><th>维度</th><th>本项目（演示切片）</th><th>Dify / FastGPT</th><th>RAGFlow</th><th>QAnything</th></tr></thead>
+          <tbody>
+            <tr><td><b>定位</b></td><td>可讲解的学习骨架 + 可跑闭环</td><td>可视化 LLM 应用编排平台</td><td>深度文档理解的 RAG 引擎</td><td>本地离线知识库问答</td></tr>
+            <tr><td><b>解析深度</b></td><td>三级策略 + 质量门禁升级（自研 P0）</td><td>以通用 loader 为主，可插拔</td><td><b>强项</b>：版面/表格模板化切分</td><td>中等，依赖 OCR 组件</td></tr>
+            <tr><td><b>引用溯源</b></td><td>逐条 <code>chat_sources</code> + 片段原文</td><td>支持，粒度偏文档级</td><td>支持，可视化切片定位</td><td>支持</td></tr>
+            <tr><td><b>权限模型</b></td><td><b>强项</b>：<code>decide()</code> 纯函数 + 部门树 + 逐条复核</td><td>工作空间/成员级</td><td>团队/知识库级</td><td>较弱</td></tr>
+            <tr><td><b>评测闭环</b></td><td><b>强项</b>：<code>evalbench/</code> 多轮迭代 + 结果可复现</td><td>有日志与标注，无独立评测台</td><td>有内置评测</td><td>较弱</td></tr>
+            <tr><td><b>可讲解性</b></td><td><b>强项</b>：三态标注 + 案例库 + 事实源</td><td>产品向，内部实现不透明</td><td>架构文档较完整</td><td>一般</td></tr>
+            <tr><td><b>成熟度</b></td><td><b>弱项</b>：单进程演示级，未上线</td><td>生产可用，生态大</td><td>生产可用，解析最强</td><td>可本地部署</td></tr>
+          </tbody>
+        </table></div>
+        <h5>三个真实差距（不自欺）</h5>
+        <ul>
+          <li><b>解析质量</b>：RAGFlow 的版面分析与模板化切分是长期投入的结果，我这边的 P0 只覆盖有文本层 PDF 与简单表格，扫描件要靠 P1/P2。</li>
+          <li><b>工程完备度</b>：Dify 有插件市场、工作流编排、多模型网关。我这边是单进程 + 单一 LLM 适配器，横向扩展能力为零。</li>
+          <li><b>运维</b>：它们有容器编排、升级迁移、社区支持。我这边的 Docker 只到「能起来」这一档。</li>
+        </ul>
+        <h5>那本项目的差异点是什么</h5>
+        <p>不是功能更多，是<b>把「不知道的事」标出来</b>。开源产品不会告诉你「哪些字段还是 <code>__TBC__</code>」、
+          「哪条结论是功能连通性而非质量基线」。这套三态纪律 + 事实源可复跑的做法，
+          在企业内部落地时反而是最稀缺的——因为大多数事故不是「功能没有」，是「以为有」。</p>
+        <div class="note"><b>口径声明</b>：本节所有竞品描述来自公开文档与产品页面，未做同条件部署与实测；
+          产品迭代很快，具体能力以对方最新文档为准。不引用任何未经核实的性能数字。</div>
+        <div class="rfoot">对照对象：Dify / RAGFlow / FastGPT / QAnything（均为公开资料）</div>
+      </div>
+
+      <!-- ===== P1 评测口径 ===== -->
+      <div class="rpane" data-p="1" data-m="c">
+        <div class="phead"><span class="pnum">P1 · 评测</span><h4>凭什么说这条链路是对的：三层验收，各有各的判据</h4>
+          <span class="ptag g">33/33 + 134 项单测</span></div>
+        <h5>第一层：端到端行为验收（33 项，真实 HTTP）</h5>
+        <p>判据不是「跑通了」，是<b>每条都断言一个可观察的行为差异</b>。例如：普通用户拿 admin 的 token 必须是 403 而不是空列表（<b>不查而非隐藏</b>）；
+          断线续传的 <code>index</code> 必须连续；队列排空后繁忙提示必须自动消失。</p>
+        <div class="tbl-wrap"><table class="table">
+          <thead><tr><th>覆盖域</th><th>用例段</th><th>关键判据</th></tr></thead>
+          <tbody>
+            <tr><td>鉴权与角色</td><td>C01–C08</td><td>普通用户/admin 的可见边界；token 失效行为</td></tr>
+            <tr><td>上传与异步</td><td>C09–C13</td><td>进度单调、<code>resume_from</code> 续传索引连续</td></tr>
+            <tr><td>badcase 闭环</td><td>C14–C25</td><td>采集与查看权限分离；CSV/JSON 导出与库内一致</td></tr>
+            <tr><td>队列与概览</td><td>C26–C28</td><td>排空回落；统计范围权限分离</td></tr>
+            <tr><td>检索与治理</td><td>C29–C32</td><td>降级原因可复现；审计可按动作筛选</td></tr>
+            <tr><td>前端契约</td><td>C33</td><td>10 个具名 view + 6 个具名 loader 双向齐全</td></tr>
+          </tbody>
+        </table></div>
+        <h5>第二层：单元与契约测试（134 项）</h5>
+        <p>用隔离临时库 + 强制离线 provider，保证不花一分钱、不依赖网络。重点锁的是<b>顺序纪律</b>而不是单函数返回值：
+          「先按权限过滤 → 再重排 → 再进模型」这个次序一旦颠倒，功能看起来还在，越权就出来了。</p>
+        <h5>第三层：检索质量（这是弱项，明说）</h5>
+        <p><code>evalbench/</code> 用 <b>12 条自建样本</b>做多轮迭代对照，指标是 <code>recall@k</code>、
+          引用命中率、<code>answer_economy</code>。但样本是自建、口径是 RGB/SQuAD 的任务借鉴而非官方抽样，
+          所以结果标 <code>comparable=false</code>，<b>不进任何质量结论、不据此冻结阈值</b>。</p>
+        <div class="note"><b>没测什么</b>：真实 PG 全文检索与 Milvus expr 执行、混合检索的 MRR/NDCG、P95 延迟、
+          Redis 断线重连、Celery 页级 chord。原因是这些组件在本仓没有接入，拿 SQLite 替身的通过结果说「生产测过了」是失真。</div>
+        <div class="rfoot">复跑：<code>python webapp/selftest.py</code>（33 项）· <code>python -m pytest webapp/tests -q</code>（134 项）</div>
+      </div>
+
+      <!-- ===== P2 架构拆解 ===== -->
+      <div class="rpane" data-p="2" data-m="a">
+        <div class="phead"><span class="pnum">P2 · 架构</span><h4>解析子系统：字节到结构化文本，三级策略 + 确定性质量门禁</h4>
+          <span class="ptag g">P0/P2 已跑通 · P1 只设计</span></div>
+        <div class="chain">
+          <span class="n">原始字节<small>PDF/PNG/TXT</small></span><span class="ar">→</span>
+          <span class="n">P0 自研<small>零外部依赖</small></span><span class="ar">→</span>
+          <span class="n">质量门禁<small>QualitySignals</small></span><span class="ar">→</span>
+          <span class="n">升级判定<small>预算 10% 上限</small></span><span class="ar">→</span>
+          <span class="n">P1 OCR<small>__TBC__ 未接</small></span><span class="ar">或</span>
+          <span class="n">P2 多模态<small>已实测</small></span><span class="ar">→</span>
+          <span class="n">结构化文本<small>Pages/Blocks</small></span>
+        </div>
+        <h5>为什么是独立包，而不是塞进 backend/services</h5>
+        <p>因为它是<b>纯函数</b>：不依赖 PG / Milvus / Celery，输入字节、输出结构。好处是能单独 import、单独跑单测、
+          单独打镜像（<code>Dockerfile.parse</code>，只 COPY <code>parsing/</code>）。<code>webapp/</code> 和 <code>backend/</code>
+          都能接它而互不拖累——这条边界在面试里特别好讲：<b>换 OCR / 视觉供应商只改一个策略类</b>。</p>
+        <h5>三个不许破的契约</h5>
+        <ul>
+          <li><b>下游不动</b>：<code>ChunkSpec(page_no, section_path, block_type, confidence, source_level)</code> 是分块、chunks 表、Milvus schema、引用契约的共同基础。解析层换供应商不能改它。</li>
+          <li><b>降级保留本级正文</b>：<code>router._merge_fallback()</code> 会把上一级结果拼回去，不整页丢掉。空文本页不能套「图片结构事实」模板（<code>structured_fallback(is_image=False)</code>）。</li>
+          <li><b>短文本页 ≠ 无文本层</b>：<code>ocr_needed</code> 只能由「来源属性 + 零字符」判定，不能只看字符数，否则正常短文档会被整批送去最贵链路。</li>
+        </ul>
+        <h5>90:10 的真实含义（最容易被误讲的一点）</h5>
+        <p>它不是随机分流比例，是<b>上限 / 熔断线</b>。正常文档应该是 <b>0% 触发</b>；只有质量门禁判定
+          「零字符 / 无文本层 / 置信度 &lt; 0.75 / 表格检查未全过」才升级。
+          <code>VisionBudget.slots = max(1, ceil(页数 × 0.10))</code>，20 页就是 2 个名额，用完显式标
+          <code>escalation_budget_exceeded</code> 并回退。固定比例随机抽样既不能保证疑难页被送到最贵链路，
+          又会让能自研解决的页白付钱。</p>
+        <div class="note"><b>边界</b>：P0 覆盖有文本层 PDF 与简单表格；扫描件、复杂版面仍要 P1/P2；
+          P1 收费 OCR 只到适配器 + <code>__TBC__</code> 契约，<code>available()=False</code>；
+          所有阈值是演示经验起始值，不是用真实语料校准出来的。</div>
+        <div class="rfoot">事实源：<code>parsing/README.md</code> · <code>parsing/router.py</code> · <code>parsing/strategies/</code> · <code>docs/parsing/07-api-contracts.md</code></div>
+      </div>
+
+      <!-- ===== P2 竞品对照 ===== -->
+      <div class="rpane" data-p="2" data-m="b">
+        <div class="phead"><span class="pnum">P2 · 竞品</span><h4>文档解析：Unstructured / LlamaParse / Reducto / 阿里云 / MinerU</h4>
+          <span class="ptag a">公开资料整理 · 未实测</span></div>
+        <p>解析是 RAG 里<b>最贵也最难自研</b>的一环。这一页的价值在于：说清「什么时候该买、什么时候该自研」，
+          而不是证明自己写得好。</p>
+        <div class="tbl-wrap"><table class="table">
+          <thead><tr><th>方案</th><th>类型</th><th>强在哪</th><th>代价 / 约束</th><th>本项目位置</th></tr></thead>
+          <tbody>
+            <tr><td><b>Unstructured.io</b></td><td>开源 + 云服务</td><td>格式覆盖面最广，生态成熟</td><td>复杂版面仍需付费档；自建调参成本高</td><td>P2 的商业替代品</td></tr>
+            <tr><td><b>LlamaParse</b></td><td>付费 API</td><td>表格与版面还原质量口碑好</td><td>按页计费、数据出境需评估</td><td>P2 的商业替代品</td></tr>
+            <tr><td><b>Reducto</b></td><td>付费 API</td><td>结构化输出干净，演示效果常被推荐</td><td>国内访问与合规需单独评估</td><td><code>adapters/</code> 里留了 profile</td></tr>
+            <tr><td><b>阿里云文档解析</b></td><td>国内云服务</td><td>国内合规、发票/证照类识别强</td><td>按页计费；私有化另谈</td><td>国内上线的现实选择</td></tr>
+            <tr><td><b>MinerU</b></td><td>开源</td><td>学术 PDF 公式/版面还原强</td><td>部署重，依赖模型与算力</td><td>自研路线的参考实现</td></tr>
+            <tr><td><b>本项目 P0</b></td><td>自研</td><td>零依赖、可离线、可解释（每个置信度可复算）</td><td>覆盖窄，只到有文本层 PDF 与简单表</td><td>兜底档，不追质量</td></tr>
+          </tbody>
+        </table></div>
+        <h5>判断：什么时候别自研</h5>
+        <ul>
+          <li><b>扫描件占比 &gt; 30%</b>：自研 OCR 是纯浪费，直接接云服务。</li>
+          <li><b>需要发票 / 证照 / 表单结构化字段</b>：这类有行业专用模型，通用方案做不过。</li>
+          <li><b>有数据出境限制</b>：这时候不是「选哪家」，是「必须私有化」——反而可以自研或选开源。</li>
+        </ul>
+        <h5>本项目的真实取舍</h5>
+        <p>做三级而不是一步到位，是因为<b>成本结构不同</b>：P0 边际成本为 0，P2 每页真金白银。
+          所以正确做法不是「都上最好的」，而是<b>用可复算的信号决定哪一页值得升级</b>。
+          这也是为什么质量门禁的四个信号（零字符 / 无文本层 / 置信度 / 表格检查）必须能独立验证——
+          否则你无法回答「这页到底该不该花钱」。</p>
+        <div class="note"><b>口径声明</b>：单价与能力描述来自公开页面，未做同条件对比；
+          本项目<b>不代用户开通或付费</b>，<code>showcase/adapters/</code> 只是静态 profile（<code>available=False</code>）。</div>
+        <div class="rfoot">对照对象：Unstructured.io / LlamaParse / Reducto / 阿里云文档解析 / MinerU</div>
+      </div>
+
+      <!-- ===== P2 评测口径 ===== -->
+      <div class="rpane" data-p="2" data-m="c">
+        <div class="phead"><span class="pnum">P2 · 评测</span><h4>解析好不好，不能只看「有没有出字」</h4>
+          <span class="ptag g">31 项集成 + 22 项单测</span></div>
+        <h5>四类指标，逐类说清测没测</h5>
+        <div class="tbl-wrap"><table class="table">
+          <thead><tr><th>指标</th><th>定义</th><th>怎么算</th><th>当前状态</th></tr></thead>
+          <tbody>
+            <tr><td><b>字符保留率</b></td><td>输出正文可见字符 / 源文本层可见字符</td><td>同一份 PDF 用 P0 解析两遍，比对字符数（不含空白）</td><td><span class="mode real">已实测</span> 抽样文档逼近 1.0</td></tr>
+            <tr><td><b>表格单元格还原</b></td><td>还原出的 cell 行列坐标与人工标注一致的比例</td><td>需要人工标注集</td><td><span class="mode off">只设计</span> 无标注集</td></tr>
+            <tr><td><b>置信度校准</b></td><td>置信度分桶后，实际正确率是否随分桶单调上升</td><td>分桶 + 校准曲线</td><td><span class="mode off">未做</span> 缺标注</td></tr>
+            <tr><td><b>升级精度</b></td><td>被升级到 P2 的页里，真正需要升级的比例（precision）</td><td>人工复核被升级页</td><td><span class="mode off">只设计</span></td></tr>
+            <tr><td><b>升级召回</b></td><td>真正需要升级的页里，被门禁抓到的比例（recall）</td><td>人工标注「疑难页」全集</td><td><span class="mode off">只设计</span></td></tr>
+            <tr><td><b>成本</b></td><td>每千页外部调用次数与金额</td><td>统计 <code>runtime.external_request_count</code></td><td><span class="mode mix">部分</span> 离线档为 0，已可断言</td></tr>
+          </tbody>
+        </table></div>
+        <h5>能实跑的三条断言</h5>
+        <ul>
+          <li><b>离线零请求</b>：<code>PARSING_OFFLINE=1</code> 时 <code>runtime.external_request_count == 0</code>，单测以此为前提。</li>
+          <li><b>降级不丢正文</b>：构造「P2 调用失败」的用例，断言输出仍含 P0 正文，且带降级标记。</li>
+          <li><b>预算熔断</b>：把 <code>slots</code> 设为 0 后，断言第 N 页标 <code>escalation_budget_exceeded</code> 且回退成功。</li>
+        </ul>
+        <h5>V5 同参双跑一致性</h5>
+        <p>演示站要求同一输入、同一参数跑两次，<code>canonical()</code> <b>路径感知投影</b>完全相同。
+          投影会剔除 <code>manifest</code> 整块、<code>llm_route</code> 的 <code>route_id / hysteresis / reason</code>、
+          任意层级耗时字段，但<b>保留</b> <code>trace[].reason</code> 与 <code>source.sha256</code>。
+          这条断言的作用是防「结果里混进了挂钟时间或随机 ID」——那类 bug 会让所有回归都变成假绿。</p>
+        <div class="note"><b>没测什么</b>：没有人工标注集，所以表格 F1、置信度校准、升级 precision/recall 全部只有定义没有数值；
+          <b>功能连通性 ≠ 质量基线</b>，P2 传图实测只能证明链路通了，不能证明识别准确率。</div>
+        <div class="rfoot">复跑：<code>PARSING_OFFLINE=1 python showcase/verify_integration.py</code>（31 项）· <code>python -m pytest parsing/tests -q</code>（22 项）</div>
+      </div>
+
+      <!-- ===== P3 架构拆解 ===== -->
+      <div class="rpane" data-p="3" data-m="a">
+        <div class="phead"><span class="pnum">P3 · 架构</span><h4>知识治理：把「哪条证据还适用」变成一等公民</h4>
+          <span class="ptag g">23 项单测 · 接入默认关闭</span></div>
+        <div class="chain">
+          <span class="n">候选证据<small>召回结果</small></span><span class="ar">→</span>
+          <span class="n">适用性门控<small>生效期/范围</small></span><span class="ar">→</span>
+          <span class="n">时间衰减<small>半衰期</small></span><span class="ar">→</span>
+          <span class="n">冲突图<small>并查集分簇</small></span><span class="ar">→</span>
+          <span class="n">簇内裁决<small>权威→生效期→人工</small></span><span class="ar">→</span>
+          <span class="n">EvidenceRecord<small>含 conflict_signal</small></span>
+        </div>
+        <h5>核心命题：最新 ≠ 适用，相似 ≠ 可信</h5>
+        <p>常规 RAG 只做「相似度排序」，但企业知识库里最常见的错误答案是<b>「用旧版价格回答了新版问题」</b>——
+          它相似度极高、出处也真实，就是不该用。所以这里把三件事拆开：</p>
+        <ul>
+          <li><b>适用性</b>（该不该用）：<code>valid_from</code> 在未来 → 标 <code>not_yet_effective</code> 并排除（<b>不是判过期</b>）；<code>expires_at</code> 已过 → 按 <code>demote|exclude|warn</code> 三档处置；<code>scope</code>（region/plan/version）不同 → 同字段不同值<b>不算冲突</b>。</li>
+          <li><b>新鲜度</b>（该多信）：<code>decay = max(floor, 0.5^(age/half_life))</code>，<code>effective = base×(1−blend+blend×decay)</code>，年龄优先取 <code>last_verified_at</code>。</li>
+          <li><b>互斥性</b>（能不能一起用）：冲突必须作为 <code>EvidenceRecord.conflict_signal</code> 的<b>正式状态</b>传给生成层，不能把互斥片段无序塞进上下文。</li>
+        </ul>
+        <h5>裁决顺序是硬约束，不许临时发明</h5>
+        <p><b>业务权威度 → 生效期（强制 <code>needs_review=True</code>）→ 并列转人工（<code>winner=None</code>）</b>。
+          冲突图用并查集求连通分量，<b>按簇独立裁决</b>；被淘汰的 claim 进 <code>excluded_claim_ids</code> 留痕，
+          <b>不删除</b>。最后一步尤其重要：不做 tie-break 不是因为懒，是因为「并列」本身就是需要人来判断的信号，
+          代码替人做的每一个决定都会变成一次不可追溯的错误。</p>
+        <h5>为什么效果开关默认关闭</h5>
+        <p><code>webapp/rag.py::_apply_freshness()</code> 由 <code>WEBAPP_FRESHNESS_ENABLED=1</code> 开启，默认关。
+          原因很实际：它会改变排序结果，而 33 项 e2e 依赖既有排序。默认关闭是<b>工程妥协</b>，不是设计选择——
+          生产应该在<b>召回前</b>用 SQL / Milvus expr 做硬过滤，而不是在 <code>top_k</code> 内重排。</p>
+        <div class="note"><b>边界</b>：这是规则级实现，<b>不等于 NLI 模型级矛盾识别</b>；生成层注入 EvidenceRecord 与逐句 grounding
+          仍只设计；权威注册表的业务审批流没做；阈值全是演示经验起始值。</div>
+        <div class="rfoot">事实源：<code>knowledge/README.md</code> · <code>knowledge/conflict.py</code> · <code>knowledge/freshness.py</code> · <code>docs/knowledge/01–04</code></div>
+      </div>
+
+      <!-- ===== P3 竞品对照 ===== -->
+      <div class="rpane" data-p="3" data-m="b">
+        <div class="phead"><span class="pnum">P3 · 竞品</span><h4>几乎没有直接对标——这既是机会也是风险</h4>
+          <span class="ptag a">公开资料整理 · 未实测</span></div>
+        <p><b>先说结论</b>：主流 RAG 产品把「检索相关性」做得很深，但把「证据适用性」当成元数据过滤的一个小分支。
+          没有找到一个产品把「生效期 / 适用范围 / 互斥裁决」做成独立的、可解释的一层。</p>
+        <div class="tbl-wrap"><table class="table">
+          <thead><tr><th>对照对象</th><th>它做了什么</th><th>与本项目的差异</th></tr></thead>
+          <tbody>
+            <tr><td><b>LlamaIndex Metadata Filters</b></td><td>按元数据字段过滤（日期、标签、来源）</td><td>能筛「哪一类」，但不判「同一字段两个值互斥时信谁」</td></tr>
+            <tr><td><b>GraphRAG</b></td><td>实体关系图 + 社区摘要，回答全局性问题</td><td>解决「信息散落」，不解决「信息打架」</td></tr>
+            <tr><td><b>RAGFlow 知识图谱</b></td><td>抽取实体关系增强召回</td><td>同上，冲突仍需人看</td></tr>
+            <tr><td><b>Confluence / 语雀 / 飞书文档</b></td><td>版本历史 + 生效期字段</td><td>有字段但<b>不进检索链路</b>，问答时不会用</td></tr>
+            <tr><td><b>本项目</b></td><td>门控 + 衰减 + 冲突图 + 裁决留痕</td><td>是<b>唯一把裁决结果作为状态传给生成层</b>的一层</td></tr>
+          </tbody>
+        </table></div>
+        <h5>为什么别人不做？三个真实原因</h5>
+        <ul>
+          <li><b>需要业务语义</b>：「哪份文件更权威」不是算法能推的，得有权威注册表和审批流——这是组织问题，不是技术问题。</li>
+          <li><b>错误代价不对称</b>：漏判冲突只是答得笼统，误判冲突会把正确答案淘汰。所以产品方宁可让人看。</li>
+          <li><b>难评测</b>：需要带「标准答案」的冲突语料，构造成本高。本项目也只能用合成场景，不敢说自己有质量结论。</li>
+        </ul>
+        <h5>这个差异点的正确讲法</h5>
+        <p>不要说「我做了别人没做的功能」。要说：<b>我识别出了一个被普遍简化的问题，并给出了一个可解释、可回退、
+          带留痕的最小实现；同时明确它的上限</b>（规则级、需人工兜底、缺标注集）。
+          「发现空白」和「填满空白」是两件事，前者已经足够支撑一次深度技术对话。</p>
+        <div class="note"><b>口径声明</b>：竞品能力描述来自公开文档；「几乎没有对标」是基于我检索范围内的判断，
+          不排除有未公开的内部实现。<b>不把「没找到」说成「不存在」</b>。</div>
+        <div class="rfoot">对照对象：LlamaIndex / GraphRAG / RAGFlow / Confluence / 语雀 / 飞书（公开资料）</div>
+      </div>
+
+      <!-- ===== P3 评测口径 ===== -->
+      <div class="rpane" data-p="3" data-m="c">
+        <div class="phead"><span class="pnum">P3 · 评测</span><h4>用合成场景锁行为，而不是用分数吹效果</h4>
+          <span class="ptag g">23 项单测 · 6 文档 2 簇</span></div>
+        <h5>内置场景 <code>DEMO-FRESHNESS-CONFLICT-001</code></h5>
+        <div class="tbl-wrap"><table class="table">
+          <thead><tr><th>构成</th><th>数量</th><th>作用</th></tr></thead>
+          <tbody>
+            <tr><td>文档</td><td>6</td><td>覆盖「旧版/新版」「未生效/已过期」「不同 region」</td></tr>
+            <tr><td>冲突簇</td><td>2</td><td>一簇靠 <code>freshness</code> 可自动裁决（需复核）；一簇靠 <code>authority</code> 直接裁决（不复核）</td></tr>
+            <tr><td>负向对照</td><td>3</td><td>「看起来冲突其实不冲突」：scope 不同、单位不同、否定词不同</td></tr>
+            <tr><td>外部调用</td><td>0</td><td>全部合成，不写业务库、不点网络</td></tr>
+          </tbody>
+        </table></div>
+        <h5>四条被锁死的行为（不是数字）</h5>
+        <ul>
+          <li><b>关掉新鲜度开关只关时间衰减，不关适用性门控</b>——由 <code>test_rerank_keeps_before_after_evidence</code> 锁定。这是最容易写错的一条：把「衰减」和「门控」混在一个开关里，关掉就等于让过期证据复活。</li>
+          <li><b>未生效 ≠ 已过期</b>：<code>valid_from</code> 在未来标 <code>not_yet_effective</code>，不写 <code>expired</code>。语义错会导致下游统计全错。</li>
+          <li><b>并列不下结论</b>：同权威度、同生效期时 <code>winner=None</code>，强制转人工。</li>
+          <li><b>淘汰也留痕</b>：被排除的 claim 进 <code>excluded_claim_ids</code>，可从结果反查为什么被排除。</li>
+        </ul>
+        <h5>防误报的三个降置信度规则</h5>
+        <p>年份 1900–2099 无单位、裸小整数 1–9 → 降置信度（否则「2024」会被当成价格）；单位/否定词/scope 原样保留；
+          主题 Jaccard 门控（避免把无关的两段判成冲突）。每条 claim 保留 <code>text</code> + <code>chunk_id</code>，可回到原文核对。</p>
+        <div class="note"><b>没测什么</b>：没有带标准答案的真实冲突语料，所以没有 precision/recall；
+          合成场景只能证明<b>行为符合设计</b>，不能证明<b>在真实语料上有效</b>。这两句话不能混。</div>
+        <div class="rfoot">复跑：<code>python -m pytest knowledge/tests -q</code>（23 项）· 场景定义见 <code>knowledge/samples.py</code></div>
+      </div>
+
+      <!-- ===== P4 架构拆解 ===== -->
+      <div class="rpane" data-p="4" data-m="a">
+        <div class="phead"><span class="pnum">P4 · 架构</span><h4>缓存与重启：key 的每一段都对应一类事故</h4>
+          <span class="ptag g">19 项单测 · 真·进程重启演练</span></div>
+        <div class="chain">
+          <span class="n">请求<small>query + principal</small></span><span class="ar">→</span>
+          <span class="n">13 段 key<small>含 authz/version</small></span><span class="ar">→</span>
+          <span class="n">L1 LRU<small>进程内</small></span><span class="ar">→</span>
+          <span class="n">L2 SQLite<small>重启可恢复</small></span><span class="ar">→</span>
+          <span class="n">key_matches<small>三重复核</small></span><span class="ar">→</span>
+          <span class="n">命中/回源</span>
+        </div>
+        <h5>13 段 key：每一段都是为了堵一类具体事故</h5>
+        <div class="tbl-wrap"><table class="table">
+          <thead><tr><th>缺失的那一段</th><th>会造成什么</th></tr></thead>
+          <tbody>
+            <tr><td>embedding 模型名</td><td>切模型后复用旧向量；维度不一致时余弦<b>静默返回 0</b>，检索看似正常实则全错</td></tr>
+            <tr><td><code>authz_snapshot</code></td><td>跨用户 / 跨部门串权限——最隐蔽的越权</td></tr>
+            <tr><td><code>data_version</code></td><td>文档删了还在返回旧片段</td></tr>
+            <tr><td><code>policy_version</code></td><td>改了策略仍命中旧结果，「改了没生效」</td></tr>
+            <tr><td><code>top_k</code> / 检索模式 / rerank / freshness</td><td>参数不同却共用缓存，结果与配置不符</td></tr>
+            <tr><td>schema 版本</td><td>结构升级后老缓存反序列化炸掉</td></tr>
+          </tbody>
+        </table></div>
+        <p><code>authz_snapshot = sha256(org, role, department_id, sorted(visible_department_ids), grant_version)</code>。
+          用 <code>sorted</code> 是为了「同样的授权集合」不因顺序不同产生不同 key；带 <code>grant_version</code>
+          是为了转岗后<b>立刻</b>失效，而不是等 TTL。</p>
+        <h5>懒失效：不批量删，只递增版本</h5>
+        <p>文档 / 授权 / 策略变化只做一件事：<code>bump_data_version</code> / <code>bump_grant_version</code> / <code>sync_policy_version</code>。
+          旧 key 自然不命中，过期条目由 <code>purge_expired()</code> 回收。<code>invalidate_all()</code> 只用于演练。
+          <b>为什么不批量删</b>：删是 O(n) 写操作、会锁表、会在多副本下漏删；递增版本是 O(1) 且最终一致。</p>
+        <h5>重启状态三分类（这是最容易讲糊的一块）</h5>
+        <div class="tbl-wrap"><table class="table">
+          <thead><tr><th>类别</th><th>内容</th><th>处理</th></tr></thead>
+          <tbody>
+            <tr><td><b>可安全丢弃</b></td><td>限流窗口、轨迹 deque、SSE 连接</td><td>丢了只是窗口重置，不产生错误数据</td></tr>
+            <tr><td><b>可从真值重建</b></td><td>队列 <code>_active/_queued</code>、进度快照</td><td>扫 <code>documents.status IN ('queued','analyzing')</code> 幂等重投</td></tr>
+            <tr><td><b>必须持久化</b></td><td>策略、预算、用量、文档、<code>chunk_embeddings</code>、<code>cache_entries</code>、<code>runtime_state</code></td><td>落库；启动恢复</td></tr>
+          </tbody>
+        </table></div>
+        <p><b>真值层先行</b>：强停（SIGKILL）不执行 lifespan 的 <code>finally</code>，<code>last_shutdown_at</code> 可能缺失。
+          这一点在真实重启演练里被实证——正好反证「关闭钩子不可靠，必须靠真值层 + 启动对账」。</p>
+        <div class="note"><b>边界</b>：L2 落在与业务库同一个 SQLite 文件，是演示替身（生产对应 PG 真值 + Redis）；
+          <code>rag.retrieve()</code> 主链路<b>默认不接</b>检索结果缓存；答案缓存 / 语义缓存未做。</div>
+        <div class="rfoot">事实源：<code>cache/README.md</code> · <code>cache/store.py</code> · <code>cache/recovery.py</code> · <code>docs/cache-recovery/01–02</code></div>
+      </div>
+
+      <!-- ===== P4 竞品对照 ===== -->
+      <div class="rpane" data-p="4" data-m="b">
+        <div class="phead"><span class="pnum">P4 · 竞品</span><h4>Redis / 语义缓存：性能都做得比你好，但没人管授权快照</h4>
+          <span class="ptag a">公开资料整理 · 未实测</span></div>
+        <div class="tbl-wrap"><table class="table">
+          <thead><tr><th>方案</th><th>它解决的问题</th><th>它不管的问题</th><th>本项目做法</th></tr></thead>
+          <tbody>
+            <tr><td><b>Redis / RedisVL</b></td><td>分布式缓存、TTL、向量检索缓存</td><td>key 里放什么由你决定，放错了它不拦</td><td>借用它的形，key 由 <code>cache/</code> 统一构造</td></tr>
+            <tr><td><b>GPTCache</b></td><td>语义相似度命中，省重复调用</td><td><b>语义相似 ≠ 授权相同</b>；A 的答案可能被 B 命中</td><td>明确不做语义缓存</td></tr>
+            <tr><td><b>CDN / HTTP 缓存</b></td><td>静态资源与幂等 GET</td><td>不处理「同一 URL 不同身份不同结果」</td><td><code>Vary</code> 思路对应 <code>authz_snapshot</code></td></tr>
+            <tr><td><b>本项目</b></td><td>把「身份 + 数据版本 + 策略版本」写进 key</td><td>吞吐远不如 Redis；单机 L1 重启清空</td><td>演示级实现，生产换 Redis 但 key 规则不变</td></tr>
+          </tbody>
+        </table></div>
+        <h5>为什么「语义缓存」在本项目是明确不做</h5>
+        <p>因为它的失败模式是<b>静默越权</b>。两个问题语义相似度 0.95，但一个是「HR 能看的薪酬带宽」，另一个是「全员可见的职级说明」——
+          语义缓存会把后者替换成前者。这类 bug 不会报错、不会 5xx，只会在某次审计里被发现。
+          所以这里的判断是：<b>宁可少省 30% 的调用，也不引入一个无法用单元测试覆盖的越权面</b>。</p>
+        <h5>真正的对标点不是产品，是「失效策略」</h5>
+        <ul>
+          <li><b>TTL 失效</b>（多数方案）：简单，但转岗后最长要等一个 TTL 才能看到新权限。</li>
+          <li><b>主动删</b>（部分方案）：及时，但多副本下容易漏删，且删是大范围写操作。</li>
+          <li><b>版本递增 + 懒失效</b>（本项目）：O(1) 写入、天然多副本一致、可回滚；代价是旧条目要等 TTL 才回收空间。</li>
+        </ul>
+        <div class="note"><b>口径声明</b>：竞品能力来自公开文档，未做同条件压测。
+          本项目<b>没有</b>吞吐数据，不能与 Redis 比性能；能比的只有「key 设计与失效语义」这一层。</div>
+        <div class="rfoot">对照对象：Redis / RedisVL / GPTCache / 通用 CDN 缓存语义（公开资料）</div>
+      </div>
+
+      <!-- ===== P4 评测口径 ===== -->
+      <div class="rpane" data-p="4" data-m="c">
+        <div class="phead"><span class="pnum">P4 · 评测</span><h4>缓存要证明两件事：不串权限，重启不乱</h4>
+          <span class="ptag g">19 项 + 真重启两次</span></div>
+        <h5>正确性：三个「必须为 0」</h5>
+        <div class="tbl-wrap"><table class="table">
+          <thead><tr><th>断言</th><th>怎么测</th><th>当前</th></tr></thead>
+          <tbody>
+            <tr><td><b>越权命中 = 0</b></td><td>用 A 的 key 写入，再用 B（不同部门）的 principal 构造 key，断言不命中</td><td><span class="mode real">已锁</span></td></tr>
+            <tr><td><b>stale 命中 = 0</b></td><td>写入后 bump <code>data_version</code>，断言 <code>key_matches()</code> 判否</td><td><span class="mode real">已锁</span></td></tr>
+            <tr><td><b>切模型复用 = 0</b></td><td>换 embedding 模型名，断言 key 不同（否则余弦静默归零）</td><td><span class="mode real">已锁</span></td></tr>
+          </tbody>
+        </table></div>
+        <h5>重启稳定性：不是「起来就行」，是逐项对账</h5>
+        <p>隔离库做两次真实进程启停：先改策略（半衰期 45 / blend 0.5）、写 1 条缓存、
+          埋 1 个 <code>analyzing</code> 孤儿任务和 1 条幽灵向量，然后强停重启。判据：</p>
+        <ul>
+          <li><code>boot_count</code> 1 → 2（证明 <code>runtime_state</code> 真的持久化了）</li>
+          <li><code>requeued = 1</code>（孤儿任务被幂等重投，不是被忽略）</li>
+          <li><code>ghost = 1</code>（<code>chunk_embeddings</code> 里无对应分块的行被清理）</li>
+          <li>策略 45/0.5 完整恢复；L2 条目仍在；全流程无 500</li>
+        </ul>
+        <h5>性能口径（明确不吹）</h5>
+        <p>只统计<b>命中率</b>与<b>失效原因分布</b>（data_version / grant_version / policy_version / ttl），
+          因为这些是能从库里真实聚合出来的。延迟与吞吐<b>没有测</b>——单机 SQLite 上的数字没有参考价值。</p>
+        <div class="note"><b>没测什么</b>：多副本共享 L2、Redis 故障切换、缓存击穿与雪崩防护、容量上限。
+          <code>purge_expired()</code> 的回收效果只在演示规模上验证过，没有长跑数据。</div>
+        <div class="rfoot">复跑：<code>python -m pytest cache/tests -q</code>（19 项）· 重启演练见 <code>docs/cache-recovery/02</code></div>
+      </div>
+
+      <!-- ===== P5 架构拆解 ===== -->
+      <div class="rpane" data-p="5" data-m="a">
+        <div class="phead"><span class="pnum">P5 · 架构</span><h4>PII 防护：一层规则、四个出口、一条不能断的流</h4>
+          <span class="ptag g">四出口闭环 · 流式零泄漏</span></div>
+        <div class="chain">
+          <span class="n">GATE_INGEST<small>入库前</small></span><span class="ar">→</span>
+          <span class="n">GATE_CONTEXT<small>进模型前</small></span><span class="ar">→</span>
+          <span class="n">GATE_OUTPUT<small>下发前</small></span><span class="ar">→</span>
+          <span class="n">GATE_AUDIT<small>日志导出前</small></span>
+        </div>
+        <h5>为什么必须四个出口，而不是「展示层打码」</h5>
+        <p>因为原文会走别的路：chunks 是检索、向量缓存、来源卡片、<code>chat_sources</code> 的<b>共同真值源</b>。
+          一旦原文进了分块，展示层打码只是自欺欺人——审计日志、badcase 的 CSV 导出、模型上下文里都还是明文。
+          所以四个出口共用一套 <code>Guardrails.protect()</code>，配置一律 <code>GUARDRAILS_*</code> 前缀。</p>
+        <h5>四级判定链：先便宜后贵，先结构后概率</h5>
+        <div class="tbl-wrap"><table class="table">
+          <thead><tr><th>级别</th><th>手段</th><th>作用</th></tr></thead>
+          <tbody>
+            <tr><td>1 格式</td><td>正则 + 前后数字边界</td><td>快速排除明显不是的（<code>1[3-9]\d{9}</code> 加边界防长号子串）</td></tr>
+            <tr><td>2 校验位</td><td>ISO 7064 MOD 11-2（身份证）、Luhn（银行卡）</td><td>把「像」变成「是」；这一步决定了误报率</td></tr>
+            <tr><td>3 上下文门控</td><td>字段名词（「身份证」「工号」「护照」）</td><td>无字段名的裸数字只降置信度，不直接判定</td></tr>
+            <tr><td>4 置信度</td><td>分级动作：block / mask / warn</td><td>API 密钥默认 block，不进任何日志</td></tr>
+          </tbody>
+        </table></div>
+        <h5>流式脱敏：唯一真正难的地方</h5>
+        <p>SSE 逐 token 下发时，18 位身份证会跨多个 chunk。只保留尾部 24 字符<b>不够</b>——
+          标识符起点落在可下发区、终点还在保留区时，前 10 位会先发出去，<b>发出去就撤不回来</b>。
+          正确做法是找出横跨下发边界的连续候选串（<code>[A-Za-z0-9_.@+\-:]+</code>），
+          把边界收缩到它的起点<b>整串扣住</b>，等它完整进缓冲区再扫描。</p>
+        <p>同时不能破坏断线续传：保持「一个原始 token 一个包」、<code>index</code> 用原始索引，
+          扣住的尾部由 <code>done.tail</code> 补齐、前端在 <code>ev==='done'</code> 时追加。
+          这是「安全」与「协议契约」互相绑架的典型场景，改任一侧都会踩另一侧。</p>
+        <h5>台账只存计数，不存原文</h5>
+        <p><code>safety_events</code> 只有 gate / kind / 数量 / 动作 / 规则版本。脱敏异常时 <b>fail-closed</b>：
+          丢字段而不是写原文。<code>rag.analyze_document</code> 同样 fail-closed，阻断整份入库。
+          宁可少入库一份文档，也不留一条明文。</p>
+        <div class="note"><b>边界</b>：规则级检测 <b>≠</b> 模型级 NER；<code>backend/</code> 骨架未接本包；
+          可逆 token 默认关闭；默认哈希盐 <code>demo-salt-change-me</code> 是演示占位值；
+          图片/表格内 PII、合规审计、SIEM、压测标定未做。</div>
+        <div class="rfoot">事实源：<code>guardrails/detectors.py</code> · <code>guardrails/redact.py</code> · <code>docs/CONTENT-SAFETY-DELIVERY.md</code></div>
+      </div>
+
+      <!-- ===== P5 竞品对照 ===== -->
+      <div class="rpane" data-p="5" data-m="b">
+        <div class="phead"><span class="pnum">P5 · 竞品</span><h4>Presidio / Guardrails AI / 云厂商内容安全：三类路线的取舍</h4>
+          <span class="ptag a">公开资料整理 · 未实测</span></div>
+        <div class="tbl-wrap"><table class="table">
+          <thead><tr><th>路线</th><th>代表</th><th>强在哪</th><th>弱在哪</th></tr></thead>
+          <tbody>
+            <tr><td><b>规则 + 校验位</b></td><td>本项目</td><td>可解释、零成本、可离线、误报可控（能算校验位）</td><td>覆盖窄；中文姓名/地址只能靠字段名；不认变体</td></tr>
+            <tr><td><b>NER 模型</b></td><td>Microsoft Presidio</td><td>识别泛化好，支持多语言与自定义 recognizer</td><td>需加载模型；中文效果依赖所选模型；仍要规则兜底</td></tr>
+            <tr><td><b>策略框架</b></td><td>Guardrails AI</td><td>输出结构校验与修复（validators / re-ask）</td><td>偏「格式与政策」而非「实体识别」，两者互补</td></tr>
+            <tr><td><b>云内容安全</b></td><td>阿里云 / 腾讯云</td><td>合规资质齐、覆盖涉政涉黄暴恐、持续更新</td><td>数据出境/上云评估；按调用计费；不可离线</td></tr>
+          </tbody>
+        </table></div>
+        <h5>本项目的定位：不是替代，是「离线可跑的那一层」</h5>
+        <p>真实生产应该是<b>三层叠加</b>：规则层（快、免费、可解释）→ NER 层（泛化）→ 云内容安全（合规与政策类）。
+          本项目只做了第一层，因为它的边际成本为 0，且是唯一能在<b>离线演示</b>里完整跑通的一层。
+          把它说成「完整的 PII 方案」是夸大；说成「生产里的第一道闸」是准确的。</p>
+        <h5>一个具体的技术对比点：中文身份证</h5>
+        <p>只做格式（<code>\d{17}[\dXx]</code>）会把订单号当身份证；做校验位（MOD 11-2）之后误报大幅下降。
+          但这里踩过一个真坑：<b>校验位非法的身份证，其前 17 位恰好通过 Luhn</b>，于是被误报成银行卡。
+          修法是给 <code>BANK_CARD</code> 加 <code>(?![\dXx])</code> 负向断言。
+          这类交叉误报在任何「多规则并行」的实现里都会出现，只能靠双向负向对照测出来。</p>
+        <div class="note"><b>口径声明</b>：竞品能力来自公开文档；<b>没有任何准确率对比</b>。
+          本项目未在真实语料上标定 precision/recall，因此不能声称「比 Presidio 准」或「比它快」。</div>
+        <div class="rfoot">对照对象：Microsoft Presidio / Guardrails AI / 阿里云内容安全 / 腾讯云天御（公开资料）</div>
+      </div>
+
+      <!-- ===== P5 评测口径 ===== -->
+      <div class="rpane" data-p="5" data-m="c">
+        <div class="phead"><span class="pnum">P5 · 评测</span><h4>误报比漏报更容易被追问，所以两个都要测</h4>
+          <span class="ptag g">9 正向 + 4 负向 · leaked=false</span></div>
+        <h5>样本设计：正负成对，且校验位必须按算法算</h5>
+        <div class="tbl-wrap"><table class="table">
+          <thead><tr><th>类型</th><th>数量</th><th>要点</th></tr></thead>
+          <tbody>
+            <tr><td>正向样本</td><td>9</td><td>身份证（MOD 11-2 合法）、手机、银行卡（Luhn 合法）、邮箱、API 密钥、姓名+工号等</td></tr>
+            <tr><td>负向对照</td><td>4</td><td>订单号、18 位流水号、日期串、<b>校验位非法的身份证</b>（必须不被判成银行卡）</td></tr>
+            <tr><td>流式验证</td><td>7 种 chunk 大小</td><td>逐字符下发，断言 <code>leaked=false</code> 且无 PII 文本 roundtrip 逐字相同</td></tr>
+          </tbody>
+        </table></div>
+        <p><b>为什么样本要按算法算</b>：随手编的 <code>11010119900307193X</code> 校验位非法，
+          却被旧版 <code>BANK_CARD</code> 正则判成银行卡，把负向对照测成了误报。
+          用不合法的样本测规则，测出来的结论一定不可信。</p>
+        <h5>四出口链路验证</h5>
+        <p>一条请求穿过四个 gate，逐出口断言「命中数 &gt; 0 且台账里有记录、但库里没有原文」。
+          这条比「脱敏函数返回值正确」强得多——它证明的是<b>出口真的接上了</b>，
+          而单元测试只能证明函数本身对。</p>
+        <h5>指标现状（诚实版）</h5>
+        <div class="tbl-wrap"><table class="table">
+          <thead><tr><th>指标</th><th>状态</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td>流式泄漏率</td><td><span class="mode real">已实测 = 0</span></td><td>7 种 chunk 大小 × 逐字符，<code>leaked=false</code></td></tr>
+            <tr><td>负向误报</td><td><span class="mode real">已实测 = 0</span></td><td>4 条负向对照全部未触发</td></tr>
+            <tr><td>precision / recall</td><td><span class="mode off">未做</span></td><td>需要带标注的真实语料，合成样本不能算</td></tr>
+            <tr><td>性能开销</td><td><span class="mode off">未做</span></td><td>规则级理应很快，但没有基准测试数据</td></tr>
+          </tbody>
+        </table></div>
+        <div class="note"><b>面试标准答法</b>：先说「我测了什么」（流式零泄漏、负向零误报、四出口接通），
+          再说「我没测什么」（precision/recall、性能、图片内 PII），最后说「要测需要什么」（标注语料 + 基准环境）。
+          <b>主动划边界比等对方挖出来强。</b></div>
+        <div class="rfoot">事实源：<code>guardrails/README.md</code> · <code>webapp/tests/test_safety_api.py</code> · <code>showcase/verify_integration.py</code></div>
+      </div>
+
+      <!-- ===== P6 架构拆解 ===== -->
+      <div class="rpane" data-p="6" data-m="a">
+        <div class="phead"><span class="pnum">P6 · 架构</span><h4>评测工作台：平行体系，绝不修改冻结对象</h4>
+          <span class="ptag g">16 项单测 · 4 轮迭代</span></div>
+        <div class="chain">
+          <span class="n">12 条自建样本<small>self_built_v1</small></span><span class="ar">→</span>
+          <span class="n">配置快照<small>prompt/params/model</small></span><span class="ar">→</span>
+          <span class="n">逐样本执行<small>可续跑</small></span><span class="ar">→</span>
+          <span class="n">评分<small>METRICS@1.2.0</small></span><span class="ar">→</span>
+          <span class="n">run 落盘<small>不可原地改</small></span><span class="ar">→</span>
+          <span class="n">对比/看板</span>
+        </div>
+        <h5>为什么是平行体系，而不是改造 eval/</h5>
+        <p><code>eval/</code> 是<b>冻结对象</b>：它的 <code>__TBC__</code> 占位、<code>NOT_COMPARABLE</code> 口径、
+          <code>real_api</code> 阻断规则，都是「诚实边界」的载体。一旦为了跑通真实 API 去改它，
+          这套边界就失效了。所以 <code>evalbench/</code> 完全另起一套，<b>一行都不改 <code>eval/</code></b>，
+          并用 <code>git diff main..HEAD -- eval/</code> 为空作为验收条件之一。</p>
+        <h5>可续跑的关键：缓存键设计</h5>
+        <p>结果按 <code>(model, prompt_hash, params_hash, sample, context_hash, repeat)</code> 缓存到
+          <code>evalbench/cache/</code>（已 gitignore）。续跑只补失败项——
+          这不是性能优化，是<b>成本控制</b>：一轮 12 样本 × 4 配置跑真实 API 是要花钱的，
+          中断后从头跑一遍等于双倍成本。</p>
+        <p>把 <code>repeat</code> 放进键里，是为了让「同一配置跑 3 次看方差」和「同一配置只跑 1 次」不互相污染缓存。
+          <code>context_hash</code> 则保证「检索到的上下文变了」时不会复用旧评分。</p>
+        <h5>历史不可变的两个工具</h5>
+        <ul>
+          <li><code>rescore.py</code>：评分口径变了 → <b>生成新 run</b>，旧 run 保留作为前后对照。绝不原地改分。</li>
+          <li><code>rebuild_summaries.py</code>：聚合逻辑有 bug → 只重建<b>派生</b> summary，<code>records</code> 与 <code>config_snapshot</code> 不动。</li>
+        </ul>
+        <p>这两条看似小题大做，但它们是「评测可信」的地基：<b>能被悄悄改分的评测，等于没有评测</b>。</p>
+        <div class="note"><b>边界</b>：样本是<b>自建 12 条</b>，依据 RGB（CC BY-NC-SA 4.0，仅非商业）与 SQuAD 2.0 的
+          <b>任务/指标口径</b>，<b>不是官方数据抽样</b>，因此不得称「在 RGB/SQuAD 上的分数」。
+          离线 run 一律 <code>comparable=false</code>，不进任何质量结论。</div>
+        <div class="rfoot">事实源：<code>evalbench/README.md</code> · <code>evalbench/iterations/iteration_log.md</code> · <code>evalbench/report.py</code></div>
+      </div>
+
+      <!-- ===== P6 竞品对照 ===== -->
+      <div class="rpane" data-p="6" data-m="b">
+        <div class="phead"><span class="pnum">P6 · 竞品</span><h4>Ragas / DeepEval / Promptfoo / LangSmith：评测工具的四条路线</h4>
+          <span class="ptag a">公开资料整理 · 未实测</span></div>
+        <div class="tbl-wrap"><table class="table">
+          <thead><tr><th>工具</th><th>核心思路</th><th>最强的地方</th><th>本项目为什么没直接用</th></tr></thead>
+          <tbody>
+            <tr><td><b>Ragas</b></td><td>RAG 专用指标库（faithfulness / context precision 等）</td><td>指标口径成熟，社区认可度高</td><td>它算的是「答案 vs 上下文」的 LLM 判分，仍需<b>自己的冻结对象与 run 管理</b>；我这边是自己实现同口径指标</td></tr>
+            <tr><td><b>DeepEval</b></td><td>pytest 风格断言式评测</td><td>与 CI 集成自然，写法像单元测试</td><td>同上；且我的重点在「多配置对照」而非「单点断言」</td></tr>
+            <tr><td><b>Promptfoo</b></td><td>prompt / 模型矩阵对比 + 断言</td><td>做「哪个 prompt 更好」最顺手</td><td>它的强项正是我的 v2/v3/v4 迭代，但我要自己控缓存与成本</td></tr>
+            <tr><td><b>LangSmith / Phoenix</b></td><td>链路追踪 + 数据集 + 在线评估</td><td>生产可观测性最强</td><td>需联网与托管账号；本项目要求<b>离线可跑</b></td></tr>
+            <tr><td><b>本项目 evalbench</b></td><td>自建样本 + 配置快照 + 可续跑缓存 + 历史不可变</td><td>成本可控、结果可复现、口径可解释</td><td>指标实现不如 Ragas 完备；没有 trace/span</td></tr>
+          </tbody>
+        </table></div>
+        <h5>一个容易被忽略的设计点：run 的「不可变性」</h5>
+        <p>上面四个工具里，只有部分把「一次 run 是不可变事实」当成硬约束。多数工具允许你改了评分器再重算，
+          结果是「昨天的 0.72 和今天的 0.72 不是同一个东西」。
+          本项目的做法是：<b>要改口径就生成新 run</b>，旧 run 保留为前后对照。
+          代价是存储变多，收益是<b>每个数字都能追溯到它的评分器版本</b>。</p>
+        <h5>为什么不用现成框架（诚实版）</h5>
+        <p>两个原因，一大一小。大的：这些框架都假设你能联网、能装依赖、有托管账号，而本项目的第一约束是
+          <b>离线可跑、零依赖可演示</b>。小的：我需要把「配置快照 → run → 对比 → 看板」这条链完整走一遍，
+          用框架会把这部分变成黑盒，讲不清「为什么这个 run 不可比」。</p>
+        <div class="note"><b>口径声明</b>：四个工具的能力描述来自公开文档，未做同条件对比。
+          本项目<b>没有</b>与它们跑同一批样本，因此不能声称「更准」或「更快」。能比的只有工程约束这一层。</div>
+        <div class="rfoot">对照对象：Ragas / DeepEval / Promptfoo / LangSmith / Arize Phoenix（公开资料）</div>
+      </div>
+
+      <!-- ===== P6 评测口径 ===== -->
+      <div class="rpane" data-p="6" data-m="c">
+        <div class="phead"><span class="pnum">P6 · 评测</span><h4>四轮迭代，每轮只改一个变量</h4>
+          <span class="ptag g">v1→v4 · 最终 RUN-a48c08c0b721</span></div>
+        <h5>迭代设计：一次只动一个东西，否则归因不了</h5>
+        <div class="tbl-wrap"><table class="table">
+          <thead><tr><th>轮次</th><th>变量</th><th>做法</th><th>结论</th></tr></thead>
+          <tbody>
+            <tr><td>v1 baseline</td><td>—</td><td>固定 prompt / 参数，跑基线</td><td>建立对照基准</td></tr>
+            <tr><td>v2 prompts</td><td>只改 prompt</td><td><code>v2_grounded</code>：要求逐句落到证据</td><td>采纳；引用命中提升，幻觉减少</td></tr>
+            <tr><td>v3 params</td><td>只改参数</td><td>参数组 B：<code>temp=0 / passage_num=5 / noise_rate=0.6</code></td><td>采纳；方差下降，可复现性上升</td></tr>
+            <tr><td>v4 models</td><td>只换模型</td><td>横向比 <code>minimax-m3</code> / <code>kimi-k2.6</code> / <code>deepseek-v4.1-flash</code> 等</td><td><code>minimax-m3</code> 入默认；<code>kimi-k2.6</code> 会复述 prompt，<b>不纳入</b></td></tr>
+          </tbody>
+        </table></div>
+        <h5>指标口径（METRICS@1.2.0）</h5>
+        <div class="tbl-wrap"><table class="table">
+          <thead><tr><th>指标</th><th>定义</th><th>为什么看它</th></tr></thead>
+          <tbody>
+            <tr><td><code>recall@k</code></td><td>标准答案所在片段是否出现在 top-k</td><td>检索能不能召回，是后面一切的前提</td></tr>
+            <tr><td>引用命中率</td><td>回答中引用的片段是否真的是支撑句</td><td>防「引用了但引错」，比「有没有引用」重要</td></tr>
+            <tr><td><code>answer_economy</code></td><td>答案长度与信息量的比值</td><td>主指标饱和后新增，<b>只用于收敛对照</b>，不单独作为质量结论</td></tr>
+            <tr><td>失败分类</td><td>命中失败 / 拒答 / 格式错 / 429</td><td>429 不算模型能力差，必须单列</td></tr>
+          </tbody>
+        </table></div>
+        <h5>「不可比」的具体含义</h5>
+        <p>离线 run 的 <code>comparable=false</code>，意思是<b>它的分数不能进任何质量结论</b>。
+          这条不是形式主义：离线用的是固定桩输出，分数高低只反映桩的行为，不反映模型能力。
+          把离线分数写进简历或 PPT 是失真，本项目在页脚和文档里都做了标注。</p>
+        <div class="note"><b>没测什么</b>：没有官方数据集上的分数；没有统计显著性检验（12 条样本算不出置信区间）；
+          没有人工双盲标注；没有跨语言评估。<b>12 条样本只能做方向性判断，不能做质量定论。</b></div>
+        <div class="rfoot">复跑：<code>python -m pytest evalbench/tests -q</code>（16 项）· <code>python evalbench/report.py --final-run RUN-a48c08c0b721</code></div>
+      </div>
+
+      <!-- ===== P7 架构拆解 ===== -->
+      <div class="rpane" data-p="7" data-m="a">
+        <div class="phead"><span class="pnum">P7 · 架构</span><h4>演示站：把「可复算的证据链」做成一个能点的页面</h4>
+          <span class="ptag g">31 项集成 · 零外部请求</span></div>
+        <div class="chain">
+          <span class="n">样本字节<small>真实 PDF/PNG</small></span><span class="ar">→</span>
+          <span class="n">解析链路<small>parsing/ 真实调用</small></span><span class="ar">→</span>
+          <span class="n">路由快照<small>snapshot_version</small></span><span class="ar">→</span>
+          <span class="n">入库 JSON<small>ChunkSpec 预览</small></span><span class="ar">→</span>
+          <span class="n">规范化投影<small>canonical()</small></span><span class="ar">→</span>
+          <span class="n">同参双跑比对</span>
+        </div>
+        <h5>它是独立站点，不是 webapp 的一个页面</h5>
+        <p><code>showcase/</code>（端口 8767）是独立 FastAPI + 同源静态，<b>单向 import</b> <code>parsing/</code>
+          <code>guardrails/</code> <code>cache/</code> <code>knowledge/</code>，纯函数包禁止反向依赖。
+          不改 <code>webapp/</code>、不动冻结区。为什么单独做：演示要能<b>随便改参数、随便重跑</b>，
+          塞进主站会把主站的 33 项 e2e 变成「改一个演示就红一片」。</p>
+        <h5>确定性三件套（这是全章最硬的一条）</h5>
+        <ul>
+          <li><b>时间固定</b>：<code>created_at</code> 取固定 <code>as_of=2026-11-15T00:00:00Z</code>，<b>绝不用挂钟</b>。用挂钟的结果是「每次跑都不一样」，回归永远假绿。</li>
+          <li><b>run_id 可复算</b>：<code>sha256(source_sha + params_hash + snapshot_version)[:20]</code>。同样的输入必须得到同样的 id。</li>
+          <li><b>两套哈希分工</b>：<code>snapshot_version</code> 只由<b>配置性字段</b>派生（排除 <code>reason</code> / <code>hysteresis</code>）；<code>route_id</code> 用全字段。混在一起会让「同参双跑」永远不相等——这是踩过的真坑。</li>
+        </ul>
+        <h5>LLM 路由分流：双阈值滞回 + 状态缓存</h5>
+        <p>难度分 <code>Σ w_i × norm_i</code>，双阈值 <code>θ_enter=0.60</code> / <code>θ_exit=0.40</code>，连续 <code>k=2</code> 次才切档。
+          关键实现是 <code>api.py</code> 用 <code>(source_sha, params_hash)</code> 做进程内 LRU（≤32）缓存 <code>TierState</code>——
+          <b>不缓存的话每次新建状态，hits 恒为 1，Pro 档永不触发</b>。这个 bug 已实测复现并修掉。</p>
+        <p><b>选出 Pro 档 ≠ 调用 Pro 模型</b>：离线演示不发起外部 LLM 调用，
+          <code>model / model_snapshot_at / prompt / prompt_version / params</code> 一律空占位 +
+          <code>placeholder=true</code>。这是刻意的：宁可留空，也不假装调用过。</p>
+        <div class="note"><b>边界</b>：<code>aliyun-guide.html</code> 只是指导，不是上线证明；
+          实名/支付/备案/凭证保管必须用户本人完成；Pro 模型与单价未选定，保持空占位；
+          所有阈值是演示起始值、非压测结论。</div>
+        <div class="rfoot">事实源：<code>docs/showcase/03-phase2-spec.md</code> · <code>showcase/api.py</code> · <code>showcase/llm_router.py</code> · <code>showcase/make_video.py</code></div>
+      </div>
+
+      <!-- ===== P7 竞品对照 ===== -->
+      <div class="rpane" data-p="7" data-m="b">
+        <div class="phead"><span class="pnum">P7 · 竞品</span><h4>它没有产品竞品——对标的是「调试面板」这类形态</h4>
+          <span class="ptag a">公开资料整理 · 未实测</span></div>
+        <p>演示站不是产品功能，是<b>证据展示层</b>。所以对标对象不是「知识库产品」，而是各家产品里的<b>调试/预览面板</b>。</p>
+        <div class="tbl-wrap"><table class="table">
+          <thead><tr><th>形态</th><th>例子</th><th>它给什么</th><th>本项目多给什么</th></tr></thead>
+          <tbody>
+            <tr><td>解析预览</td><td>RAGFlow 切片可视化</td><td>切出来的段落长什么样</td><td>给出<b>置信度、来源级别、升级原因</b>，可反查为什么走这一级</td></tr>
+            <tr><td>Prompt Playground</td><td>LangSmith / Dify</td><td>改 prompt 看输出差异</td><td>输出旁附<b>配置快照哈希</b>，可判定「这次和上次是不是同一套配置」</td></tr>
+            <tr><td>Trace 面板</td><td>Phoenix / Langfuse</td><td>每个 span 的耗时与输入输出</td><td>给出<b>规范化投影</b>与同参双跑比对，判定「确定性」而非只展示耗时</td></tr>
+            <tr><td>本项目 showcase</td><td>—</td><td>左分析 / 右入库 JSON / 参数可调</td><td><b>可复算</b>：同输入同参数必须得到同一个 <code>run_id</code> 与同一份投影</td></tr>
+          </tbody>
+        </table></div>
+        <h5>差异点的本质：从「看得见」到「算得出」</h5>
+        <p>大多数调试面板解决的是<b>看得见</b>：把中间结果摊开给人看。本项目多做一步——
+          <b>算得出</b>：把「这次结果是否可复现」变成一个可断言的布尔值。
+          区别在于，前者只能让人说「看起来对」，后者能让 CI 说「它必须一样」。</p>
+        <h5>代价是什么</h5>
+        <ul>
+          <li>要维护 <code>canonical()</code> 的路径感知投影规则：剔除哪些字段、保留哪些字段，每一条都要有理由，否则会把真问题一起剔掉。</li>
+          <li>所有输出不能带随机 ID 与挂钟时间，这会限制一些「方便」的实现方式。</li>
+          <li>页面本身要零外部依赖（无 CDN / 无远程字体），否则离线演示会破功。</li>
+        </ul>
+        <div class="note"><b>口径声明</b>：对标形态来自公开产品截图与文档，未做交互层面对比。
+          本项目<b>不是</b>一个通用调试平台，只服务这一个项目的证据展示。</div>
+        <div class="rfoot">对照形态：RAGFlow 解析预览 / LangSmith Playground / Arize Phoenix Trace（公开资料）</div>
+      </div>
+
+      <!-- ===== P7 评测口径 ===== -->
+      <div class="rpane" data-p="7" data-m="c">
+        <div class="phead"><span class="pnum">P7 · 评测</span><h4>演示站的验收标准：确定性、零请求、防穿越</h4>
+          <span class="ptag g">31 项 INTEGRATION_READY</span></div>
+        <h5>三类断言，对应三种翻车方式</h5>
+        <div class="tbl-wrap"><table class="table">
+          <thead><tr><th>翻车方式</th><th>断言</th><th>怎么实现</th></tr></thead>
+          <tbody>
+            <tr><td>结果不可复现</td><td><b>V5 同参双跑一致</b>：两次 <code>canonical()</code> 完全相同</td><td>固定 <code>as_of</code>、剔除耗时与随机 ID、<code>run_id</code> 由输入哈希派生</td></tr>
+            <tr><td>演示偷偷花钱</td><td><b>外部请求 = 0</b></td><td><code>PARSING_OFFLINE=1</code>、A5 恒定 <code>ParseConfig(offline=True)</code>、统计 <code>runtime.external_request_count</code></td></tr>
+            <tr><td>路径穿越 / 任意文件读</td><td><b>样本白名单</b>：非白名单 <code>sample_id</code> 返回 422</td><td><code>/showcase/samples</code> 挂载<b>在根 <code>/</code> 之前</b>，外加白名单兜底</td></tr>
+          </tbody>
+        </table></div>
+        <h5>31 项集成分档</h5>
+        <div class="tbl-wrap"><table class="table">
+          <thead><tr><th>档位</th><th>覆盖</th><th>代表断言</th></tr></thead>
+          <tbody>
+            <tr><td>A · 路由与页面</td><td>A1–A10</td><td>9 条路径均可访问；静态资源同源；导航可达</td></tr>
+            <tr><td>B · 解析链路</td><td>—</td><td>真实样本解析成功；<code>ChunkSpec</code> 字段齐全</td></tr>
+            <tr><td>C · 安全</td><td>—</td><td>不支持 MIME 返回 415；响应体无密钥模式；白名单防穿越</td></tr>
+            <tr><td>D · 确定性</td><td>V5</td><td>同参双跑投影一致</td></tr>
+            <tr><td>E · 零外呼</td><td>—</td><td><code>external_request_count == 0</code></td></tr>
+          </tbody>
+        </table></div>
+        <h5>录像也是被测对象</h5>
+        <p>84 秒 / 10 镜 / 20 帧由 <code>make_video.py</code> 用<b>真实解析产物</b>渲染帧再 ffmpeg concat 合成，
+          不是录屏。好处是可重复生成、不依赖操作手感；代价是改了页面就得重跑脚本，
+          否则录像与页面会不一致。帧里右栏字体必须用微软雅黑——Consolas 缺中文与 <code>✓</code> / <code>θ</code> 字形，
+          会渲染成方框。</p>
+        <div class="note"><b>没测什么</b>：没有跨浏览器兼容矩阵；没有无障碍（屏幕阅读器）实测；
+          没有并发压测（演示站是单用户场景）。</div>
+        <div class="rfoot">复跑：<code>PARSING_OFFLINE=1 python showcase/verify_integration.py</code>（31 项 INTEGRATION_READY）· <code>python -m pytest showcase/tests -q</code>（12 项）</div>
+      </div>
+      </div>
+    </div>
+  </div>
+</section>
+
 <!-- ============ 验证快照 ============ -->
 <section id="verify">
   <div class="wrap">
-    <div class="sec-head"><span class="sec-num">05</span><h2>可量化的验证结果快照</h2></div>
+    <div class="sec-head"><span class="sec-num">06</span><h2>可量化的验证结果快照</h2></div>
     <p class="sec-desc">数字全部摘自项目事实源，<b>未重新实跑、未编造</b>。「离线」指隔离库 + 强制离线 provider，不消耗任何外部额度；
       「真实配置」指接了外部 DeepSeek / 硅基流动的实际链路。不同日期的快照分别标注，不混用。</p>
 
@@ -814,7 +1615,7 @@ footer .fine{border-top:1px solid var(--border);padding-top:16px;line-height:1.8
 <!-- ============ 面试 Q&A ============ -->
 <section id="qa">
   <div class="wrap">
-    <div class="sec-head"><span class="sec-num">06</span><h2>面试常问 Q&amp;A</h2></div>
+    <div class="sec-head"><span class="sec-num">07</span><h2>面试常问 Q&amp;A</h2></div>
     <p class="sec-desc">点击展开。回答刻意保留「取舍与代价」，不把演示切片讲成上线系统 —— 这也是本项目最想训练的答题习惯。</p>
 
     <div class="qa">
@@ -1029,7 +1830,8 @@ footer .fine{border-top:1px solid var(--border);padding-top:16px;line-height:1.8
     </div>
     <div class="fine">
       本页为<b>单文件 HTML + 同目录一个本地 mp4</b>的静态演示页，可直接双击打开、可离线投屏；
-      未引用任何 CDN、字体、脚本或远程图片资源，未运行任何真实外部 LLM 调用。
+      未引用任何 CDN、远程字体、远程脚本或远程图片资源（唯一一段脚本写在文件末尾，只做章节内的标签切换），
+      未运行任何真实外部 LLM 调用。
       需要把录像也塞进单个 HTML 时用 <code>index-standalone.html</code>（data URI 内嵌）。<br />
       组织模型口径：<b>当前为多用户多部门（单组织 + 部门树逻辑隔离）；多租户仅作为未来研发方向写入文档，暂不实现。</b>
       历史材料中的「单租户 default / 多租户隔离已实现」均为作废口径。<br />
@@ -1037,6 +1839,43 @@ footer .fine{border-top:1px solid var(--border);padding-top:16px;line-height:1.8
     </div>
   </div>
 </footer>
+
+<script>
+/* 「全面研究」章节的 7 项目 × 3 视角切换。
+   刻意不用任何框架与 CDN：本页要能离线双击打开、可断网投屏。 */
+(function () {
+  var btns = document.querySelectorAll('.rbtn');
+  var panes = document.querySelectorAll('.rpane');
+  if (!btns.length || !panes.length) return;
+  var cur = { p: '1', m: 'a' };
+
+  function apply() {
+    for (var i = 0; i < panes.length; i++) {
+      var el = panes[i];
+      var hit = el.getAttribute('data-p') === cur.p && el.getAttribute('data-m') === cur.m;
+      el.classList.toggle('on', hit);
+    }
+    for (var j = 0; j < btns.length; j++) {
+      var b = btns[j];
+      var sel = b.hasAttribute('data-p')
+        ? b.getAttribute('data-p') === cur.p
+        : b.getAttribute('data-m') === cur.m;
+      b.setAttribute('aria-selected', sel ? 'true' : 'false');
+    }
+  }
+
+  for (var k = 0; k < btns.length; k++) {
+    (function (b) {
+      b.addEventListener('click', function () {
+        if (b.hasAttribute('data-p')) { cur.p = b.getAttribute('data-p'); }
+        else { cur.m = b.getAttribute('data-m'); }
+        apply();
+      });
+    })(btns[k]);
+  }
+  apply();
+})();
+</script>
 
 </body>
 </html>

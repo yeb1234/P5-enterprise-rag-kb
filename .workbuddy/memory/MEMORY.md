@@ -1,278 +1,127 @@
 # 项目长期记忆 · P5 企业级知识库项目
 
-## 项目定位
-面向企业内部使用的企业级知识库系统**开发框架骨架**，用于逐步学习与企业级加固，
-不是上线交付版。沿用《中小企业知识库项目 · 全景设计、本周排期与交付档次》的
-A/B/C 三档口径与「面试场上不要把 A 档说成 C 档」的诚实边界原则。
+## 定位与用户约定
+企业级知识库系统的**开发框架骨架**，目标是「学习 + 面试讲解 + 逐步生产化」，不是上线交付版。
+沿用 A/B/C 三档口径，**面试场上不要把 A 档说成 C 档**。
 
-## 用户约定
 - 技术栈固定：React / FastAPI / PostgreSQL / Milvus / Redis + Celery / 外部 DeepSeek（不部署本地模型）。
-- 用户正在学 FastAPI 与数据库，后续计划学 Java SpringBoot；代码要可读、注释解释设计取舍，
-  文档要区分「已实现 / 只设计 / 未做」，不要夸大完成度。
-- 架构必须预留：逐行/逐段落精细权限、Agent 内部编排（LangGraph/多 Agent/MCP）、后续高可用加固。
+- 用户正在学 FastAPI 与数据库，之后学 Java SpringBoot。代码要可读、注释解释**设计取舍**；
+  文档必须区分「已实现 / 只设计 / 未做」，不夸大完成度。
+- 架构必须预留：逐行/逐段精细权限、Agent 内部编排（LangGraph/多 Agent/MCP）、高可用加固。
 - 重点功能：大文件与多文档批量上传的异步处理及进度反馈。
 
-## 关键设计约束（改动时别破）
+## 组织模型口径（2026-11-13 变更，覆盖历史表述）
+单组织 + 多用户多部门。**多租户不做，只作为未来研发方向写入文档**。
+- webapp 的成本/限流统计维度已从 `tenant` 对齐为 `department`（列名 `department_id`、维度名 `department`）。
+- **webapp 没有部门级权限**；`backend/` 的 `tenant_id` / `TenantRepository` 保留为历史命名技术债。
+- `docs/org-model-change-plan.md` 的 13 步仍是「方案已定、代码尚未改造」，目标口径以该方案 §3.3/§5 为准。
 
-> **2026-11-13 需求变更**：用户明确「不再做多租户架构，改为多用户多部门」。完整调整方案见
-> `docs/org-model-change-plan.md`（专家团八位成员产出 + 主理人裁决 C1–C35）。
-> **重要状态：方案已定，代码尚未改造**。下列第 1、5 条是改造前的现状描述，改造后目标口径以方案
-> §3.3 / §5 为准；在代码改造完成前，不要按新口径改坏现有可运行代码，也不要把目标态说成已实现。
+## 架构主干
+**五个纯函数包**（项目根，均不反向 import 应用层，可单独复制到别的项目）：
+| 包 | 职责 | 入口 |
+|---|---|---|
+| `parsing/` | 原始字节 → 结构化文本（三级策略：`local` 已实现 / `ocr_api` 只设计 / `multimodal` 已实测跑通） | `parsing/README.md` |
+| `knowledge/` | 证据适用性与互斥裁决（新鲜度、冲突图、authority 注册表） | `knowledge/README.md` |
+| `cache/` | L1 进程内 LRU + L2 SQLite 持久化（重启可恢复） | `cache/README.md` |
+| `guardrails/` | PII 四出口（ingest/context/output/audit） | `guardrails/` |
+| `showcase/` | 独立演示站（端口 8767），单向 import 上述包 | `docs/showcase/03-phase2-spec.md` |
 
-1. 【现状】`tenant_id` 只由依赖注入产生，所有查询走 `TenantRepository`。
-   【目标】删 `tenants` 表与所有 `tenant_id` 列；`Subject` 一律服务端从 DB 构造（JWT 只带 `sub`）；
-   请求体 `department_id` 只作筛选 / 授权目标且须经 `decide()` 复核；查询走 `ScopedRepository`。
-2. 权限判定收敛到 `app/services/permission.py::decide()` 一个纯函数 —— **不变，并强化为最终且唯一权威**；
-   新增单一 `visible_department_ids()`（纯部门树拓扑查询，只缩候选、不产出 allow/deny）。
-3. **先按权限过滤，再重排、再进模型** —— 不变；Milvus expr + `filter_candidates` 双重过滤保留，
-   **并新增列表侧逐条 `decide()` 复核**（本次最关键的越权缺口，A13 双向一致性对拍为第一验收项）。
-4. PG 是状态真值，Redis 只是实时通道；先写 PG 文本再写 Milvus 向量；删除走软删 + 异步清理 + 每日对账 —— 不变。
-5. 【现状】缓存 / 进度 / 对象 key 一律带 tenant 前缀。
-   【目标】静态 `ORG_NAMESPACE` 命名空间；成本 / 用量按 `department_id` **事件快照、不回溯**；
-   检索缓存**先按 `decide()` 过滤再写**且 key 携带 principal 授权快照；进度 key 只含 `ORG_NAMESPACE + batch_id`
-   （不按部门分片，否则转岗后 SSE 断连空白）。**禁止把 `tenant_id` 机械全局替换成 `department_id`**。
-6. 基线迁移 `0001` 用 `metadata.create_all`；从 `0002` 起必须写显式迁移 —— 不变，`0001` 冻结不动，
-   新增 `0002_single_org_departments.py`（downgrade 结构可逆、数据语义不可逆）。
+上游应用：`webapp/`（可运行演示切片，端口 8765，admin/admin123）、`backend/`（FastAPI 骨架）、
+`frontend/`（React + Vite）、`eval/` + `evalbench/`（评测）、`demo/`（演示物料，冻结区）。
 
-> C33 实测口径（`webapp/selftest.py:369-377`）：冻结的是 **10 个具名 view + 6 个具名 loader 的存在性检查**
-> （`nav_ok==10 && loaders_ok==6`），不是侧栏总数；实际侧栏 11 个 `data-view`、`VIEW_META` 11 键、
-> `LOADERS` 9 键、`ADMIN_VIEWS` 3 个。新增第 12 个视图不破坏 C33、不需改断言数字。
+## 硬约束（改任何东西前先读）
 
-## 2026-11-14 本轮新增硬约束（改动时别破）
+### 1. 权限与检索顺序
+- 权限判定收敛到 `app/services/permission.py::decide()` 一个纯函数，**最终且唯一权威**。
+- **先按权限过滤 → 再重排 → 再进模型**。Milvus expr + `filter_candidates` 双重过滤保留，
+  列表侧还要逐条 `decide()` 复核（A13 双向一致性对拍是第一验收项）。
+- `visible_department_ids()` 只缩候选、不产出 allow/deny。
 
-- **组织口径（用户新指令，覆盖历史表述）**：单组织 + 多用户多部门，**暂不实现多租户，多租户仅作为未来研发方向写入文档**。本轮只把 `webapp/` 的**成本 / 限流统计维度**从 `tenant` 对齐为 `department`（物理列名 `department_id`、维度名 `department`、`?dim=department_id`）；**不给 webapp 增加部门级权限**。`backend/` 的 `tenant_id` / `TenantRepository` 保留为历史命名技术债，`docs/org-model-change-plan.md` 的 13 步仍是「方案已定、代码尚未改造」。
-- **LLM 低思考 / 快速档**：`.env` 本来就是 `discovery:deepseek-v4.1-flash-1017`。新增 `WEBAPP_LLM_THINKING=disabled|enabled`（`WEBAPP_` 前缀隔离），沿用 backend 既有 `thinking: {"type":"disabled"}` 字段，**不另造 `reasoning_effort`**。`settings.thinking_disabled()` 管「是否低思考」、`providers.thinking_fields(disabled=...)` 管「发什么字段」，三条请求路径共用。`get_model_label()` **不改**（有测试断言），档位用 `get_thinking_mode()`。**2026-11-14 参数对照实测确认生效**：基线 979ms/`reasoning_tokens=55`，`thinking=disabled` 467ms/0，而元数据里的布尔 `reasoning` 参数（false/true）实测均无效。换其它网关必须重新验证。
-- **限流三维**：`RATE_DIMENSIONS = ("user","endpoint","model")`，`rate_check(..., department=...)` 的 department **不参与计数**、不产生按部门 429。统一 429 契约在 `webapp/main.py`（`RATE_CODES` + `code/kind/message/trace_id/policy` + `X-RateLimit-Code` / `X-Trace-Id`），前端 `app.js api()` 有独立 429 分支区分 quota / rate。预算耗尽仍是 HTTP 200 + `{ok:false}`；`backend` 的 `QUOTA_EXCEEDED→413` 本轮不动。
-- **`usage_events.department_id` 的索引绝对不能写进 `SCHEMA`**（本轮实测复现）：旧库执行 `executescript(SCHEMA)` 时还没有该列，`CREATE INDEX ... (department_id)` 会先抛 `no such column`，导致整个脚本失败、迁移跑不到。索引由 `_migrate_tenant_to_department()` 末尾幂等创建；该函数用 `r[1]` 取 `PRAGMA table_info` 列名，不依赖 `row_factory`。三态（全新库 / tenant 旧库 / 半迁移态）由 `webapp/tests/test_department_migration.py` 锁定。
-- 静态资源版本已升 **`?v=12`**（`index.html` 四处）；`i18n.js` 仍按「中文原文即 key」成对同步中文 key 与英文值、删旧 key，工作区**依然没有 `gen_dict.py`**。
-- 本轮新增 11 份 `docs/*.md`（改动总纲 / 架构 / 限流安全 / 成本指标 / 插件选型 / 能力优先级 / 前端检查 / 验收报告 / 部署 / Git 规范 / 安全前中后置），独立演示页 `interview/index.html`。`docs/change-manifest.md` §0.0 与各文档的「主理人最终回填」是最终状态，早于它的「进行中 / 待回填」是编制时快照。
-- **三条已证伪的误报，别再写进交付物**：① `index.html` 的 40 个内联处理器全部有定义（`setLang` 在 `i18n.js` 挂 window）；② `backend/Dockerfile` / `frontend/Dockerfile` 都存在且 backend 装了 curl、`/health/live` 存在；③ `frontend/src/` 有 16 个文件、9 个导入全在，`npm run build` 通过。
-- 最终回归：webapp pytest **66 passed**、backend 16、eval 14、evalbench 16、demo 16/16、webapp e2e **33/33 `DEMO_READY`**、前端语法 ×3 + `npm run build`、冻结区零 diff。端到端用隔离临时库 + 离线 provider 补跑，**报告须按字节还原**。
+### 2. 真值与通道
+PG 是状态真值，Redis 只是实时通道；**先写 PG 文本再写 Milvus 向量**；删除走软删 + 异步清理 + 每日对账。
+删文档前**先删 `chunk_embeddings`**（源头治理幽灵向量），启动再对账兜底。
+**本项目 SQLite 未开 WAL**（`journal_mode` = 0，默认 DELETE 模式）——不要写「已开 WAL」。
 
-## 2026-11-14 追加：解析子系统与通用规约（改动时别破）
+### 3. 迁移与索引
+- 基线迁移 `0001` 用 `metadata.create_all` 且冻结不动；从 `0002` 起必须写显式迁移。
+- **索引绝对不能写进 `SCHEMA`**（实测复现）：旧库 `executescript(SCHEMA)` 时新列还不存在，
+  `CREATE INDEX` 会先抛 `no such column`，整个脚本失败、迁移跑不到。索引一律在迁移函数末尾幂等创建，
+  用 `r[1]` 取 `PRAGMA table_info` 列名（不依赖 `row_factory`）。
 
-- **`parsing/` 是独立纯函数包**（项目根），只负责「原始字节 → 结构化文本」，不碰下游 `ChunkSpec` / chunks 表 / Milvus schema / citation 契约。换 OCR / 视觉供应商只改 `parsing/strategies/` 里一个策略类。入口 `parsing/README.md`。
-- **三级策略状态（2026-11-14 实测后）**：P0 `local` 已实现（零外部依赖）；P1 `ocr_api` 只设计（适配器 + `__TBC__` 契约，`available()=False`）；**P2 `multimodal` 已接通并实测跑通**，默认回退 `DISCOVERY_*` 网关的 `deepseek-v4.1-flash-1017`。`structured_fallback()` 只在 `PARSING_OFFLINE=1` 或调用失败时启用，输出「图片结构事实」并标**非视觉理解**，绝不编造图片内容。单测通过 `PARSING_OFFLINE=1` 保证零模型流量。
-- **重要纠错**：此前「Discovery 网关 10 个模型全为纯文本、无视觉模型」是**错的**，只看了模型名没读 `input_modalities`。实查 10 个模型里 **6 个支持 image**（Agents-A1 / Sage-A1.5 / deepseek-v4.1-flash-1017 / intern-s2 / kimi-k3.1-pro / qwen3.8-27b）；双图对照传图实测精确命中数字/背景色/标签，完整解析链路 `vision_applied / degraded=None`。**能力判定必须用结构化元数据 + 实测，不能用命名启发式**（已写入 HARNESS Y16/Y20）。复跑 `python -m parsing.vision_probe`。
-- **90:10 是上限 / 熔断线，不是随机分流**：正常文档 0% 触发；质量门禁按 `QualitySignals`（零字符 / 无文本层 / 置信度 < 0.75 / 表格检查未全过）确定性升级；`VisionBudget.slots = max(1, ceil(页数 × 0.10))`；超预算显式标 `escalation_budget_exceeded` 并回退。阈值是演示经验起始值，非压测结论。
-- **降级必须保留本级正文**（`router._merge_fallback()`）；空文本页不能套用「图片结构事实」模板（`structured_fallback(is_image=False)`）。
-- **索引不能写进 `SCHEMA`**：旧库执行 `executescript(SCHEMA)` 时新列还不存在，`CREATE INDEX` 会先抛 `no such column` 导致迁移跑不到。索引一律在迁移函数末尾幂等创建。迁移函数用 `r[1]` 取 `PRAGMA table_info` 列名，不依赖 `row_factory`。
-- **短文本页 ≠ 无文本层**：`ocr_needed` 只能由「来源属性 + 零字符」判定，不能只看字符数，否则正常短文档会被整批送去最贵链路。
-- 前端「解析实验室」是第 12 个 `data-view`，C33 冻结的是 10 具名 view + 6 具名 loader 的**存在性检查**，新增视图不破坏它。静态资源当前 **`?v=13`**。
-- **Docker**：`Dockerfile.parse`（项目根 context，只 COPY parsing/）+ compose 的 `parser` 服务用 `profiles: ["parsing"]` 隔离：默认 `up` 仍 11 服务，`--profile parsing` 才 12。端口只绑 `127.0.0.1:8766`，探测接口未鉴权不得暴露公网。
-- **通用规约 `docs/HARNESS.md`（YEBSPEC@1.0，Y1–Y22）** 可复制到别的项目，含三态标注、冻结区、命名空间隔离、验证门禁、交付前闸门与本项目真实踩坑表。后续会话改任何约束性文本前先读它。
-- 本轮三次提交 `a3e8e5b`（代码）/ `70a6977`（文档）/ `c179f3d`（构建）；全量回归 **92 passed**（webapp 74 + parsing 18）+ backend 16 + eval 14 + evalbench 16 + demo 16/16 + e2e 33/33，冻结区零 diff。
+### 4. 缓存
+- key **13 段**：schema/org/kind/query/embedding/model/top_k/retrieval_mode/rerank/freshness/**authz**/**data_version**/**policy_version**。
+  缺 embedding 模型名 → 余弦静默归零；缺 authz → 跨用户串权限；缺 data_version → 旧答案。
+- **TTL 不是权限控制**：调用方必须先按权限过滤再写；命中后用 `key_matches()` 复核三重版本字段。
+- 懒失效：只 `bump_data_version` / `bump_grant_version` / `sync_policy_version`，不批量删。
+- 主链路 `rag.retrieve()` **默认不接检索结果缓存**（避免打断 33 项 e2e）；答案缓存/语义缓存未做。
 
-## 2026-11-14 追加：知识治理硬约束（改动时别破）
+### 5. PII
+- **先检索、后脱敏**：`rag.retrieve()` 用原文 question（脱敏破坏词法召回），进 LLM / 落库 / SSE / 导出一律用脱敏文本。
+- `StreamRedactor.push()` 必须**扣住跨界候选串整串**（只留尾部 HOLD=24 会把长标识符前 10 位先发出去，撤不回）。
+- 演示样本校验位必须按算法算：`110101199003071938`（MOD 11-2）、`6222021234567894`（Luhn）。
+  `11010119900307193X` 非法且前 17 位恰好过 Luhn，曾把负向对照误报成 BANK_CARD。
+- `safety_events` 只存 gate/kind/数量/动作/规则版本，**不存原文/preview/可逆映射**；异常 fail-closed。
+- **边界**：规则级检测 ≠ 模型级 NER；`backend/app/agent/orchestrator.py` 骨架未接本包；可逆 token 默认关闭。
 
-- **`knowledge/` 是独立纯函数包**（不依赖 FastAPI），只管「哪些证据适用、是否互斥」；`parsing/` 管「字节→结构化文本」，两者都不动下游 `ChunkSpec` / citation 契约。入口 `knowledge/README.md`。
-- **最新 ≠ 适用**：年龄优先取 `last_verified_at`；`valid_from` 在未来标 `not_yet_effective` 并排除（**不是判过期**）；`expires_at` 已过按 `demote|exclude|warn` 三档处置；`scope`（region/plan/product_version）不同，同字段不同值**不算冲突**。
-- **关掉新鲜度开关只关时间衰减，不关适用性门控**（`test_rerank_keeps_before_after_evidence` 锁定）。公式：`decay=max(floor,0.5^(age/half_life))`、`effective=base*(1-blend+blend*decay)`；阈值全是演示经验起始值、非实测。
-- **相似度最高 ≠ 可信**，冲突必须作为 `EvidenceRecord.conflict_signal` 正式状态传给生成层，不能把互斥片段无序塞进上下文。裁决顺序：**业务权威度 → 生效期（强制 `needs_review=True`）→ 并列转人工（winner=None，不发明 tie-break）**；冲突图用并查集求连通分量，**按簇独立裁决**；被淘汰 claim 在 `excluded_claim_ids` 留痕不删除。
-- **防误报**：年份 1900–2099 无单位与裸小整数 1–9 降置信度；单位/否定词/scope 原样保留；主题 Jaccard 门控；每条 claim 保留 `text` + `chunk_id`。这是规则级实现，不等于 NLI 模型级识别。
-- **接入边界**：`webapp/rag.py::_apply_freshness()` 由 `WEBAPP_FRESHNESS_ENABLED=1` 开启，**默认关闭**避免打断 33 项 e2e，且只在 `top_k` 内重排（生产应在召回前硬过滤）；**生成层注入 EvidenceRecord 与逐句 grounding 仍为只设计**；权威注册表业务审批流未做。
-- 内置合成场景 `DEMO-FRESHNESS-CONFLICT-001`（`knowledge/samples.py`）：6 文档 / 2 冲突簇（`freshness` 需复核、`authority` 不复核）/ 3 负向对照，不写业务库、零外部调用。前端「知识治理」是第 13 个 `data-view`，C33 冻结的仍是 10 具名 view + 6 具名 loader 存在性检查。静态资源当前 **`?v=14`**。
-- 调研/候选/面试/设计见 `docs/knowledge/01–04`，交付话术 `docs/KNOWLEDGE-DELIVERY.md`。本轮提交 `84da4ab`（代码）/ `446d676`（文档）；全量回归 **128 passed** + 33/33 e2e，冻结区零 diff。
+### 6. 冻结区与前端
+- **冻结区 `eval/` `demo/` 零 diff**；`__TBC__` / `NOT_COMPARABLE` / `real_api` 阻断口径不得改动。
+- **C33 断言**：`webapp/selftest.py:369-377` 冻结的是 **10 个具名 view + 6 个具名 loader 的存在性检查**
+  （`nav_ok==10 && loaders_ok==6`），不是侧栏总数。目前侧栏 14 个 `data-view`，新增视图不破坏 C33。
+- 前端零构建三件套：`i18n.js`（**中文原文即 key**）、`theme.js`、`app.js`。改 JS/CSS 必须升 `?v=`。
+  **工作区没有 `gen_dict.py`**（实查），改文案只能手工成对改中文 key + 英文值并删旧 key。
+- 静态资源当前 **`?v=15`**。
 
-## 2026-11-14 追加：缓存与重启稳定性硬约束（改动时别破）
+### 7. 验证纪律
+- **演示数据不改正确性逻辑**；**能力判定必须用结构化元数据 + 实测，不用命名启发式**。
+- **修复要覆盖所有实现路径**（单机 `observability.rate_check` + 分布式 `ratelimit_dist.check_rate`），
+  并加 HTTP 级回归，不能只修一条路径就宣称修好。
+- 指标零值样本必须预置，否则 Prometheus 里指标「不存在」。
 
-- **`cache/` 是独立纯函数包**：L1 进程内 `OrderedDict` LRU（重启必然清空，属可安全丢弃）+ L2 SQLite `cache_entries` / `runtime_state`（持久化，重启可恢复）。入口 `cache/README.md`。L2 落在与业务库同一个 SQLite 文件，是演示替身，生产对应 PG 真值 + Redis。
-- **缓存 key 13 段**：schema / org / kind / query / embedding / model / top_k / retrieval_mode / rerank / freshness / **authz** / **data_version** / **policy_version**。缺 embedding 模型名 → 余弦静默归零；缺 authz → 跨用户串权限；缺 data_version → 旧答案。`authz_snapshot = sha256(org, role, department_id, sorted(visible_department_ids), grant_version)`。
-- **TTL 不是权限控制**：调用方必须**先按权限过滤再写**；命中后仍用 `key_matches()` 复核三重版本字段。`rag.retrieve()` 主链路**默认不接检索结果缓存**；检索结果缓存只在 `/api/runtime/cache-demo` 演示级使用（避免打断 33 项 e2e）。**答案缓存 / 语义缓存未做**。
-- **懒失效**：文档/授权/策略变化只递增版本（`VersionController.bump_data_version/grant_version/sync_policy_version`），旧 key 自然不命中，不批量删；TTL 到期由 `purge_expired()` 回收。`invalidate_all()` 只用于演练。
-- **重启状态三分类**：可安全丢弃（限流窗口 `_WINDOWS` / 轨迹 deque / SSE 连接）；可从真值重建（`queue._active/_queued`、`documents.status IN ('queued','analyzing')` 幂等重投）；必须持久化（策略、预算、用量、文档、`chunk_embeddings`、`cache_entries`、`runtime_state`）。**真值层先行**：强停（SIGKILL）不执行 lifespan `finally`，`last_shutdown_at` 可能缺失，已在真实重启演练中实证。
-- `webapp/main.py` lifespan 调 `recovery.startup()`（7 项启动自检）与 `shutdown()`。`webapp/recovery.py` 持久化新鲜度 / 解析 / 缓存三套策略到 `runtime_state`，启动恢复。`webapp/routers_docs.py` 上传/删除递增 data_version，且**删文档前先删 `chunk_embeddings`**（源头治理幽灵向量），启动再对账兜底。
-- 前端「缓存与恢复」是第 14 个 `data-view`，C33 冻结的仍是 10 具名 view + 6 具名 loader 存在性检查。静态资源当前 **`?v=15`**。
-- 调研/设计 `docs/cache-recovery/01–02`，交付话术 `docs/CACHE-DELIVERY.md`。本轮真·进程重启演练：隔离库启停两次，healthy=True、boot 1→2、requeued=1、ghost=1、策略 45/0.5 恢复、L2 条目仍在、无 500。全量回归 **154 passed**（webapp 90 + parsing 22 + knowledge 23 + cache 19）。
+## 已验证的可复现坑（别再踩）
+1. **Docker 29 + Compose v5 bake 在中文路径报错**：`x-docker-expose-session-sharedkey … non-printable ASCII`。
+   → 拆 `docker build` + `docker run`（`run-demo.sh`），或 `COMPOSE_BAKE=false`。
+2. **`docker exec` 路径被 Git Bash 转换** → `MSYS_NO_PATHCONV=1`；`/tmp` 在 Git Bash 与 Windows curl 间不一致 → 用项目内相对路径。
+3. **网关流末尾发 `choices: []` 纯 usage 块** → 解析必须跳过空 `choices`，否则 IndexError 把正常回答判成 `model_error`。
+4. **`webapp/queue.py` 遮蔽标准库 `queue`** → 脚本放 `webapp/` 下直接跑时 TestClient 起不来。
+5. **`webapp/selftest.py` C12「检索为空」探针**含通用二元组会误命中 → 用随机无意义探针。
+6. **`webapp/observability.py` 的 `model` 维度**：`model=""` 退化成 `"-"` 会让全站非 chat 共用 10 QPS 桶 → 空值跳过该维度。
+7. **`/metrics` 只输出有样本的行** → 空时只有 HELP/TYPE = 指标不存在 → 预置零值样本（6 个指标扩到 8 个）。
+8. **内嵌预览面板拦截 `window.open` / `target="_blank"`** → 改 `<a>` 同标签跳转。
+9. **`docker compose` 的 `parser` 服务用 `profiles: ["parsing"]`**：默认 `up` 仍 11 服务，`--profile parsing` 才 12。
+10. **三条已证伪的误报，别再写进交付物**：① `index.html` 的 40 个内联处理器全部有定义；
+    ② `backend/Dockerfile` / `frontend/Dockerfile` 都存在且 backend 装了 curl、`/health/live` 存在；
+    ③ `frontend/src/` 有 16 个文件、9 个导入全在，`npm run build` 通过。
+
+## 模型与档位现状
+- 默认 `discovery:deepseek-v4.1-flash-1017` + 硅基流动 `BAAI/bge-m3`（1024 维）+ `BAAI/bge-reranker-v2-m3`。
+- **低思考档已验证生效**：`WEBAPP_LLM_THINKING=disabled|enabled`，走 `thinking: {"type":"disabled"}` 字段。
+  实测基线 979ms/`reasoning_tokens=55` vs disabled 467ms/0；元数据里的布尔 `reasoning` 参数实测无效。换网关必须重验。
+- **Discovery 网关 10 个模型里 6 个支持 image**（看 `input_modalities`，不是看名字）。此前「全纯文本」结论是错的。
+- 429 必须分两类：`rate_limit_exceeded` 退避 1/2/4s + 抖动；`quota_exceeded` 不重试。
+- 配置命名空间隔离：webapp 一律 `WEBAPP_` 前缀，`guardrails` 一律 `GUARDRAILS_*`，不要扁平命名。
 
 ## 目录入口
-- 总览与启动：`README.md`
-- 重点方案：`docs/async-upload.md`
-- 权限：`docs/permission-model.md`；Agent 扩展：`docs/agent-extension.md`
-- 运维边界：`docs/operations.md`；学习/交付路线：`docs/learning-roadmap.md`
-- 评测体系：`eval/README.md`（离线启动）、`docs/evaluation-plan.md`（完整方案 + 开通清单）
-- 消息层/插件方案：`docs/next-version-messaging-and-plugins.md`（含第 7 节落地映射）
-- 评估报告（面试讲解版）：`docs/evaluation-report.md`，事实源 `webapp/out/eval_report.json`
-  （`python webapp/eval_report.py` 可复跑，隔离临时库、密钥脱敏）。
-- **真实 API 评估工作台**：`evalbench/`（平行体系，不修改 `eval/` 冻结对象）。
-  入口 `evalbench/README.md`，展示页 `evalbench/out/index.html`，迭代结论
-  `evalbench/iterations/iteration_log.md`，事实源 `evalbench/runs/<run_id>/`。
-  Git 分支 `main` → `eval/v1-baseline` → `eval/v2-prompts` → `eval/v3-params`
-  → `eval/v4-models` → `demo/v1`（交付分支，每个 run 的 config_snapshot 回写 branch/commit）。
-  最终配置 `v2_grounded` + 参数 B(`temp=0 / passage_num=5 / noise_rate=0.6`) + `minimax-m3`，
-  最终 run `RUN-a48c08c0b721`；`kimi-k2.6` 会复述 prompt，不纳入默认选型。
-- 可运行演示切片：`webapp/README.md`；启动 `python -m uvicorn webapp.main:app --port 8765`，
-  admin/admin123；端到端自测 `python webapp/selftest.py`（33/33，真实外部模型下运行，限流走降级仍全绿），
-  单元测试 `python -m pytest webapp/tests -p no:cacheprovider`（41/41，隔离库+强制离线）。
-  侧栏 10 项分 3 组，普通用户 7 项、admin 10 项；新页面只读真实数据，纯设计项明确标注
-  （见 README §2.1「故意没加的入口」）。SQLite 与进程内队列是 PG/Celery 的演示替身，
-  不要把它当生产实现，也不要改坏「采集与查看权限分离」的约定。
-- **模型设置页（仅 admin）**：`/api/settings` 读写 SQLite `app_settings`，可切 LLM
-  （offline / sensenova / discovery / local）、Embedding（offline / local / **external**）、
-  Rerank（off / llm / **external**）。配置即时生效、无需重启；`/api/settings/test` 做连接测试。
-  本地 LLM 默认 `qwen2.5-coder-7b-instruct`（Qwen3 是推理模型，content 可能为空）。
-  **本地模型实测基准**（同一 RAG 问题/上下文）：`qwen/qwen3-vl-8b` 可用但慢（36.5s / 131 chunks，
-  答案带引用），`qwen2.5-coder-7b-instruct` 11.9–15.2s（快约 2.5 倍，演示首选），
-  `qwen/qwen3-8b` 先吐 199 个 reasoning chunk 才出正文（39s，不推荐）。
-  **Qwen3-VL 视觉不可用**：LM Studio 的 `capabilities` 只有 `tool_use` 无 `vision`，
-  传图 400（data: URL 会让引擎 terminated），切片保持纯文本。
-  零正文时 `rag.stream_answer` 标 `degraded=empty_model_output` 并用检索片段兜底（不再出空白气泡）。
-  检索是「词法门禁 + 向量排序（hybrid）」，向量缓存 `chunk_embeddings`；
-  **当前默认 external 硅基流动 `BAAI/bge-m3`（1024 维 / 435ms）**，本地 LM Studio 为可选档。
-  **Rerank 三档**：`off` / `llm`（LLM-as-reranker，用当前 LLM 打分，实测能压下误含关键词的干扰文档）/
-  `external`（Cohere 风格 `/rerank`：Jina、TEI 自动兼容）。**LM Studio 本体不支持 `/v1/rerank`**
-  （把 reranker 归类为 embeddings），所以没有 local 档；不可用时统一优雅跳过（不假装用了）。
-  **`external` 已用硅基流动 `BAAI/bge-reranker-v2-m3` 实测跑通**（key 在 `.env` 的 `RERANK_API_KEY`）：
-  真相关 0.9316 vs 干扰 0.0160，`rerank=applied:external`；空 key / 错 key 均返回 None 走跳过不抛错。
-- 演示切片已接**真实外部 LLM（两家可切，互为备份）**：`sensenova`（DeepSeek 代理）与
-  `discovery`（Intern-AI 网关，14 个模型，key 在 `.env` 的 `DISCOVERY_API_KEY`）。
-  `webapp/providers.py` 是适配器 seam（LLMProvider/EmbeddingProvider 接口 + Offline/OpenAILike 实现），
-  切换只改设置页或 `.env` 的 `WEBAPP_LLM_PROVIDER`（置 offline 恢复零依赖演示）。
-  **Discovery 模型选型实测**：minimax-m3 1.3s 最快（无 reasoning）；kimi-k2.6 2.9s；
-  deepseek-v4.1-flash-1017 是推理模型（9.6s，冷启可达 58s，max_tokens 给小会正文为空）；
-  intern-s2 40.7s 且正文空。演示优先 minimax-m3，要「DeepSeek」名号用 v4.1-flash-1017。
-  模型报错优雅降级为本地拼接并标记 `model_error`；已出正文后中断标
-  `stream_interrupted`（不拼接兜底文案）；空正文标 `empty_model_output`。SSE 不中断。
-  **429 必须分两类**：`rate_limit_exceeded` 退避 1/2/4s + 抖动（尊重 `Retry-After`，上限 30s，
-  最多 3 次）；`quota_exceeded`（墨点耗尽）**不重试**，标 `quota_exceeded` 让用户换模型/供应商。
-  流式一旦开始吐字就不再重试（避免重复内容）。当前**没做全局并发闸/令牌桶**，
-  生产应在网关层按 RPM 限流 + 队列吸收突发。
-  密钥仅进 `.env`（已 gitignore），不进源码；此接入**不影响** eval/ 冻结对象的 `__TBC__` 与
-  `NOT_COMPARABLE` 口径。
-- **网关兼容坑（已修，别再踩）**：部分网关在流末尾发 `choices: []` 的纯 usage 块，
-  解析必须跳过空 `choices`，否则 IndexError 会把正常回答判成 `model_error`。
-- **本轮目标配置（2026-11-11，默认生效）**：`discovery:deepseek-v4.1-flash-1017` +
-  硅基流动 `BAAI/bge-m3` 嵌入 + 硅基流动 `BAAI/bge-reranker-v2-m3` 重排，三组件全走真实外部
-  API（嵌入/重排同一把 `RERANK_API_KEY`，嵌入可另用 `WEBAPP_EMBEDDING_API_KEY`）。
-  实测：嵌入 1024 维 / 435ms、rerank 205ms、真相关 rerank 0.9686 vs 干扰 0.0168
-  （余弦仅 0.7296 vs 0.6023）、e2e 59.7s / 70 chunks / 3 条来源 / 未降级；检索为空诚实拒答。
-  **59.7s 是推理模型冷启 + reasoning，演示应切 minimax-m3（约 1.3s）**。
-- **配置命名空间隔离（务必保持）**：webapp 的 provider 开关一律 `WEBAPP_` 前缀
-  （`WEBAPP_LLM_PROVIDER` / `WEBAPP_EMBEDDING_PROVIDER` / `WEBAPP_RERANK_PROVIDER`），
-  因为 `backend/` 骨架的 `EMBEDDING_PROVIDER` 枚举是 `stub|openai_compatible`，与 webapp 的
-  `offline|local|external` 互斥，共用扁平命名会让 backend 启动校验失败；`EMBEDDING_API_KEY`
-  同理归 backend。改 `.env` 键名时必须同步 `webapp/tests/conftest.py`（强制离线）与
-  `webapp/live_smoke.py`，否则测试会误连真实 API。
-- **`settings.effective_embedding()` 是端点/模型/key/缓存命名空间的唯一事实源**：
-  `cache_key` 必须含 provider + 模型名，否则切模型会复用旧向量，维度不一致时 `_cosine`
-  静默返回 0（检索看似正常实则全错）。已有单测锁定。
-- 其他真实坑：`webapp/queue.py` 会遮蔽标准库 `queue`（脚本放 webapp/ 下直接跑时 TestClient
-  起不来，需修 sys.path 顺序）；C12「检索为空」原查询含「技术/方法/观测」通用二元组，
-  演示库累积文档后会误命中，已改随机无意义探针；`backend/` 骨架曾因缺
-  `sqlalchemy/pydantic_settings/minio/psycopg` 而「没报错只是没跑到」，按
-  `backend/requirements.txt` 装齐后 16/16。
-- 演示物料：`docs/demo/README.md`（四部分索引）、`demo/demo_runner.py`（一键演示）、
-  `demo/selftest.py`（16 项自测）；场景事实源 `demo/scenario.json`
-
-## 演示物料约定
-- 场景 `DEMO-KBQA-EVAL-001`：12 分钟 9 步，从开场到结果确认，档位 `offline_placeholder`。
-- 术语/流程/数据/预期以 `demo/scenario.json` 为唯一事实源；改动任一对象、评测代码或数据集
-  都会改变 run_id，需重跑 `python demo/selftest.py` 并同步更新 `04` 文档中的哈希与 run_id。
-- 演示侧 `demo/out/demo_run_result.json` 与验证侧 `eval/results/<run_id>/` 必须逐字段对齐；
-  验收判定为自测报告 `summary.verdict == "DEMO_READY"`。
-
-## 评测体系约定
-- 真实 API（DeepSeek / 阿里云百炼 embedding / 待测说明书分块问答系统）的所有接口地址、
-  鉴权、请求/响应结构、配额、错误码、模型版本与具体模型名称一律 `__TBC__`，不得推断填写。
-- 占位结果 `comparable=false`，禁止写入质量基线或据此冻结阈值；`real_api` 档位在
-  `OBJ-ADAPTER-CONTRACTS` 的 blocking 字段未消解前保持阻断。
-- 所有可版本化部分（提示词/分块/embedding/模型标识/检索/生成/数据集/评分规则/阈值/基线）
-  为独立对象，已产生 run 的版本禁止原地修改；变体只在内存生效，采纳后须新建版本。
-
-## webapp 前端与治理约定（本轮新增，改动时别破）
-- 前端三件套在 `webapp/static/`（零构建）：`i18n.js`（中文原文即 key 字典 + DOM 扫描 +
-  MutationObserver + `data-i18n` 可逆切换）、`theme.js`（6 主题色 × 明暗正交）、
-  `index.html`/`app.js`/`style.css`。资源版本 v=11，改 JS/CSS 要升版本。
-- **三份独立 localStorage**：`kb_lang` / `kb_theme` / `kb_mode`，互不覆盖；
-  `theme.js` 必须在 `<head>` 同步执行（CSS 之前）防闪烁；`kb-boot` 首帧禁用过渡。
-- i18n 关键约束：用户数据容器在 `SKIP_SELECTORS`；无 value 的 `<option>` 必须固化中文原文到
-  value（否则翻译会改 badcase 判定提交值）；动态生成的界面文案加 `data-i18n="中文原文"` 才能
-  在语言切换时可逆重设。`selftest` C01 要求 HTML 保留「企业级知识库」，C33 要求 10 个 view
-  与 6 个 `function loadXxx` 名不变（新增 view 不能删/改这些）。
-- **工作区没有 `gen_dict.py`（实查）**：`i18n.js` 是 944 行手写 `(function(){ var EN = { '中文原文': 'English' } })()`，
-  全仓 `gen_dict.py` / `KB_DICT` / md5 生成器零命中。改文案必须「改中文原文源 → 同步改 EN 字典里
-  成对的中文 key 与英文值并删旧 key → `node --check` + 切回中文逐字回原文 → 升 `index.html` 四处 `?v=`」，
-  **不存在跑生成器重算 md5 这一步**；只改英文显示值会让切回中文跳回旧文案。
-- 新增治理层：`observability.py`（成本/预算/限流/用量/插件注册表）、`routers_evaltest.py`
-  （12 个 `/api/evaltest/*`）、`main.py` 限流中间件。默认限流阈值必须宽松，否则会打断
-  33 项 selftest；预算默认 `policy=warn`（`block` 才硬拦）。单价是**演示估算**，非供应商报价。
-- 评估测试子页 `view-evaltest` 只读真实数据（`evalbench/runs/` + 台账），写接口仅 admin；
-  离线运行 `comparable=false`，不写质量基线。测试用 autouse fixture 把 `obs.EVALBENCH_RUNS`
-  monkeypatch 到 tmp_path，**否则会污染 evalbench/runs/**。
-- 规则与验收总纲：`docs/enterprise-readiness.md`；中型公司能力清单：`docs/kb-capability-checklist.md`。
-
-## evalbench 约定（改动时别破）
-- 样本是**自建 12 条**（`self_built_v1`），依据 RGB（CC BY-NC-SA 4.0 **仅非商业**）与
-  SQuAD 2.0 的任务/指标口径，**不是官方数据抽样**，不得称「在 RGB/SQuAD 上的分数」。
-- `eval/` 冻结对象、`__TBC__`、`NOT_COMPARABLE`、`real_api` 阻断口径**未被 evalbench 改动**；
-  改动后应验证 `git diff main..HEAD -- eval/` 为空、`demo` 的 run_id 不变。
-- 结果按 (model, prompt_hash, params_hash, sample, context_hash, repeat) 缓存在
-  `evalbench/cache/`（已 gitignore），续跑只补失败项；429 失败留痕不评分；
-  `comparable=false` 的离线 run 不进任何质量结论。
-- **已产生 run 不原地修改**：评分口径变更用 `rescore.py` 生成新 run（旧 run 保留为前后对照）；
-  聚合 bug 用 `rebuild_summaries.py` 只重建派生 summary，records / config_snapshot 不动。
-  当前口径 `METRICS@1.2.0`，含 `answer_economy`（主指标饱和后新增，仅用于收敛对照）。
-- 展示页由 `python evalbench/report.py --final-run <run_id>` 从 runs/comparisons/probe 汇总生成，
-  不要手写 HTML 里的数字。
+- 总览与启动 `README.md`；重点方案 `docs/async-upload.md`
+- 权限 `docs/permission-model.md`；Agent 扩展 `docs/agent-extension.md`
+- 运维 `docs/operations.md`；路线 `docs/learning-roadmap.md`
+- **通用规约 `docs/HARNESS.md`（YEBSPEC@1.0，Y1–Y22）**：三态标注、冻结区、命名空间隔离、验证门禁、
+  交付前闸门 + 真实踩坑表。改任何约束性文本前先读它。
+- 案例 `docs/case-studies.md`；生产化 `docs/production/01–06`
+- 讲解页 `interview/index.html`（主）、`cases.html`（14 故障点）、`journey.html`（演进+问答）
+- showcase `docs/showcase/`；交付话术 `docs/KNOWLEDGE-DELIVERY.md` / `docs/CACHE-DELIVERY.md`
 
 ## 验证命令
 ```bash
+python -m pytest webapp/tests parsing/tests knowledge/tests cache/tests guardrails/tests showcase/tests -q
 cd backend && pytest -q tests
+python webapp/selftest.py                 # 33 项，需真实外部模型
+PARSING_OFFLINE=1 python showcase/verify_integration.py
+python demo/selftest.py                   # 16/16，verdict == DEMO_READY
 cd frontend && npm run build
-# 全量导入：python -c "import app.main; print(len(app.main.app.openapi()['paths']))"
+git diff main..HEAD -- eval/ demo/        # 必须为空
 ```
 
-## 2026-11-14 追加：内容安全 / PII 硬约束（改动时别破）
-
-- `guardrails/` 是**独立纯函数包**（不 import webapp），四出口 `ingest/context/output/audit`
-  共用 `Guardrails.protect()` 一套规则；配置一律 `GUARDRAILS_*` 前缀，别用扁平命名
-  （与 backend 的 `EMBEDDING_*` 同理，避免命名空间冲突）。
-- **先检索、后脱敏**：`rag.retrieve()` 必须用原文 question（脱敏会破坏词法召回），
-  但进 LLM、`_persist`、SSE 下发、导出前一律用脱敏文本。顺序反了会两头不讨好。
-- **SSE 包结构不能改**：C13 断言 `t3[i]["index"] == resume_from + i`。脱敏只把
-  `StreamRedactor.push()` 返回的安全片段作为当前包 `token`（可为空串），
-  `flush()` 尾部放 `done.tail`，前端在 `ev==='done'` 时追加；
-  `done.answer` 与 `chat_logs` 用完整脱敏答案。不要按安全片段重新组包。
-- **`StreamRedactor` 必须扣住跨边界候选串**：只留尾部 `HOLD=24` 不够，长文本逐字符下发
-  会把标识符前 10 位先发出去（撤不回）。下限：`push()` 找 `[A-Za-z0-9_.@+\-:]+`
-  覆盖 boundary 的串，把 boundary 收缩到其起点；无 PII 文本 roundtrip 必须逐字相同。
-- **演示样本的校验位必须按算法算**：`110101199003071938`（MOD 11-2）、
-  `6222021234567894`（Luhn）。别用随手编的号——`11010119900307193X` 非法且前 17 位
-  恰好过 Luhn，曾把负向对照误报成 BANK_CARD；`BANK_CARD` 正则保持 `(?![\dXx])`。
-- `safety_events` 台账**只存 gate/kind/数量/动作/规则版本**，不存原文、preview、可逆映射；
-  `db.log_action` 是审计出口唯一入口，脱敏异常时 fail-closed 丢字段而不是写原文。
-  `rag.analyze_document` 脱敏异常同样 fail-closed 阻断整份入库。
-- **边界别夸大**：规则级检测≠模型级 NER；`backend/app/agent/orchestrator.py` 骨架**未接本包**；
-  可逆 token 默认关闭；默认哈希盐 `demo-salt-change-me` 只是演示占位；
-  图片/表格内 PII、合规审计、SIEM、压测标定未做。
-
-## 2026-11-15 追加：showcase 解析工作台硬约束（改动时别破）
-
-- `showcase/` 是**独立演示站点**（FastAPI + 同源静态，端口 8767），单向 import `parsing/` `guardrails/`
-  `cache/` `knowledge/`，纯函数包禁止反向依赖；不改 `webapp/`、不动冻结区 `eval/ demo/`。
-  唯一事实源是 `docs/showcase/03-phase2-spec.md`，Phase 1 的 01-scope / 02-architecture 不回改。
-- **演示默认全离线**：`PARSING_OFFLINE=1`、A5 恒定 `ParseConfig(offline=True)`、
-  `runtime.external_request_count=0`。复杂档视觉结果是**预先留存的真实解析产物回放**，
-  不是实时在线识别；`warnings[]` 与 `ingest.note` 必须有「回放」。
-- **确定性三件套**：`created_at` 取固定 `as_of=2026-11-15T00:00:00Z`（绝不用挂钟）；
-  `run_id = sha256(source_sha + params_hash + snapshot_version)[:20]`；
-  `snapshot_version` 只由配置性字段派生（**排除 `reason` / `hysteresis`**），`route_id` 用全字段。
-  V5「同参双跑一致」判定对象是 `canonical()` **路径感知投影**：剔除 `manifest` 整块、
-  `llm_route` 的 `route_id/hysteresis/reason`、任意层级耗时字段，**保留** `trace[].reason` 与 `source.sha256`。
-- **LLM 路由**：难度 `Σ w_i×norm_i`（权重见 spec §1）、双阈值滞回 `0.60/0.40`、连续 `k=2` 才切档。
-  `api.py` 用 `(source_sha, params_hash)` 的进程内 LRU（≤32）缓存 `TierState`，
-  否则每次新建状态会让 Pro 永不触发；不串用户、重启清零。
-  **选出 Pro 档 ≠ 调用 Pro 模型**：离线演示不发起外部 LLM 调用，
-  `model/model_snapshot_at/prompt/prompt_version/params` 一律空占位 + `placeholder=true`。
-- **收费解析 API**：演示效果最好 = Reducto（$0.01/页、$150 免费额度）；国内上线 = 阿里云文档解析
-  （0.02/0.04 元每页）。`showcase/adapters/` 只是静态 profile（`available=False`、`__TBC__`），
-  **不得改 `parsing/strategies/ocr_api.py::_call()`**、不代用户开通/付费。
-- **样本与录像**：`showcase/samples/` 的真实 PDF/PNG 与 `*.report.json` / `*.canonical.json`
-  由 `make_samples.py` 从真实解析链路生成；`server.py` 必须在根 `/` 挂载**之前**挂 `/showcase/samples`，
-  A5 另有 `sample_id` 白名单兜底。录像由 `make_video.py` 用真实产物渲染帧 + ffmpeg concat 合成
-  （84 秒 / 10 镜 / 20 帧），帧里右栏字体必须用微软雅黑（Consolas 缺中文与 `✓` / `θ` 字形）。
-  `interview/index.html` 用外链 mp4，`index-standalone.html` 由脚本自动 base64 内嵌，改页面后要重跑录像脚本同步。
-- **验证命令**：`PARSING_OFFLINE=1 python showcase/verify_integration.py`（31 项 `INTEGRATION_READY`）、
-  `python -m pytest showcase/tests -q`（12 项）、全量 9 包 260 项、webapp e2e 33/33（报告按字节还原）。
-- **边界**：`aliyun-guide.html` 只是指导，不是上线证明；实名/支付/备案/凭证保管必须用户本人完成；
-  Pro 模型与单价未选定，保持空占位；所有阈值是演示起始值、非压测结论。
+## 交付前三条自查
+1. 数字/结论是否**实跑**得出，而不是推断或沿用旧快照？
+2. 「已实现 / 只设计 / 未做」是否标清，有没有把目标态写成现状？
+3. 冻结区是否零 diff，报告是否按字节还原？
