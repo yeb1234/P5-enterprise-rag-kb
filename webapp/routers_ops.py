@@ -113,9 +113,15 @@ def eval_objects(_: dict = Depends(get_current_user)):
 
 
 def _short(v: str, keep: int = 2) -> str:
-    """短码：普通用户只看「前 2 位 + ***」，避免暴露完整用户名/ID。"""
+    """短码：保留首尾各 2 位 + ***，既能区分同前缀账号，也不暴露完整用户名。
+
+    只保留首 2 位时，``queue_demo_a`` 与 ``queue_demo_b`` 都会变成 ``qu***``，
+    在「按用户积压」表里无法区分，故补上尾部。
+    """
     s = str(v or "")
-    return (s[:keep] + "***") if len(s) > keep else s
+    if len(s) <= keep * 2:
+        return s[:keep] + "***"
+    return s[:keep] + "***" + s[-keep:]
 
 
 @router.get("/system/queue")
@@ -215,7 +221,7 @@ def list_users(_: dict = Depends(require_admin)):
     conn = db.get_conn()
     try:
         rows = conn.execute(
-            "SELECT id,username,email,role,created_at FROM users ORDER BY created_at DESC"
+            "SELECT id,username,email,role,department,created_at FROM users ORDER BY created_at DESC"
         ).fetchall()
         out = []
         for r in rows:
@@ -227,7 +233,8 @@ def list_users(_: dict = Depends(require_admin)):
             ).fetchone()["c"]
             out.append({
                 "id": r["id"], "username": r["username"], "email": r["email"],
-                "role": r["role"], "created_at": r["created_at"],
+                "role": r["role"], "department": r["department"],
+                "created_at": r["created_at"],
                 "doc_count": dc, "badcase_count": bc,
             })
     finally:

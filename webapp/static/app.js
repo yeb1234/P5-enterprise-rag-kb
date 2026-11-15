@@ -164,7 +164,8 @@ function tick() {
   if (!S.token) return;   // 已登出，停止轮询，避免 401 循环
   pollBusy();
   if (S.view === 'docs' && S.needDocPoll && !S.offline) refreshDocs(true);
-  if (S.view === 'tasks' && S.busy && !S.offline) loadTasks();
+  // 任务中心：2.5s 轮询 /api/system/queue（loadTasks 内部）。始终刷新，队列排空也能即时反映。
+  if (S.view === 'tasks' && !S.offline) loadTasks();
 }
 
 /* ---------------- 视图切换 ---------------- */
@@ -311,11 +312,12 @@ function renderBanners(r) {
     inline.className = 'badge badge-amber';
     inline.textContent = t('繁忙 · 排队 {n}', { n: r.queue_count });
   }
-  // 文档页运行详情
+  // 文档页运行详情：只读 busy / active_count / queue_count，不读 active/queued 的 filename
+  // （busy 接口已对普通用户裁剪 filename；文件名明细统一在「任务中心」按权限展示）
   if (r) {
     $('busy-detail').innerHTML = S.offline ? `<span style="color:var(--danger)">${esc(t('后端不可达'))}</span>` :
       (r.busy
-        ? `${esc(t('当前 {a} 个任务正在分析，{q} 个排队。', { a: r.active_count, q: r.queue_count }))}<br/>${esc(t('处理中：{n}', { n: (r.active || []).map(x => x.filename).join('、') || '—' }))}<br/>${esc(t('排队中：{n}', { n: (r.queued || []).map(x => x.filename).join('、') || '—' }))}`
+        ? `${esc(t('当前 {a} 个任务正在分析，{q} 个排队。', { a: r.active_count, q: r.queue_count }))}<br/>${esc(t('繁忙期间每 2.5 秒自动刷新；文件名明细见「任务中心」（仅管理员可见）。'))}`
         : esc(t('系统空闲，上传文档将即时开始分析。')));
   }
 }
@@ -919,22 +921,69 @@ async function runSearch() {
   } catch (e) { safeToast(e); }
 }
 
-/* ---------- 任务中心（复用文档页的 DOC_BADGE 状态映射） ---------- */
+/* ---------- 任务中心（全局队列聚合 /api/system/queue + 自己的文档状态 /api/docs） ----------
+ * 队列真值取自 documents.status（queued/analyzing），不是内存队列，进程重启后可重建。
+ * 隐私边界：普通用户 scope=aggregate，只拿部门 + 用户短码 + 计数；
+ *           文件名 / 邮箱 / 完整用户名仅 admin（scope=full, details[]）可见。
+ * 不再依赖 /api/system/busy 的 filename（该接口已对普通用户裁剪 active/queued）。 */
 async function loadTasks() {
   try {
-    const [busy, docs] = await Promise.all([api('/api/system/busy'), api('/api/docs')]);
-    const cnt = (k) => docs.filter(d => d.status === k).length;
+    const [q, docs] = await Promise.all([api('/api/system/queue'), api('/api/docs')]);
+    const isAdmin = !!(S.user && S.user.role === 'admin');
+
+    // 1) 统计卡片 4 个
     $('task-stats').innerHTML = [
-      statCard('处理中', busy.active_count, '并发上限 2'),
-      statCard('排队中', busy.queue_count, '超出并发闸', 'var(--warn)'),
-      statCard('已就绪', cnt('ready'), '可被检索', 'var(--success)'),
-      statCard('失败 / 降级', cnt('error'), '均留有具体原因', 'var(--danger)'),
+      statCard('处理中', q.active_count, '并发上限 2'),
+      statCard('排队中', q.queue_count, '超出并发闸', 'var(--warn)'),
+      statCard('涉及用户', q.user_count, '仅显示聚合'),
+      statCard('涉及部门', q.department_count, '按部门标签'),
     ].join('');
-    $('task-queue').innerHTML = `
-      <div class="kv-line"><span>状态</span><b>${busy.busy ? '繁忙' : '空闲'}</b></div>
-      <div class="kv-line"><span>处理中文件</span><b class="small">${esc((busy.active || []).map(x => x.filename).join('、') || '—')}</b></div>
-      <div class="kv-line"><span>排队中文件</span><b class="small">${esc((busy.queued || []).map(x => x.filename).join('、') || '—')}</b></div>
-      <div class="note-box">队列排空后繁忙横幅自动消失；繁忙期间本页每 2.5 秒跟随系统状态刷新。</div>`;
+
+    // 2) 当前队列：状态 + 后端 message + note；绝不渲染 busy.active/queued 的文件名
+    $('task-queue').innerHTML = (q.total_pending > 0)
+      ? `<div class="kv-line"><span>状态</span><b>${esc(q.busy ? '繁忙' : '空闲')}</b></div>
+         <div class="kv-line"><span>积压合计</span><b>${q.total_pending}（处理 ${q.active_count} · 排队 ${q.queue_count}）</b></div>
+         <div class="note-box">${esc(q.message || '')}${q.note ? '<br/>' + esc(q.note) : ''}</div>`
+      : `<div class="empty-state"><div class="big">◫</div>系统空闲，可即时分析。<br/><span class="small">${esc(q.note || '')}</span></div>`;
+
+    // 3) 按用户积压（后端已按 total 降序）
+    const bu = q.by_user || [];
+    $('task-by-user').innerHTML = bu.length
+      ? '<table class="table"><thead><tr><th>部门</th><th>用户</th><th>处理中</th><th>排队</th><th>合计</th></tr></thead><tbody>' +
+        bu.map(x => `<tr><td>${esc(x.department)}</td><td><b>${esc(x.username)}</b><div class="small muted">${esc(x.user_id_short)}</div></td><td>${x.active}</td><td>${x.queued}</td><td><b>${x.total}</b></td></tr>`).join('') +
+        '</tbody></table><p class="muted small" style="margin:8px 0 0">' +
+        (isAdmin ? '管理员可见完整用户名与文件名明细。' : '普通用户只看到部门与用户短码，文件名 / 邮箱不可见。') + '</p>'
+      : '<div class="empty-state"><div class="big">◫</div>暂无积压任务。</div>';
+
+    // 4) 按部门：department_count > 1 时才显示（单部门意义不大）
+    const bd = q.by_department || [];
+    if ((q.department_count || 0) > 1 && bd.length) {
+      $('task-by-dept-card').classList.remove('hidden');
+      $('task-by-dept').innerHTML = '<table class="table"><thead><tr><th>部门</th><th>处理中</th><th>排队</th><th>合计</th></tr></thead><tbody>' +
+        bd.map(x => `<tr><td>${esc(x.department)}</td><td>${x.active}</td><td>${x.queued}</td><td><b>${x.total}</b></td></tr>`).join('') +
+        '</tbody></table>';
+    } else {
+      $('task-by-dept-card').classList.add('hidden');
+      $('task-by-dept').innerHTML = '';
+    }
+
+    // 5) 文件名明细：仅 admin（scope=full）且有明细时渲染；普通用户不渲染
+    const det = q.details || [];
+    if (q.scope === 'full' && det.length) {
+      $('task-details-card').classList.remove('hidden');
+      $('task-details').innerHTML = '<table class="table"><thead><tr><th>文档</th><th>状态</th><th>大小</th><th>提交时间</th><th>部门</th><th>用户</th></tr></thead><tbody>' +
+        det.map(d => {
+          const [c, l] = DOC_BADGE[d.status] || ['badge-gray', d.status];
+          return `<tr><td>${esc(d.filename)}</td><td><span class="badge ${c}">${l}</span></td>` +
+            `<td class="small muted">${fmtSize(d.size_bytes || 0)}</td><td class="small muted">${esc(fmtTime(d.created_at))}</td>` +
+            `<td>${esc(d.department)}</td><td>${esc(d.username)}</td></tr>`;
+        }).join('') + '</tbody></table>';
+    } else {
+      $('task-details-card').classList.add('hidden');
+      $('task-details').innerHTML = '';
+    }
+
+    // 6) 最近文档状态（/api/docs 只含自己的文档，保持不变）
     const recent = docs.slice(0, 8);
     $('task-docs').innerHTML = recent.length
       ? '<table class="table"><thead><tr><th>文档</th><th>状态</th><th>分块</th><th>说明 / 时间</th></tr></thead><tbody>' +

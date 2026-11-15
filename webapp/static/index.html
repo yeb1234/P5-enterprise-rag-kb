@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>企业级知识库 · 可运行演示切片</title>
   <!-- 同步执行：在 CSS 应用前写好 data-theme / data-mode，首屏无主题闪烁 -->
-  <script src="/theme.js?v=17"></script>
-  <script src="/i18n.js?v=17"></script>
-  <link rel="stylesheet" href="/style.css?v=17" />
+  <script src="/theme.js?v=18"></script>
+  <script src="/i18n.js?v=18"></script>
+  <link rel="stylesheet" href="/style.css?v=18" />
 </head>
 <body>
 
@@ -341,7 +341,7 @@
       <!-- ---------- 任务中心 ---------- -->
       <section id="view-tasks" class="hidden">
         <div class="page-head">
-          <div><h2>任务中心</h2><p>上传分析队列、状态机与失败恢复；对应 docs/async-upload.md 的三层进度通道设计。</p></div>
+          <div><h2>任务中心</h2><p>全局上传分析队列：谁在排队、积压多少。队列真值取自 <code>documents.status</code>，不是内存队列，进程重启后仍可重建；对应 docs/async-upload.md 的三层进度通道设计。</p></div>
           <div class="head-actions"><button class="btn btn-sm" onclick="loadTasks()">刷新</button></div>
         </div>
         <div class="stat-grid" id="task-stats"></div>
@@ -357,10 +357,30 @@
               这里用进程内信号量 + 轮询展示同一语义，<b>不是</b> Celery + RabbitMQ。</p>
           </div>
         </div>
-        <div class="card" style="margin-bottom:16px"><div class="section-title padded" style="padding-bottom:0">最近文档状态</div><div class="table-wrap" id="task-docs"></div></div>
+
+        <div class="card" style="margin-bottom:16px">
+          <div class="section-title padded" style="padding-bottom:0">按用户积压 <span class="badge badge-blue">已实现（演示级）</span></div>
+          <div class="table-wrap" id="task-by-user"></div>
+        </div>
+
+        <div class="card hidden" id="task-by-dept-card" style="margin-bottom:16px">
+          <div class="section-title padded" style="padding-bottom:0">按部门 <span class="badge badge-blue">已实现（演示级）</span></div>
+          <div class="table-wrap" id="task-by-dept"></div>
+        </div>
+
+        <div class="card hidden" id="task-details-card" style="margin-bottom:16px">
+          <div class="section-title padded" style="padding-bottom:0">文件名明细 <span class="badge badge-purple">仅管理员可见</span></div>
+          <details style="padding:0 20px 16px">
+            <summary class="small muted" style="cursor:pointer;padding:6px 0">展开 / 收起明细（最多 200 条，按提交时间升序）</summary>
+            <div class="table-wrap" id="task-details"></div>
+          </details>
+        </div>
+
+        <div class="card" style="margin-bottom:16px"><div class="section-title padded" style="padding-bottom:0">最近文档状态 <span class="badge badge-gray">仅自己的文档</span></div><div class="table-wrap" id="task-docs"></div></div>
         <div class="card padded"><div class="section-title">降级与恢复矩阵</div>
           <p class="muted small" style="margin:0">格式不支持 → error + 原因；繁忙 → 排队并显示位置；检索为空 → 拒答不编造；
             流中断 → resume_from 续传；后端不可达 → 红色横幅自动重连；令牌失效 → 退回登录。<b>全部可见、全部留痕，不静默。</b></p>
+          <p class="muted small" style="margin:10px 0 0"><span class="badge badge-gray">只设计</span> 页级 chord 与 SSE 权威快照仍为设计目标，本轮用 2.5s 轮询 + 进程内信号量演示同一语义，<b>未实现</b>。</p>
         </div>
       </section>
 
@@ -886,6 +906,6 @@
 <div id="modal-root"></div>
 <div id="toasts"></div>
 
-<script src="/app.js?v=17"></script>
+<script src="/app.js?v=18"></script>
 </body>
 </html>

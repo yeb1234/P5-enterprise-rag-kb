@@ -91,7 +91,7 @@ def test_user_sees_aggregate_without_filenames(client):
     assert row["queued"] == 100 and row["total"] == 100
     assert row["department"] == "研发部"
     # 普通用户名必须是短码，且响应全文不含文件名与邮箱
-    assert row["username"].endswith("***")
+    assert "***" in row["username"]
     assert "secret-plan.pdf" not in r.text
     assert "@demo.local" not in r.text
 
@@ -129,7 +129,7 @@ def test_admin_sees_full_details(client, admin):
     filenames = [x["filename"] for x in d["details"]]
     assert any("admin-visible.pdf" in f for f in filenames)
     row = next(x for x in d["by_user"] if x["user_id_short"] == uid[:8])
-    assert not row["username"].endswith("***"), "admin 看到完整用户名"
+    assert "***" not in row["username"], "admin 看到完整用户名"
 
 
 def test_admin_busy_keeps_details(client, admin):
