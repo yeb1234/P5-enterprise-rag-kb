@@ -250,6 +250,15 @@
     var code = (e && e.code) || 'INTERNAL_ERROR';
     var msg = (e && e.message) || '未知错误';
     var trace = (e && e.trace_id) ? (' · trace_id=' + e.trace_id) : '';
+    // 安全拦截 ≠ 系统错误：A5 上传 / A9 预演命中 ACTION_BLOCK（如 API_KEY）返回 422 PII_BLOCKED，
+    // 属「宁可阻断、不可漏检」的有意取舍，后端不落盘。文案不得写成 INTERNAL_ERROR / 服务异常。
+    if (code === 'PII_BLOCKED') {
+      setStatus('error',
+        '疑似含密钥，已阻断落盘（不是系统错误，是「宁可阻断、不可漏检」的安全拦截）：' +
+        msg + trace + '。如确认是文档中的示例字符串（如操作手册讲密钥格式），请改写后再上传。',
+        code);
+      return e;
+    }
     setStatus('error', (prefix ? prefix + '：' : '请求失败：') + '[' + code + '] ' + msg + trace, code);
     return e;
   }
@@ -1197,6 +1206,113 @@
   }
 
   /* ---------------------------------------------------------------------
+   * 12.5 A9 脱敏预演（guardrails/scan）
+   *  安全契约（QA P0/P1 修复后）：响应 results[].text 恒为空串 + echo_suppressed=true；
+   *  前端只展示 findings[].preview（首尾各 2 位）、hit_count / by_kind / blocked /
+   *  blocked_kinds；绝不为了「看起来有内容」把输入文本拼回原文。
+   *  命中 ACTION_BLOCK（如 API_KEY）时后端返回 422 PII_BLOCKED → 按「已阻断、不是系统错误」展示。
+   * ------------------------------------------------------------------- */
+  function fillGuardrailsDemo(kind) {
+    if (kind === 'block') {
+      // 明显的假密钥示例，仅用于演示 422 阻断；不是真实凭证
+      D.guardrailsText.value = '示例：调用接口需要凭证 sk-demo-EXAMPLE-0000-0000（这是假密钥，仅用于演示阻断）。';
+    } else {
+      D.guardrailsText.value = '联系人 alice@example.com，员工号 EMP-20260118，电话 13800001234，订单号 ORD-2026-1115。';
+    }
+    runGuardrailsScan();
+  }
+
+  function runGuardrailsScan() {
+    var text = D.guardrailsText.value || '';
+    var out = D.guardrailsResult;
+    if (!text.replace(/\s/g, '')) {
+      out.className = 'guardrails-result';
+      setText(out, '请输入文本后再预演（可用「填入 PII 示例」快速填充）。');
+      return;
+    }
+    D.btnGuardrails.disabled = true;
+    out.className = 'guardrails-result';
+    setText(out, '正在 POST /api/guardrails/scan …');
+    apiJSON(API.guardrails, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: text, gates: ['ingest', 'context', 'output', 'audit'] })
+    }).then(function (r) {
+      renderGuardrailsResult(r);
+    }, function (e) {
+      out.className = 'guardrails-result blocked';
+      clear(out);
+      if (e && e.code === 'PII_BLOCKED') {
+        out.appendChild(el('b', null, '疑似含密钥，已阻断（不是系统错误）'));
+        out.appendChild(document.createTextNode(
+          ' ' + (e.message || '') + (e.trace_id ? (' · trace_id=' + e.trace_id) : '') +
+          '。如确认是文档中的示例字符串，请改写后再上传。'));
+      } else {
+        out.appendChild(document.createTextNode('[' + ((e && e.code) || '?') + '] ' +
+          ((e && e.message) || '') + (e && e.trace_id ? (' · trace_id=' + e.trace_id) : '')));
+      }
+      showError(e, 'A9 脱敏预演失败');
+    }).then(function () { D.btnGuardrails.disabled = false; },
+            function () { D.btnGuardrails.disabled = false; });
+  }
+
+  function renderGuardrailsResult(r) {
+    r = r || {};
+    var out = D.guardrailsResult;
+    clear(out);
+    out.className = 'guardrails-result';
+    out.appendChild(kvGrid([
+      ['rule_version', r.rule_version || '空占位', true],
+      ['total_hits', r.total_hits !== undefined ? r.total_hits : '空占位'],
+      ['blocked', fmt(r.blocked)],
+      ['gates', Array.isArray(r.gates) ? r.gates.join(' / ') : '空占位', true]
+    ]));
+    // 安全：echo_suppressed → 明确说明「不回显原文」
+    if (r.echo_suppressed === true) {
+      out.appendChild(el('div', 'route-hint neutral',
+        '出于安全，输入文本不回显（results[].text 已置空，echo_suppressed=true）；' +
+        '下面只给命中类别与数量，findings.preview 仅显示首尾各 2 位。'));
+    }
+    var results = Array.isArray(r.results) ? r.results : [];
+    if (results.length) {
+      out.appendChild(blockTitle('四出口明细 · results[]（不渲染 text 原文）'));
+      results.forEach(function (g) {
+        g = g || {};
+        var row = el('div', 'guardrail-gate');
+        var head = el('div', 'guardrail-gate-head');
+        head.appendChild(el('span', 'badge neutral', g.gate || 'gate'));
+        head.appendChild(document.createTextNode(
+          ' 命中 ' + (g.hit_count !== undefined ? g.hit_count : 0) +
+          (g.blocked ? ('，已阻断（' + ((g.blocked_kinds || []).join(' / ') || '—') + '）') : '')));
+        row.appendChild(head);
+        if (g.by_kind && Object.keys(g.by_kind).length) {
+          row.appendChild(noteLine('by_kind：' + JSON.stringify(g.by_kind)));
+        }
+        var fs = Array.isArray(g.findings) ? g.findings : [];
+        if (fs.length) {
+          var ul = el('ul', 'notes-list');
+          fs.forEach(function (f) {
+            ul.appendChild(el('li', null,
+              (f.kind || '?') + ' · preview：' + (f.preview || '空占位') + '（仅首尾各 2 位，不回显原文）'));
+          });
+          row.appendChild(ul);
+        } else {
+          row.appendChild(noteLine('该出口无 findings。'));
+        }
+        out.appendChild(row);
+      });
+    } else {
+      out.appendChild(noteLine('results[] 为空占位。'));
+    }
+    // 防御：即便后端某天回填了 results[].text，前端也绝不渲染原文（安全契约）
+    var leaked = results.some(function (g) { return g && g.text; });
+    if (leaked) {
+      out.appendChild(el('div', 'route-hint pending',
+        '注意：响应中 results[].text 非空，但按 A9 安全契约前端不渲染原文，仅展示 findings.preview。'));
+    }
+  }
+
+  /* ---------------------------------------------------------------------
    * 13. 主流程：单次分析 / 双跑对拍 / 改参重跑
    * ------------------------------------------------------------------- */
   function setBusy(on, text) {
@@ -1439,6 +1555,11 @@
     D.btnCompare.addEventListener('click', function () { if (!S.busy) { doubleRun().catch(function () {}); } });
     D.btnMutate.addEventListener('click', function () { if (!S.busy) { mutateRun(); } });
 
+    // A9 脱敏预演（安全契约：不回显原文）
+    D.btnGuardrails.addEventListener('click', function () { if (!S.busy) { runGuardrailsScan(); } });
+    D.btnGuardrailsDemo.addEventListener('click', function () { fillGuardrailsDemo('pii'); });
+    D.btnGuardrailsBlock.addEventListener('click', function () { fillGuardrailsDemo('block'); });
+
     // 「打开上线指导」：链接失效也不影响主流程（不改主流程、不拦截跳转）
     if (D.guideLink) {
       D.guideLink.setAttribute('rel', 'noopener noreferrer');
@@ -1515,6 +1636,8 @@
       '后端 A5 的 errors[] 是 HTTP 200 成功响应里的降级留痕（{code,message}），如实展示但不误标为请求失败',
       'analysis 结构兼容：优先 pages[]，回退 results[]+traces[] 自动组装；summary/budget/warnings 多来源',
       'RouteSnapshot 展开：优先 GET /api/manifest/{run_id}，失败回退 ingest.llm_route 并如实标注',
+      'A9 安全契约（QA P0/P1 修复后）：results[].text 恒空 + echo_suppressed=true，仅渲染 findings[].preview（首尾各 2 位）；命中 ACTION_BLOCK 返回 422 PII_BLOCKED，按「已阻断、不是系统错误」展示，绝不回显原文',
+      'A5 命中密钥：422 PII_BLOCKED 且不落盘，showError 统一按「疑似含密钥，已阻断落盘（不是系统错误）」+「改写后再上传」展示',
       '错误体统一 {code,message,trace_id}；非 JSON 错误页 / 网络失败也有明确 code',
       'runtime.external_request_count 缺失显示「未提供」，不编造 0'
     ];

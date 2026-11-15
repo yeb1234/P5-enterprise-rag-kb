@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS users (
     password_salt TEXT NOT NULL,
     password_hash TEXT NOT NULL,
     role         TEXT NOT NULL DEFAULT 'user',   -- 'admin' | 'user'
+    department   TEXT NOT NULL DEFAULT '未分配',  -- 队列展示用的部门标签；webapp 不做部门级权限
     created_at   TEXT NOT NULL
 );
 
@@ -397,6 +398,20 @@ def _migrate_tenant_to_department(conn: sqlite3.Connection) -> None:
     conn.execute("DELETE FROM eval_configs WHERE key='tenant'")
 
 
+def _migrate_users_department(conn: sqlite3.Connection) -> None:
+    """给旧库补 users.department（幂等）。
+
+    只作**队列展示标签**（「哪个部门在排队」），不参与权限判定——
+    webapp 仍是单组织多用户，部门级权限不在本轮范围。
+    用 ``row[1]`` 取列名，不依赖 row_factory（与既有迁移口径一致）。
+    """
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(users)")}
+    if "department" not in cols:
+        conn.execute(
+            "ALTER TABLE users ADD COLUMN department TEXT NOT NULL DEFAULT '未分配'"
+        )
+
+
 def _migrate_knowledge_columns(conn: sqlite3.Connection) -> None:
     """给旧库补知识治理列（幂等）。
 
@@ -424,6 +439,7 @@ def init_db() -> None:
         try:
             conn.executescript(SCHEMA)
             _migrate_tenant_to_department(conn)
+            _migrate_users_department(conn)
             _migrate_knowledge_columns(conn)
             _seed(conn)
             conn.commit()
@@ -441,9 +457,9 @@ def _seed(conn: sqlite3.Connection) -> None:
             "sha256", "admin123".encode(), bytes.fromhex(salt), 100_000
         ).hex()
         cur.execute(
-            "INSERT INTO users(id,username,email,password_salt,password_hash,role,created_at)"
-            " VALUES (?,?,?,?,?,?,?)",
-            (uuid.uuid4().hex, "admin", "admin@example.com", salt, dk, "admin",
+            "INSERT INTO users(id,username,email,password_salt,password_hash,role,department,created_at)"
+            " VALUES (?,?,?,?,?,?,?,?)",
+            (uuid.uuid4().hex, "admin", "admin@example.com", salt, dk, "admin", "平台运营",
              time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())),
         )
     # 演示评估任务

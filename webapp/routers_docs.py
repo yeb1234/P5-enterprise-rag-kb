@@ -128,8 +128,19 @@ def delete_doc(doc_id: str, user: dict = Depends(get_current_user)):
 
 
 @router.get("/system/busy")
-def system_busy():
-    return queue.get_busy_state()
+def system_busy(user: dict = Depends(get_current_user)):
+    """队列实时状态。
+
+    安全修复：此前该端点**无鉴权**且直接返回 filename，未登录即可探测正在处理的
+    文档名。现在必须登录；普通用户只拿计数与提示，文件名明细仅 admin 可见。
+    """
+    state = queue.get_busy_state()
+    if user["role"] != "admin":
+        state["active"] = []
+        state["queued"] = []
+        state["redacted"] = True
+        state["note"] = "普通用户只看计数；文件名与队列明细仅 admin 可见"
+    return state
 
 
 @router.get("/eval-tasks")
