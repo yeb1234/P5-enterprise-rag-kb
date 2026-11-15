@@ -573,8 +573,7 @@ def render_html(r: dict) -> str:
 <body>
 <div class="wrap">
   <h1>公开检索基准 · CmedqaRetrieval</h1>
-  <p class="sub">{html.escape(r['dataset'])} ·
-     生成于 {r['generated_at']} · 全流程 {r['elapsed_s']}s</p>
+  <p class="sub">{html.escape(r['dataset'])} · 生成于 {r['generated_at']}</p>
 
   <div class="kpis">
     <div class="kpi"><b>{r['passages']:,}</b><span>passage（全量，未抽样）</span></div>
@@ -672,8 +671,13 @@ def render_html(r: dict) -> str:
     <p><code>python -m evalfmt.publicbench download</code> → 从 hf-mirror 拉 3 个 parquet</p>
     <p><code>python -m evalfmt.publicbench embed</code> → 全量向量化并缓存到磁盘（断点续跑）</p>
     <p><code>python -m evalfmt.publicbench run</code> → 扫参 + 五组配置 + 生成本页</p>
+    <p class="cap"><b>耗时说明</b>：10 万条向量化约 60 分钟（一次性，之后走缓存）；
+      重排冷跑约 8 分钟（800 次 cross-encoder 调用），之后走缓存；
+      扫参与评估本身约 1.5 分钟。本轮脚本耗时 {r['elapsed_s']}s——这个数字小是因为
+      向量与重排都命中了缓存，<b>不代表冷跑成本</b>。</p>
     <p class="cap">原始数字：evalfmt/out/publicbench.json ·
-      重排分数缓存：evalfmt/.cache/rerank_scores.json（重跑不重复调 API）</p>
+      重排分数缓存：evalfmt/.cache/rerank_scores.json（重跑不重复调 API）·
+      只改排版重出本页：<code>python -m evalfmt.publicbench_run --from-json evalfmt/out/publicbench.json</code></p>
   </div>
 </div>
 </body>
@@ -690,4 +694,15 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--top-k", type=int, default=100)
     ap.add_argument("--rerank-queries", type=int, default=300)
-    main(ap.parse_args())
+    # 只改排版/措辞时用它：从已有 JSON 重渲染，不重跑扫参、不调 API
+    ap.add_argument("--from-json", type=str, default="",
+                    help="从已有 publicbench.json 重新渲染 HTML")
+    args = ap.parse_args()
+    if args.from_json:
+        OUT_DIR.mkdir(parents=True, exist_ok=True)
+        report = json.loads(Path(args.from_json).read_text(encoding="utf-8"))
+        out = OUT_DIR / "publicbench.html"
+        out.write_text(render_html(report), encoding="utf-8")
+        print(f"已按 {args.from_json} 重新渲染 → {out}")
+    else:
+        main(args)

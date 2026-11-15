@@ -48,8 +48,7 @@
 <body>
 <div class="wrap">
   <h1>公开检索基准 · CmedqaRetrieval</h1>
-  <p class="sub">CmedqaRetrieval（C-MTEB / MTEB 中文医疗问答检索） ·
-     生成于 2026-11-15T18:33:05Z · 全流程 83.0s</p>
+  <p class="sub">CmedqaRetrieval（C-MTEB / MTEB 中文医疗问答检索） · 生成于 2026-11-15T18:33:05Z</p>
 
   <div class="kpis">
     <div class="kpi"><b>100,001</b><span>passage（全量，未抽样）</span></div>
@@ -147,8 +146,13 @@
     <p><code>python -m evalfmt.publicbench download</code> → 从 hf-mirror 拉 3 个 parquet</p>
     <p><code>python -m evalfmt.publicbench embed</code> → 全量向量化并缓存到磁盘（断点续跑）</p>
     <p><code>python -m evalfmt.publicbench run</code> → 扫参 + 五组配置 + 生成本页</p>
+    <p class="cap"><b>耗时说明</b>：10 万条向量化约 60 分钟（一次性，之后走缓存）；
+      重排冷跑约 8 分钟（800 次 cross-encoder 调用），之后走缓存；
+      扫参与评估本身约 1.5 分钟。本轮脚本耗时 83.0s——这个数字小是因为
+      向量与重排都命中了缓存，<b>不代表冷跑成本</b>。</p>
     <p class="cap">原始数字：evalfmt/out/publicbench.json ·
-      重排分数缓存：evalfmt/.cache/rerank_scores.json（重跑不重复调 API）</p>
+      重排分数缓存：evalfmt/.cache/rerank_scores.json（重跑不重复调 API）·
+      只改排版重出本页：<code>python -m evalfmt.publicbench_run --from-json evalfmt/out/publicbench.json</code></p>
   </div>
 </div>
 </body>
