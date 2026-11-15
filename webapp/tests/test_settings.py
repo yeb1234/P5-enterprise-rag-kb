@@ -173,10 +173,11 @@ def test_retrieve_external_embedding_uses_semantic_rank(monkeypatch):
     calls = {}
 
     def fake_rank(q, c, cfg):
+        # 契约：返回 (排序结果, 后端说明)。后端说明会进 mode，方便排查走了哪条路径。
         calls["hit"] = True
         for x in c:
             x["score"] = 0.9
-        return c
+        return c, "external_embedding(external:BAAI/bge-m3)"
 
     monkeypatch.setattr(rag, "_semantic_rank", fake_rank)
     hits, meta = rag.retrieve("如何配网", with_meta=True)

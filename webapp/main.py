@@ -351,7 +351,7 @@ async def lifespan(app: FastAPI):
 def create_app() -> FastAPI:
     app = FastAPI(
         title="企业级知识库 · 可运行演示切片",
-        version="1.2.1",
+        version="1.3.0",
         description="注册登录 / 文档上传管理 / 流式问答 / badcase 采集闭环 / admin 完成度，离线可跑。",
         lifespan=lifespan,
         docs_url="/api-docs",   # 与前端「文档管理」概念区分，避免 /docs 混淆

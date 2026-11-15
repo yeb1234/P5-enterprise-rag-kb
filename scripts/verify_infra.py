@@ -290,7 +290,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--tenant", default="default")
     ap.add_argument("--skip-pg", action="store_true")
     ap.add_argument("--skip-redis", action="store_true")
-    ap.add_argument("--skip-milvus", action="store_true")
+    ap.add_argument("--skip-milvus", action="store_true",
+                    help="兼容保留：现在默认就跳过 Milvus")
+    ap.add_argument("--with-milvus", action="store_true",
+                    help="额外校验 Milvus（默认不启动它：主链路走 pgvector，Milvus 只做对照实验）")
     ap.add_argument("--limit", type=int, default=3, help="限流共享验证用的窗口上限")
     args = ap.parse_args(argv)
 
@@ -321,7 +324,7 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print(f"  不通过：{report['redis'].get('error') or report['redis'].get('problems')}")
 
-    if not args.skip_milvus:
+    if args.with_milvus and not args.skip_milvus:
         print("== Milvus（集合与权限 expr）==")
         report["milvus"] = check_milvus(args.milvus_uri, tenant=args.tenant)
         if report["milvus"].get("ok"):
@@ -332,6 +335,12 @@ def main(argv: list[str] | None = None) -> int:
                   f"错 tenant 命中 {d.get('wrong_tenant_hits')} 条 · 收窄后 {d.get('narrowed_docs')} 个文档")
         else:
             print(f"  不通过：{report['milvus'].get('error') or report['milvus'].get('problems')}")
+    else:
+        # 跳过必须写出来。静默 = 让人以为「三项都验过了」，而这正是最贵的误判。
+        print("== Milvus（已跳过，未校验）==")
+        print("  默认不启动：向量检索主链路走 pgvector。需要对照实验时：")
+        print("    docker compose -f docker-compose.infra.yml --profile milvus up -d")
+        print("    python scripts/verify_infra.py --with-milvus")
 
     ok = all(v is None or v.get("ok") for v in report.values())
     report["verdict"] = "INFRA_READY" if ok else "INFRA_NOT_READY"

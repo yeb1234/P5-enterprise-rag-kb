@@ -120,6 +120,51 @@
 
 ---
 
+## v1.3.0 · 2026-11-16 · 向量层切到 pgvector，Milvus 移出默认启动
+
+> **这一版动的是主链路**：检索不再是「取 JSON 文本 + Python 逐条算余弦」，而是
+> `chunk_embeddings.embedding vector(1024)` 上的一条 SQL（过滤 + 排序 + 打分）。
+> 决策依据与规模算术见 `production/08-vector-store-decision.md`。
+> Milvus 保留代码与文档，但**默认不再启动**——它变成对照实验，不是主链路的一环。
+
+| 日期 | 改进项 | 改动说明 | 影响范围 | 备注 |
+|---|---|---|---|---|
+| 2026-11-16 | **PG 镜像换带 pgvector 的版本** | `postgres:16-alpine` → `pgvector/pgvector:pg16`（同为 PG 16.16）。旧卷 `kb-infra_pgdata` 保留为回滚快照，新数据在 `kb-infra_pgdata_v2`；迁移走 `pg_dump` + restore，**顺带做了一次恢复演练** | `docker-compose.infra.yml`、`scripts/pg_init.sql` | 核对：20 表 / 105 docs / 143 chunks / 174 向量 / 21 用户 全部一致 |
+| 2026-11-16 | **DDL：向量列 + HNSW 索引** | `CREATE EXTENSION vector`（实测 0.8.7）+ `embedding vector(1024)` + `USING hnsw (embedding vector_cosine_ops) WITH (m=16, ef_construction=64)`；174 条向量回填 + 建索引共 **0.39 秒** | `scripts/pg_init.sql`（唯一事实源） | `vec` 文本列保留：回滚路径 + 对拍基准 |
+| 2026-11-16 | **检索改一条 SQL，双写两列** | `rag.py` 新增 `_semantic_rank_pg()`：`WHERE model=? AND chunk_id = ANY(?) ORDER BY embedding <=> ?::vector`；写入时同时写 `vec` 与 `embedding`（同一个参数传两遍，省一次往返）；`WEBAPP_VECTOR_BACKEND=pgvector\|python` 可回滚 | `webapp/rag.py`、`.env.example` | 降级**必须留痕**：`mode` 会写成 `pgvector_fallback_python:XXX`，不静默变慢 |
+| 2026-11-16 | **Milvus 三件套移入 `profiles: ["milvus"]`** | etcd / minio / milvus 默认 `up` 不再启动；需要对照实验时 `--profile milvus up -d`。`verify_infra.py` 默认跳过 Milvus 并**打印跳过原因**，要验加 `--with-milvus` | `docker-compose.infra.yml`、`scripts/verify_infra.py` | 默认服务从 5 个降到 **2 个**（postgres + redis） |
+| 2026-11-16 | **新增 4 项 pgvector 单测** | 语义路径在 `embedding_provider=offline` 时根本不会执行，等于没测：用定长假向量 + 真表把 SQL 路径钉住。覆盖「与纯 Python 排序一致」「分数就是余弦相似度」「开关与降级留痕」「拼错的开关值不得当 python」 | `webapp/tests/test_rag_pgvector.py` | 单测总数 255 → **259** |
+
+**实测（143 候选、1024 维、同一 query、同一模型）**
+
+| 路径 | 耗时 |
+|---|---|
+| 旧：取 JSON 文本 + 纯 Python 余弦 | **69.45 ms**（取向量 56.98 + 余弦 12.47） |
+| 新：pgvector 一条 SQL（复用连接，10 次取中位） | **2.18 ms**（min 1.73 / max 3.92） |
+| 加速 | **约 32×** |
+
+> 口径必须说清：143 个候选时 planner 仍选 Seq Scan + Sort，**这 32 倍不是 HNSW 的功劳**，
+> 是「把计算搬进 PG + 二进制列（4KB vs 22.2KB）」的功劳。HNSW 要等数据量上去才显效。
+
+**A13 对拍（单次抽样）**：分数最大绝对差 **8e-08**、top-10 集合重合 **10/10**、top-4 **3/4**、顺序**不完全一致**。
+原因不是 bug：库里存在逐元素完全相同的向量，2~6 名分数都是 `0.674249`，8e-08 足以让并列项换位。
+**判据只能是集合重合率，不能是顺序逐条相等**——按顺序断言会得到一个永远 GREEN 的假测试。
+
+**两个实测踩到的坑（写进 `08` §6.5.2）**
+1. `postgres:16-alpine` 里 `apk add postgresql-pgvector` 装的是 **PG 18 的扩展**（官方镜像的 PG 是源码编译在 `/usr/local`，apk 包另拉了一套 PG 18）→ 只能换镜像，不能靠 apk。
+2. 扩展是**库级**的，装不进业务 schema：测试 schema 的 `search_path` 只含自己时，`vector(1024)` 与 `a <=> b` 都解析不到 → 修 `pgkit.connect` 与 `cache/tests/conftest.py` 两处为 `SET search_path TO "<schema>", public`。
+
+**验证**：单测 **259 passed**（六个包 + 新 4 项）；端到端 `webapp/selftest.py` **33/33 `DEMO_READY`**（新代码 + 无 Milvus）；`verify_infra.py` → `INFRA_READY`。
+
+> **已知问题（本版未修，属既有行为）**：演示容器 `kb-webapp` 的检索实际走**词法**。
+> 原因是 `run-demo.sh` 用 `-e WEBAPP_EMBEDDING_PROVIDER=offline` 只能改 DEFAULTS，
+> 而 `settings.get_all()` 以**数据库 `app_settings` 表**为准，库里存的是 `external`；
+> 容器又没拿到 key，于是嵌入 401 → 降级词法。语义检索只在开发机进程与单测里跑通过。
+> 要么给容器传 key（真调外部 API），要么把库里配置改成 offline（名副其实），
+> 这是行为选择，留给下一步定。
+
+---
+
 ## 2026-11-16 追加 · 向量存储选型（`production/08-vector-store-decision.md`）
 
 > 起因：被问「Milvus 和 pgvector 什么区别、中小企业是不是 pgvector 就够」。

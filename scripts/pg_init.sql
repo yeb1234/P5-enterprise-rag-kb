@@ -5,6 +5,14 @@
 --   时间字符串→timestamptz、0/1 布尔→boolean。
 -- 说明：本文件只建**结构与必要种子**；存量数据由 scripts/migrate_sqlite_to_pg.py 迁。
 
+-- ---------- 扩展 ----------
+-- pgvector：向量检索的索引层。主链路直接在这一列上做 ANN 检索 + 权限预过滤，
+-- 不用 Python 逐个算余弦（实测：纯 Python 10 万候选要 25.6 秒，见 docs/production/08-vector-store-decision.md）。
+-- 依赖镜像自带扩展：docker-compose.infra.yml 的 KB_PG_IMAGE 默认已指向 pgvector 版。
+-- 用官方 postgres 镜像会在这里失败并明确报错 —— **这是有意的**，不做静默降级：
+-- 静默跳过的结果就是「表建好了、检索永远走不到索引」，比直接炸更难查。
+CREATE EXTENSION IF NOT EXISTS vector;
+
 -- ---------- 用户与组织 ----------
 CREATE TABLE IF NOT EXISTS users (
     id            text PRIMARY KEY,
@@ -131,10 +139,21 @@ CREATE TABLE IF NOT EXISTS chunk_embeddings (
     chunk_id   text NOT NULL,
     model      text NOT NULL,
     dim        integer NOT NULL,
+    -- vec 是历史形态（JSON 文本，1024 维约 22.2KB/行），保留用于回滚与对拍；
+    -- embedding 是 binary 形态（4KB/行，小 5.5 倍），检索走它。
+    -- 两列由 rag.py 双写；确认新路径稳定后再考虑删 vec。
     vec        text,
+    embedding  vector(1024),
     updated_at timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY (chunk_id, model)
 );
+
+-- HNSW 索引：vector_cosine_ops 对应 <=> 余弦距离。
+-- 注意：数据量小时 planner 会选 Seq Scan + Sort（128 行时索引反而更慢），
+-- 这是正常的；不要为了「看到用了索引」去 SET enable_seqscan=off 调生产配置。
+CREATE INDEX IF NOT EXISTS idx_chunk_emb_hnsw
+    ON chunk_embeddings USING hnsw (embedding vector_cosine_ops)
+    WITH (m = 16, ef_construction = 64);
 
 -- ---------- 可观测与治理 ----------
 CREATE TABLE IF NOT EXISTS usage_events (

@@ -262,11 +262,15 @@ def connect(autocommit: bool = False) -> PgConn:
             "并确保 PG 已启动（docker compose -f docker-compose.infra.yml up -d postgres）"
         ) from None
     raw = psycopg.connect(dsn(), connect_timeout=5, autocommit=autocommit)
-    # 测试隔离：把 search_path 指到独立 schema，业务库的 public 表完全看不见。
+    # 测试隔离：业务表只建在独立 schema 里，且排第一，同名对象一律解析到它。
+    # 末尾必须带 public：**扩展是库级的，装不进业务 schema**（pgvector 的 vector 类型、
+    # <=> 操作符、vector_cosine_ops 都在 public 里），search_path 只有自己时
+    # 会报 "type vector does not exist" / "operator does not exist: vector <=> vector"。
+    # 代价：DDL 漏建某张表时，查询会静默落到 public 的同名表上——所以别让 DDL 悄悄失败。
     schema = (os.environ.get("WEBAPP_DB_SCHEMA") or "").strip()
     if schema:
         with raw.cursor() as cur:
-            cur.execute(f'SET search_path TO "{schema}"')
+            cur.execute(f'SET search_path TO "{schema}", public')
         if not autocommit:
             raw.commit()
     return PgConn(raw)

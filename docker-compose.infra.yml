@@ -24,7 +24,10 @@ name: kb-infra
 
 services:
   postgres:
-    image: ${KB_PG_IMAGE:-postgres:16-alpine}
+    # 必须用带 pgvector 的镜像：官方 postgres 镜像不含扩展，
+    # pg_init.sql 里第一句 CREATE EXTENSION vector 就会失败（有意不静默降级）。
+    # 本机 Docker Hub 不可达，实际通过 KB_PG_IMAGE 指向 docker.m.daocloud.io/pgvector/pgvector:pg16。
+    image: ${KB_PG_IMAGE:-pgvector/pgvector:pg16}
     container_name: kb-pg
     restart: unless-stopped
     environment:
@@ -35,7 +38,9 @@ services:
     ports:
       - "127.0.0.1:${KB_PG_PORT:-5432}:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      # v2：从 alpine 镜像迁到 pgvector 镜像时的数据卷（dump/restore 迁入）。
+      # v1（kb-infra_pgdata）保留为回滚快照，确认稳定后可删。
+      - pgdata_v2:/var/lib/postgresql/data
       - ./scripts/pg_init.sql:/docker-entrypoint-initdb.d/10-init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U kb -d kb"]
@@ -61,6 +66,10 @@ services:
 
   # ---- Milvus standalone 最小依赖：etcd（元数据）+ minio（对象存储） ----
   etcd:
+    # Milvus 的元数据存储。默认**不启动**：向量检索主链路走 pgvector，
+    # Milvus 只保留为对照实验（docker compose --profile milvus up -d）。
+    # 理由见 docs/production/08-vector-store-decision.md。
+    profiles: ["milvus"]
     image: ${KB_ETCD_IMAGE:-quay.io/coreos/etcd:v3.5.16}
     container_name: kb-etcd
     restart: unless-stopped
@@ -84,6 +93,7 @@ services:
       retries: 10
 
   minio:
+    # 只为 Milvus 存在（KB_MILVUS_STORAGE=minio 时的对象存储），默认不起。
     image: ${KB_MINIO_IMAGE:-minio/minio:RELEASE.2025-04-22T22-12-26Z}
     container_name: kb-minio
     restart: unless-stopped
@@ -95,7 +105,8 @@ services:
     #   KB_MILVUS_STORAGE=local → 不需要 minio（仅 standalone 单副本可用）
     #   KB_MILVUS_STORAGE=minio → 默认，生产形态，需要先拉 minio 镜像
     # 这样「拉不到 minio 的机器」也能把 Milvus 链路跑通，而不是整条链路卡住。
-    profiles: ["minio"]
+    # 两个 profile 都要能起它：--profile minio（单跑对象存储）/ --profile milvus（整条对照链路）
+    profiles: ["minio", "milvus"]
     environment:
       # 2025 版起 MINIO_ACCESS_KEY/SECRET_KEY 已废弃，用 ROOT_USER/PASSWORD；
       # 两个都留着是为了兼容旧版本镜像（本项目实测用的是 RELEASE.2025-04-22）。
@@ -113,6 +124,9 @@ services:
       retries: 10
 
   milvus:
+    # 对照实验用：起它需要 etcd + minio 三个有状态组件，日常开发不值当。
+    # 用法：docker compose -f docker-compose.infra.yml --profile milvus up -d
+    profiles: ["milvus"]
     image: ${KB_MILVUS_IMAGE:-milvusdb/milvus:v2.5.10}
     container_name: kb-milvus
     restart: unless-stopped
@@ -146,7 +160,9 @@ services:
       start_period: 60s
 
 volumes:
-  pgdata:
+  pgdata_v2:      # 当前使用（pgvector 镜像）
+  # pgdata:       # v1 快照：alpine 镜像 + 无 pgvector 时期的卷，回滚用；稳定后整行删除
+
   redisdata:
   etcddata:
   miniodata:

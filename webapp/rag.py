@@ -195,10 +195,16 @@ def _get_or_compute_embeddings(candidates: list[dict], cfg: dict) -> dict[str, l
         try:
             for c, v in zip(missing, vecs):
                 cached[c["chunk_id"]] = v
+                # 双写：vec（历史文本形态，回滚与对拍用）+ embedding（binary，检索用）。
+                # `?::vector` 直接吃 JSON 数组文本（`[0.1,0.2]` 是合法 vector 输入）；
+                # 不写 public.vector：search_path 末尾已带 public（见 pgkit.connect）。
+                # 不再多序列化一次；同一个参数传两遍是刻意的，比先 INSERT 再 UPDATE 少一次往返。
                 conn.execute(
-                    "INSERT INTO chunk_embeddings(chunk_id, model, dim, vec, updated_at) VALUES (?,?,?,?,?) "
-                    "ON CONFLICT(chunk_id, model) DO UPDATE SET dim=excluded.dim, vec=excluded.vec, updated_at=excluded.updated_at",
-                    (c["chunk_id"], model, len(v), json.dumps(v), now),
+                    "INSERT INTO chunk_embeddings(chunk_id, model, dim, vec, embedding, updated_at) "
+                    "VALUES (?,?,?,?,?::vector,?) "
+                    "ON CONFLICT(chunk_id, model) DO UPDATE SET dim=excluded.dim, vec=excluded.vec, "
+                    "embedding=excluded.embedding, updated_at=excluded.updated_at",
+                    (c["chunk_id"], model, len(v), json.dumps(v), json.dumps(v), now),
                 )
             conn.commit()
         finally:
@@ -206,7 +212,33 @@ def _get_or_compute_embeddings(candidates: list[dict], cfg: dict) -> dict[str, l
     return cached
 
 
-def _semantic_rank(question: str, candidates: list[dict], cfg: dict) -> list[dict]:
+def vector_backend() -> str:
+    """向量排序走哪条路径：`pgvector`（默认）或 `python`（历史实现，回滚用）。
+
+    默认切到 pgvector 的理由是实测的：同一批候选，纯 Python 逐条 `_cosine` 在 10 万条上要 25.6 秒
+    （JSON 22.2KB/条 + 0.071ms/次循环），而把这件事交给 PG 是一条 SQL + 二进制列。
+    回滚只需 `WEBAPP_VECTOR_BACKEND=python`，不用改代码。
+    """
+    v = os.environ.get("WEBAPP_VECTOR_BACKEND", "pgvector").strip().lower()
+    return v if v in ("pgvector", "python") else "pgvector"
+
+
+def _semantic_rank(question: str, candidates: list[dict], cfg: dict) -> tuple[list[dict], str]:
+    """语义排序。返回 (排序结果, 后端说明)，后端说明会写进 `mode` 供排查与展示。"""
+    emb = settings.effective_embedding(cfg)
+    if vector_backend() == "pgvector":
+        try:
+            return _semantic_rank_pg(question, candidates, cfg), f"pgvector({emb['model']})"
+        except Exception as e:  # noqa: BLE001
+            # 降级**必须留痕**：mode 里会写 pgvector_fallback_python:XXX，
+            # 而不是悄悄变慢（旧库没迁完、扩展没装时会走到这里）。
+            ranked = _semantic_rank_py(question, candidates, cfg)
+            return ranked, f"pgvector_fallback_python:{type(e).__name__}({emb['model']})"
+    return _semantic_rank_py(question, candidates, cfg), f"{emb['kind']}_embedding({emb['model']})"
+
+
+def _semantic_rank_py(question: str, candidates: list[dict], cfg: dict) -> list[dict]:
+    """历史实现：取回候选向量 → 纯 Python 逐条算余弦 → 排序。"""
     cache = _get_or_compute_embeddings(candidates, cfg)
     emb = providers.get_embedding(cfg)
     qv = emb.embed([question])[0]
@@ -215,6 +247,40 @@ def _semantic_rank(question: str, candidates: list[dict], cfg: dict) -> list[dic
     candidates.sort(key=lambda x: (x.get("_emb_score", 0), x.get("_lex_score", 0)), reverse=True)
     for c in candidates:
         c["score"] = round(c.get("_emb_score", 0), 4)
+    return candidates
+
+
+def _semantic_rank_pg(question: str, candidates: list[dict], cfg: dict) -> list[dict]:
+    """用 pgvector 在库里排序：过滤与排序一条 SQL，避免把 22KB/条的 JSON 拉回 Python。
+
+    `LIMIT len(ids)` 是刻意的——候选集已经是「词法门禁 + 权限」缩过的范围，
+    在这个范围内做**全量精确排序**，召回与旧实现逐条一致（便于 A13 对拍）。
+    候选集到十万级时再改成有界窗口 + `hnsw.iterative_scan`，那时才需要用近似换吞吐。
+    """
+    model = settings.effective_embedding(cfg)["cache_key"]
+    _get_or_compute_embeddings(candidates, cfg)  # 保证候选都有向量（缺失的补算并双写）
+    ids = [c["chunk_id"] for c in candidates]
+    if not ids:
+        return candidates
+    qv = providers.get_embedding(cfg).embed([question])[0]
+    qjson = json.dumps(qv)
+    conn = db.get_conn()
+    try:
+        rows = conn.execute(
+            "SELECT chunk_id, 1 - (embedding <=> ?::vector) AS score "
+            "FROM chunk_embeddings "
+            "WHERE model = ? AND chunk_id = ANY(?) AND embedding IS NOT NULL "
+            "ORDER BY embedding <=> ?::vector LIMIT ?",
+            (qjson, model, ids, qjson, len(ids)),
+        ).fetchall()
+    finally:
+        conn.close()
+    score = {r["chunk_id"]: float(r["score"] or 0.0) for r in rows}
+    # 没有向量的候选（理论上不会有）按 0 分留位，不静默丢文档
+    for c in candidates:
+        c["_emb_score"] = score.get(c["chunk_id"], 0.0)
+        c["score"] = round(c["_emb_score"], 4)
+    candidates.sort(key=lambda x: (x.get("_emb_score", 0), x.get("_lex_score", 0)), reverse=True)
     return candidates
 
 
@@ -292,8 +358,8 @@ def retrieve(question: str, top_k: int = TOP_K, with_meta: bool = False):
     fallback_reason = None
     if candidates and emb["kind"] != "offline":
         try:
-            candidates = _semantic_rank(question, candidates, cfg)
-            mode = f"hybrid: lexical_gate + {emb['kind']}_embedding({emb['model']})"
+            candidates, backend_note = _semantic_rank(question, candidates, cfg)
+            mode = f"hybrid: lexical_gate + {backend_note}"
         except Exception as e:
             fallback_reason = f"embedding_unavailable:{type(e).__name__}"
             candidates.sort(key=lambda x: x.get("_lex_score", 0), reverse=True)

@@ -38,7 +38,9 @@ def create_schema(name: str) -> None:
     with psycopg.connect(_dsn(), autocommit=True, connect_timeout=5) as raw:
         with raw.cursor() as cur:
             cur.execute(f'CREATE SCHEMA "{name}"')
-            cur.execute(f'SET search_path TO "{name}"')
+            # 末尾带 public：扩展（pgvector 的 vector 类型 / <=> 操作符）是库级的，
+            # 装不进业务 schema，search_path 只有自己时 DDL 会在 vector(1024) 处报错。
+            cur.execute(f'SET search_path TO "{name}", public')
             # 无参数 → psycopg 走简单查询协议，允许多条语句（与 db.init_db 同路径）
             cur.execute(ddl)
 
