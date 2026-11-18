@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Iterator
 from typing import Protocol, runtime_checkable
 
@@ -18,9 +19,37 @@ from app.core.config import settings
 RAG_SYSTEM_PROMPT = """你是企业内部知识库助手。严格遵循：
 1. 只依据提供的【资料片段】作答，不得使用片段之外的知识或猜测。
 2. 每个结论后用 [编号] 标注来源，例如 [1]、[2]。
-3. 资料不足以回答时，明确说「现有资料无法回答」，并建议联系文档负责人。
+3. 资料能支持一部分时，先回答能支持的部分并标注依据；只有片段完全没有相关事实时，才说「现有资料无法回答」，并说明缺哪一条依据。
 4. 不得复述密级信息、密钥、身份证号、手机号等敏感内容。
-5. 用简体中文，先给结论，再给依据。"""
+5. 只保留资料直接支持的事实，不补充常识、建议、免责声明或延伸解释。
+6. 使用与用户问题相同的语言：中文问题用简体中文，英文问题用英文；专有名词可保留原文。
+7. 地名、机构名、菜单项、按钮、命令、数字、时间等专有信息优先沿用资料原文措辞；资料用分数或精确表达式给出时，必须保留原表达式，可在括号内另附近似值，不要只写换算后的小数。
+8. 问题在问推荐、名单、示例，或问“什么书/哪本书/哪些书/哪个好”时，片段中直接出现的书名、产品名、型号就是可支持答案；不要因为片段没有复述问题的关系词、没有评价词或没有直接说“好/推荐”，就整题拒答。
+9. 先给结论，再给依据；每个事实尽量用一句短句表达；不要为了显得完整而补步骤或建议，也不要在答案末尾追加“资料不完整/缺少步骤/无法判断”的说明。
+10. 不要在答案里写“现有资料只能支持/现有资料未提供/资料没有出现/不能据此判断”之类的完整性说明；这些不是资料中的事实。能答就只写能答的事实，整题完全无相关事实时才拒答。
+11. 不要把“问题中的地区、学校、范围等限定词未在片段出现”当作拒答理由；片段出现与问题主题对应的时间、地点、型号、书名或数字时，直接给出该事实并标注依据，不要写“未涉及某地区/无法确认范围”之类的说明。"""
+
+
+def detect_question_language(query: str) -> str:
+    """问题语言只由问题文本决定，不跟随资料片段的语言。
+
+    中文题里有英文产品名、英文题里有中文专名都很常见；按字符占比判断，
+    避免一个英文缩写把整段回答拽成英文。
+    """
+    cjk = len(re.findall(r"[\u4e00-\u9fff]", query))
+    latin = len(re.findall(r"[A-Za-z]", query))
+    if cjk >= 2 and cjk >= latin / 2:
+        return "zh"
+    if latin >= 2:
+        return "en"
+    return "zh"
+
+
+LANGUAGE_INSTRUCTIONS = {
+    "zh": "用户问题是中文。请用简体中文回答；专有名词可保留原文。",
+    "en": "The user's question is in English. Answer in English; keep citation numbers and proper nouns as needed.",
+}
+
 
 
 @runtime_checkable
@@ -122,7 +151,14 @@ def build_rag_messages(query: str, citations: list[dict]) -> list[dict]:
         f"[{i + 1}] 文档《{c['document_title']}》第 {c.get('page_no') or '-'} 页\n{c['snippet']}"
         for i, c in enumerate(citations)
     )
+    language = detect_question_language(query)
     return [
         {"role": "system", "content": RAG_SYSTEM_PROMPT},
-        {"role": "user", "content": f"【资料片段】\n{context}\n\n【问题】\n{query}"},
+        {
+            "role": "user",
+            "content": (
+                f"【回答语言】{LANGUAGE_INSTRUCTIONS[language]}\n\n"
+                f"【资料片段】\n{context}\n\n【问题】\n{query}"
+            ),
+        },
     ]
