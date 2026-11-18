@@ -13,7 +13,9 @@
 | ② **拒答几乎完美** | 不可回答题 `rejection_correctness` = **1.000**（28/28，两提示词均满分） | 中：SQuAD v2 的不可答是"相关但无答案"，正是难例 |
 | ③ **提示词语言必须匹配问题语言** | v4 英文适配 0.862 vs v2 中文 0.621，**+0.241**（同一模型、同 57 条样本） | 高：同批样本公平对照，差异远大于噪声 |
 | ④ 生成答案**忠实度良好** | RAGTruth 高风险组疑似幻觉率 21.4%，对照组 0% | 低：机械检测器，29 条样本，非论文 span 标注 |
-| ⑤ **首次调用有 TPM 限流** | 首轮 60 条中 4 条 `rate_limited`，重跑补齐后 60/60 OK | 事实：记录可查 |
+| ⑤ **中文抽取准确率被测出** | CMRC 2018 字符串口径 **0.767**，人工复核上界 **0.983**（14 条失分 13 条是假阴性） | 中：60 条中文子集 |
+| ⑥ **中文同义改写的假阴性比英文更严重** | 中文 13/14 失分为措辞差异，英文 3/4；字符串口径严重低估中文能力 | 中：人工逐条复核，见 `cmrc_manual_review.json` |
+| ⑦ **首次调用有 TPM 限流** | 首轮 60 条中 4 条 `rate_limited`，重跑补齐后 60/60 OK；中文集首轮 5 条限流，退避脚本 30s 后补齐 | 事实：记录可查 |
 
 **最重要的一条**：此前项目所有质量结论都基于**自建 12 条样本**（旧 `datasets/SOURCES.md` 已诚实声明"不是官方抽样"）。本报告首次用**真实公开集**验证，补上了这个缺口——但规模是"方法验证级"，**不构成质量基线**，也不得对外说成"在 SQuAD/RAGTruth 上达到 X 分"而不 explanatory 限定条件。
 
@@ -25,6 +27,7 @@
 |---|---|---|---|---|
 | SQuAD 2.0 validation | `rajpurkar/squad_v2` | CC BY-SA 4.0 | hf-mirror.com（国内镜像） | 11,873 条，取 60 条分层子集 |
 | RAGTruth test / qa | `flowaicom/RAGTruth_test`（原 ParticleMedia/RAGTruth，论文 arXiv:2305.11747） | MIT | hf-mirror.com | 900 条，取 30 条两组对照 |
+| CMRC 2018 validation | `hfl/cmrc2018`（中文机器阅读理解，CLUE 基准） | CC BY-SA 4.0 | hf-mirror.com | 3,219 条，取 60 条中文子集 |
 
 选择理由：任务对齐（给定 passages → 回答/拒答）、评分客观（字符串/规则，不靠第二个 LLM）、许可清晰。
 旧 SOURCES.md 记录的"GitHub raw / HF 直连超时"问题，通过 hf-mirror 解决（实测 HTTP 200 / 1.1s）。
@@ -95,6 +98,42 @@
 导致对照组疑似率虚高到 **100%**、高风险组反而 50%——完全反直觉。定位到是 `P\d+` 未排除，
 修正后重算（不重复调 API）得到上表。这个坑已固化进脚本注释，避免重犯。
 
+### 3.4 中文公开集 CMRC 2018（补齐中文语料空白）
+
+**为什么加**：前 3 节全是英文集，只能说明项目在英文上的表现；项目本身是中文企业知识库，
+缺中文语料实测。补 CMRC 2018 validation（CC BY-SA 4.0，3,219 条，取 60 条固定 seed=42），
+全是可答题，中文提示词 `v3_structured`，同一模型 deepseek-v4.1-flash-1017。
+
+| 指标 | 字符串口径 | 人工复核上界 | 说明 |
+|---|---|---|---|
+| 可答题 accuracy | **0.7667**（46/60） | **0.9833**（59/60） | 14 条判 0 中 13 条语义正确、1 条误拒答 |
+| 误拒答率 | 1 条 `INSUFFICIENT` | — | 金标"上海轨道交通20号线"在片段中，模型却拒答 |
+| 格式/忠实度/经济 | 1.000 / 1.000 / 1.000 | — | 辅助维度全过 |
+
+**逐条复核可追溯**：`evalbench/out/cmrc_manual_review.json`（14 条逐条给出金标、答案、分类、理由）。
+不修改冻结的 `METRICS@1.2.0` 评分——两个数字都报，说明字符串口径在中文上的系统性偏差。
+
+**中英 accuracy 不可直接比较**：CMRC 用 v3 中文提示词、全可答；SQuAD 用 v4 英文提示词、含一半不可答题。
+语料、提示词、任务构成都是混杂变量。0.767（中文）vs 0.862（英文）只能各自陈述，
+**不能**说"中文比英文差 0.1"——那会把提示词和样本构成的差异误归因为语言能力。
+
+**中文提示词对照（同 60 条，仅换提示词）**：
+
+| 提示词 | 字符串 accuracy | 延迟 | 格式/忠实度/经济 |
+|---|---|---|---|
+| `v3_structured` | **0.7667** | 2,095 ms | 1.000 / 1.000 / 1.000 |
+| `v2_grounded` | 0.7333 | 2,107 ms | 1.000 / 1.000 / 1.000 |
+| 差值 | +0.0333 | −12 ms | 无差异 |
+
+**这个 +0.033 要谨慎解读**：两个提示词在字符串口径下只差 2 条样本，且人工复核后
+14 条失分里 13 条都是假阴性——提示词版本的真实差异被评分器噪声淹没。
+结论只能是"**中文提示词版本对准确率没有可辨识影响**"，不能说 v3 比 v2 好。
+这与英文集上 +0.241 的语言适配效应形成对照：语言匹配是强效应，中文提示词微调是弱效应。
+
+**限流处理（本轮新增能力）**：中文集 v3 首轮 5 条、v2 首轮 4 条 `rate_limited`，
+用 `run_with_backoff.py` 等待 30s 后自动重跑，已成功样本走缓存、只补失败项，
+两轮均在第二轮 60/60 全绿。四个 run_id 都保留（含限流的失败轮），负结果可查。
+
 ---
 
 ## 4. 局限（必须与结果一起读）
@@ -104,9 +143,12 @@
 3. **语言耦合**：本轮增益来自提示词语言匹配，不是 RAG 架构改进。项目默认中文提示词在中文语料上的表现
    **未**因本轮改变——不要把 +0.241 说成"项目检索/生成能力提升了"。
 4. **忠实度是机械近似**：检测器对中文、同义改写、数字格式差异都可能误判，只作相对对照，非论文复现。
-5. **TPM 限流**：首轮 4 条失败，重跑补齐；网关 `Cluster TPM rate limit exceeded`，非项目缺陷。
-6. **未测检索环节**：本轮给的是"已给定 passages"的生成评估；检索排序（BM25/vector/nDCG）另有
+5. **TPM 限流**：英文首轮 4 条、中文首轮 5 条失败，均已等待重跑补齐；网关 `Cluster TPM rate limit exceeded`，非项目缺陷。
+6. **中文假阴性更严重**：CMRC 字符串 accuracy 0.767 vs 人工复核 0.983，差 0.217——
+   中文同义改写/语序灵活让字符串匹配系统性低估，**任何中文分数必须以人工复核上界一起读**。
+7. **未测检索环节**：本轮给的是"已给定 passages"的生成评估；检索排序（BM25/vector/nDCG）另有
    `docs/evaluation-report.md` 的历史实测，两者不混谈。
+8. **中英不可直接比**：语料/提示词/样本构成三者同时变化，0.767 vs 0.862 不是纯语言能力差异。
 
 ---
 
@@ -118,7 +160,8 @@
 | 提示词语言匹配对英文集有效 | **已实测**（本轮） | 同 57 条公平对照 +0.241 |
 | 全量 SQuAD 11,873 条的质量基线 | **未做** | API 配额限制；本轮是方法验证 |
 | RAGTruth span 级幻觉标注复现 | **未做** | 用机械检测近似替代 |
-| 中文公开集（如 CMRC / DuReader） | **未做** | 本轮只覆盖英文公开集，中文项目表现仍需中文集验证 |
+| 中文公开集 CMRC 2018 实跑 | **已实测**（本轮补） | 60 条中文抽取，字符串 0.767 / 人工复核 0.983 |
+| 限流自动等待退避 | **已实现** | `run_with_backoff.py`，中文集 5 条限流 30s 后补齐 |
 
 ---
 
@@ -147,6 +190,13 @@ python evalbench/run_eval.py --label public-squad-deepseek-v2zh \
 # 忠实度专项
 python evalbench/datasets/public/evaluate_faithfulness.py --limit 15 \
   --model deepseek-v4.1-flash-1017 --sleep 0.5
+
+# 中文公开集 CMRC（限流自动等待退避）
+python evalbench/datasets/public/build_samples.py --dataset cmrc --cmrc-n 60 --seed 42
+python evalbench/run_with_backoff.py --label public-cmrc-deepseek-v3 \
+  --max-rounds 8 --wait 30 --factor 1.5 --cap 120 -- \
+  python evalbench/run_eval.py --dataset public/cmrc2018_sample_60.jsonl \
+    --models deepseek-v4.1-flash-1017 --prompts v3_structured --params B --quiet
 ```
 
 > 注意：评估脚本会从项目根 `.env` 读网关配置；批跑前确保无冲突环境变量。
@@ -158,4 +208,5 @@ python evalbench/datasets/public/evaluate_faithfulness.py --limit 15 \
 
 - SQuAD 2.0: Rajpurkar et al., "SQuAD: 100,000+ Questions for Machine Comprehension of Text", EMNLP 2016. CC BY-SA 4.0.
 - RAGTruth: Niu et al., "RAGTruth: A Hallucination Corpus for Developing Trustworthy Retrieval-Augmented Language Models", ACL 2024. MIT.
+- CMRC 2018: Cui et al., "A Span-Extraction Dataset for Chinese Machine Reading Comprehension", EMNLP 2018. CC BY-SA 4.0.
 - 通过 hf-mirror.com 镜像下载，仅变更传输通道，内容与原仓库一致（parquet 行数与仓库声明一致）。

@@ -63,14 +63,50 @@ def build_squad(n_per_class: int, seed: int) -> list[dict]:
     return out
 
 
+def build_cmrc(n: int, seed: int) -> list[dict]:
+    """CMRC 2018 全部是可答题，结构同 SQuAD；只测抽取准确率，不测拒答。"""
+    rows = pq.read_table(RAW / "cmrc2018_validation.parquet").to_pylist()
+    rng = random.Random(seed)
+    rng.shuffle(rows)
+    out: list[dict] = []
+    for r in rows[:n]:
+        votes = Counter(x.strip() for x in r["answers"]["text"] if x.strip())
+        gold = votes.most_common(1)[0][0] if votes else ""
+        if not gold:
+            continue
+        out.append({
+            "id": "CMRC_" + r["id"],
+            "task_category": "grounded_extraction",
+            "dimensions": ["answer_accuracy", "rejection_correctness", "faithfulness",
+                           "format_compliance", "answer_economy"],
+            "question": r["question"].strip(),
+            "passages": [{"doc_id": "C1", "kind": "positive", "text": r["context"].strip()}],
+            "reference_answer": gold,
+            "key_facts": [gold],
+            "forbidden_facts": [],
+            "expected_behavior": "answer",
+            "source_basis": "CMRC 2018 validation (hfl/cmrc2018, CC BY-SA 4.0)",
+            "note": "中文公开集；抽取式 QA，全部可答，答案为标注 span",
+        })
+    return out
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--n-per-class", type=int, default=30, help="可答/不可答各取多少条")
+    ap.add_argument("--n-per-class", type=int, default=30, help="SQuAD 可答/不可答各取多少条")
     ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--dataset", choices=("squad", "cmrc"), default="squad",
+                    help="适配哪个公开集")
+    ap.add_argument("--cmrc-n", type=int, default=60, help="CMRC 抽取条数")
     args = ap.parse_args()
 
-    out_path = HERE / f"squad_v2_sample_{args.n_per_class * 2}.jsonl"
-    samples = build_squad(args.n_per_class, args.seed)
+    if args.dataset == "cmrc":
+        samples = build_cmrc(args.cmrc_n, args.seed)
+        out_path = HERE / f"cmrc2018_sample_{args.cmrc_n}.jsonl"
+    else:
+        samples = build_squad(args.n_per_class, args.seed)
+        out_path = HERE / f"squad_v2_sample_{args.n_per_class * 2}.jsonl"
+
     with out_path.open("w", encoding="utf-8") as f:
         for s in samples:
             f.write(json.dumps(s, ensure_ascii=False) + "\n")

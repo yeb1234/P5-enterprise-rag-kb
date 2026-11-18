@@ -39,6 +39,7 @@ pre{background:#1f2430;color:#e5e7eb;border-radius:8px;padding:14px 16px;overflo
 <div class="kpi"><b class="up">1.000</b><span>不可回答题拒答正确率 28/28</span></div>
 <div class="kpi"><b class="up">+0.241</b><span>英文提示词 vs 中文提示词 accuracy 增益</span></div>
 <div class="kpi"><b>21.4%</b><span>RAGTruth 高风险组疑似幻觉率（对照组 0%）</span></div>
+<div class="kpi"><b>0.767 → 0.983</b><span>CMRC 中文字符串口径 → 人工复核上界</span></div>
 </div>
 
 <div class="card">
@@ -83,17 +84,46 @@ pre{background:#1f2430;color:#e5e7eb;border-radius:8px;padding:14px 16px;overflo
 <b>方法学插曲（负结果照报）</b>：初版检测器把引用标记 <code>(P1, P3)</code> 当成“证据外专名”，导致对照组疑似率虚高到 100%、高风险组反而 50%。定位后排除 <code>P\d+</code> 重算得到上表；重算不重复调 API，坑已写进脚本注释。
 </div>
 
-<h2>4 · 局限（必须与结果一起读）</h2>
+<h2>4 · 中文公开集 CMRC 2018（补中文语料空白）</h2>
+<p class="sub">前 3 节全是英文集，但项目是中文企业知识库——补 CMRC 2018 validation（3,219 条，取 60 条 seed=42），全可答题，中文提示词 v3。</p>
+<table>
+<thead><tr><th>指标</th><th>字符串口径</th><th>人工复核上界</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>可答题 accuracy</td><td class="num">0.7667（46/60）</td><td class="num up">0.9833（59/60）</td><td>14 条判 0 中 13 条语义正确、1 条误拒答</td></tr>
+<tr><td>格式 / 忠实度 / 经济</td><td class="num" colspan="2">1.000 / 1.000 / 1.000</td><td>辅助维度全过</td></tr>
+</tbody></table>
+<div class="card">
+<b>中文同义改写的假阴性比英文更严重</b>：14 条失分里 13 条是措辞差异（如“学校”vs金标“校舍”、“非常敏感”vs“都非常敏感”、加“（参考 C1）”），
+逐条证据见 <code>cmrc_manual_review.json</code>。字符串口径 0.767 严重低估，<b>任何中文分数必须连同人工复核上界 0.983 一起读</b>。
+</div>
+<h3>中文提示词对照（同 60 条，仅换提示词）</h3>
+<table>
+<thead><tr><th>提示词</th><th>字符串 accuracy</th><th>延迟</th></tr></thead>
+<tbody>
+<tr><td><code>v3_structured</code></td><td class="num">0.7667</td><td class="num">2,095 ms</td></tr>
+<tr><td><code>v2_grounded</code></td><td class="num">0.7333</td><td class="num">2,107 ms</td></tr>
+<tr><td>差值</td><td class="num warn">+0.0333（弱效应，不可宣称 v3 更好）</td><td class="num">−12 ms</td></tr>
+</tbody></table>
+<p class="note">+0.033 只差 2 条样本，且被评分器假阴性噪声淹没——结论只能是“中文提示词版本无可辨识影响”。与英文集 +0.241 的语言适配强效应形成对照。</p>
+<div class="card">
+<b>限流自动等待（本轮新增）</b>：中文集 v3 首轮 5 条、v2 首轮 4 条 <code>rate_limited</code>，
+<code>run_with_backoff.py</code> 等待 30s 后自动重跑（已成功走缓存、只补失败），两轮均第二轮 60/60 全绿。
+四个 run_id 含失败轮全部保留，负结果可查。
+</div>
+<p class="note"><b>中英 accuracy 不可直接比</b>：CMRC 用 v3 中文提示词且全可答，SQuAD 用 v4 英文提示词且含一半不可答题——语料/提示词/样本构成三者同时变化，0.767 vs 0.862 不是纯语言能力差异。</p>
+
+<h2>5 · 局限（必须与结果一起读）</h2>
 <div class="card"><ul>
-<li><b>规模小</b>：SQuAD 60 条 / RAGTruth 30 条，无统计显著性。</li>
-<li><b>字符串评分假阴性</b>：不做同义改写识别，accuracy 是下界。</li>
-<li><b>语言耦合</b>：+0.241 来自提示词语言匹配，<b>不是</b> RAG 架构或检索能力改进；项目中文语料表现未因本轮改变。</li>
+<li><b>规模小</b>：SQuAD 60 / RAGTruth 30 / CMRC 60 条，无统计显著性。</li>
+<li><b>字符串评分假阴性</b>：不做同义改写识别，accuracy 是下界；<b>中文尤甚</b>（0.767 vs 人工复核 0.983，差 0.217）。</li>
+<li><b>语言耦合</b>：英文 +0.241 来自提示词语言匹配，<b>不是</b> RAG 架构或检索能力改进。</li>
+<li><b>中英不可直接比</b>：CMRC 用 v3 中文提示词且全可答，SQuAD 用 v4 英文提示词且含一半不可答题——三者同时变化，0.767 vs 0.862 不是纯语言差异。</li>
 <li><b>忠实度是机械近似</b>：只作相对对照，非论文复现。</li>
-<li><b>TPM 限流</b>：首轮 4 条失败、重跑补齐；网关限流非项目缺陷。</li>
+<li><b>TPM 限流</b>：英文首轮 4 条、中文首轮 5 条失败，退避脚本等待重跑补齐；网关限流非项目缺陷。</li>
 <li><b>未测检索环节</b>：本轮是给定 passages 的生成评估；检索排序另有历史 nDCG@10 实测，不混谈。</li>
 </ul></div>
 
-<h2>5 · 三态</h2>
+<h2>6 · 三态</h2>
 <table>
 <thead><tr><th>项</th><th>状态</th></tr></thead>
 <tbody>
@@ -101,10 +131,11 @@ pre{background:#1f2430;color:#e5e7eb;border-radius:8px;padding:14px 16px;overflo
 <tr><td>提示词语言匹配对英文集有效</td><td class="up">已实测（同批公平对照）</td></tr>
 <tr><td>全量 11,873 条 SQuAD 质量基线</td><td class="warn">未做（配额限制）</td></tr>
 <tr><td>RAGTruth span 级标注复现</td><td class="warn">未做（机械近似替代）</td></tr>
-<tr><td>中文公开集（CMRC / DuReader）</td><td class="warn">未做（本轮仅英文）</td></tr>
+<tr><td>中文公开集 CMRC 2018 实跑</td><td class="up">已实测（字符串 0.767 / 人工复核 0.983）</td></tr>
+<tr><td>限流自动等待退避</td><td class="up">已实现（中文集 5 条限流 30s 后补齐）</td></tr>
 </tbody></table>
 
-<h2>6 · 可复现</h2>
+<h2>7 · 可复现</h2>
 <pre>python evalbench/datasets/public/build_samples.py --n-per-class 30 --seed 42
 
 python evalbench/run_eval.py --label public-squad-deepseek-v4 \
@@ -112,7 +143,14 @@ python evalbench/run_eval.py --label public-squad-deepseek-v4 \
   --models deepseek-v4.1-flash-1017 --prompts v4_en_grounded --params B
 
 python evalbench/datasets/public/evaluate_faithfulness.py --limit 15 \
-  --model deepseek-v4.1-flash-1017 --sleep 0.5</pre>
+  --model deepseek-v4.1-flash-1017 --sleep 0.5
+
+# 中文公开集（限流自动等待退避，失败项走缓存只补失败）
+python evalbench/datasets/public/build_samples.py --dataset cmrc --cmrc-n 60 --seed 42
+python evalbench/run_with_backoff.py --label public-cmrc-deepseek-v3 \
+  --max-rounds 8 --wait 30 --factor 1.5 --cap 120 -- \
+  python evalbench/run_eval.py --dataset public/cmrc2018_sample_60.jsonl \
+    --models deepseek-v4.1-flash-1017 --prompts v3_structured --params B --quiet</pre>
 <p class="note">完整说明、数据集来源与署名见 <code>evalbench/out/PUBLIC_BENCHMARK_REPORT.md</code> 与 <code>datasets/public/SOURCES.md</code>。</p>
 
 </div></body></html>
