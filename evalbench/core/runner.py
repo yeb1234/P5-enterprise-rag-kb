@@ -85,9 +85,28 @@ def _parse_answer(data) -> tuple[str, bool, bool]:
     return (content or reasoning), reasoning_only, bool(choices)
 
 
+def endpoint_id() -> str:
+    """显式切换的端点标识，纳入缓存 key 防止跨端点混用结果。
+
+    默认走项目网关（DISCOVERY_*）时返回空串，保持历史缓存 key 不变；
+    设了 DEEPSEEK_BASE_URL（官方）或 EVAL_BASE_URL 才返回非空，隔离缓存。
+    """
+    return (os.environ.get("DEEPSEEK_BASE_URL") or os.environ.get("EVAL_BASE_URL") or "").rstrip("/")
+
+
+def active_endpoint() -> tuple[str, str]:
+    """评估端点：DEEPSEEK_*（官方，项目既有约定）> EVAL_* > DISCOVERY_*（网关默认）。"""
+    base = (os.environ.get("DEEPSEEK_BASE_URL", "").rstrip("/")
+            or os.environ.get("EVAL_BASE_URL", "").rstrip("/")
+            or os.environ.get("DISCOVERY_BASE_URL", "").rstrip("/"))
+    key = (os.environ.get("DEEPSEEK_API_KEY", "")
+           or os.environ.get("EVAL_API_KEY", "")
+           or os.environ.get("DISCOVERY_API_KEY", ""))
+    return base, key
+
+
 def call_live(model_cfg: dict, prompt: str, params: dict, extra_fields: dict | None = None) -> dict:
-    base = os.environ.get("DISCOVERY_BASE_URL", "").rstrip("/")
-    key = os.environ.get("DISCOVERY_API_KEY", "")
+    base, key = active_endpoint()
     adaptations = model_cfg.get("adaptations", [])
     max_tokens = int(params["max_tokens"])
     if "require_min_max_tokens_512" in adaptations:
@@ -183,7 +202,10 @@ def run_stage(*, label: str, models: list[str], prompts: list[str], params: list
     samples = load_samples(dataset_file)
     if sample_ids:
         samples = [s for s in samples if s["id"] in sample_ids]
-    model_index = {m["id"]: m for m in load_models()["selected"]}
+    # 合并网关 selected + 官方 DeepSeek 段，让 --models deepseek-flash 可用
+    _mc = load_models()
+    model_index = {m["id"]: m for m in _mc["selected"]}
+    model_index.update({m["id"]: m for m in _mc.get("official_deepseek", {}).get("models", [])})
     prompt_assets = {v: load_prompt(v) for v in prompts}
     param_assets = {p: load_params(p) for p in params}
     cache = {} if offline else load_cache()
@@ -217,7 +239,12 @@ def run_stage(*, label: str, models: list[str], prompts: list[str], params: list
         pcfg = param_assets[pid]
         context = build_context(sample, pcfg)
         prompt = render_prompt(tpl, sample, context)
-        key = _sha([model, phash, _sha(pcfg), sample["id"], _sha(context), rep, "live" if not offline else "offline"])
+        # 端点隔离：换官方 DeepSeek 后 key 变化，不命中旧网关缓存（否则等于没换）。
+        # 但默认网关必须保持原 key 形状，否则历史 2000+ 条缓存全部失效。
+        ep = endpoint_id()  # 只有显式切换（DEEPSEEK_*/EVAL_*）才非空
+        key_parts = ([ep] if ep else []) + [model, phash, _sha(pcfg), sample["id"], _sha(context),
+                                            rep, "live" if not offline else "offline"]
+        key = _sha(key_parts)
 
         if key in cache:
             call = dict(cache[key])

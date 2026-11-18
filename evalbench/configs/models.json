@@ -37,6 +37,17 @@
       "reason": "推理模型，冷启动与 reasoning 阶段显著影响延迟/空正文，必须单独验证兼容性"
     }
   ],
+  "official_deepseek": {
+    "note": "切官方 API 时用：设 DEEPSEEK_BASE_URL=https://api.deepseek.com + DEEPSEEK_API_KEY，并把 --models 设为 deepseek-flash。官方 model id 与网关不同（官方=deepseek-flash，网关=deepseek-v4.1-flash-1017），见 .env.example:49-53。官方价（2026-09 官方 rate card）：V4.1-Flash 空闲 $0.15/百万 input（cache hit $0.003）、$0.6/百万 output；高峰翻倍。全量 SQuAD 单 pass 估算约 $0.74（空闲）。换端点后缓存 key 自动隔离，不复用网关旧结果。",
+    "models": [
+      {"id": "deepseek-flash", "role": "official_fast", "timeout_s": 90,
+       "adaptations": ["strip_reasoning_content"],
+       "reason": "官方 V4.1-Flash-1017；thinking=disabled 时走快速档。模型名与网关不同，勿混用"},
+      {"id": "deepseek-v4-pro", "role": "official_reasoning", "timeout_s": 180,
+       "adaptations": ["strip_reasoning_content"],
+       "reason": "官方 V4 Pro，仅需要强推理时用；价格约 Flash 的 3-4 倍"}
+    ]
+  },
   "excluded": {
     "reason": "网关共 14 个模型；为控制 RPM 50 / 5h 墨点配额，仅选 3 个覆盖「快/通用/推理」三类做完整评估，其余在 probe 阶段做轻量兼容性探测并记录，不跑全量样本",
     "ids": ["Agents-A1", "Atria-Dawn", "Atria-Dawn-Preview", "Sage-A1.5", "Sage-A1.5-Taiyi", "deepseek-v4-flash-0731", "deepseek-v4-flash-vision", "deepseek-v4-pro-0813", "glm-5.3", "intern-s2", "qwen3.8-27b"]
