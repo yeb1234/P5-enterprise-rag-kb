@@ -1,0 +1,2992 @@
+{
+  "summary": {
+    "split": "QA",
+    "n_samples": 200,
+    "iou_threshold": 0.5,
+    "gold_spans": 48,
+    "pred_spans": 198,
+    "hits": 12,
+    "precision": 0.0606,
+    "recall": 0.25,
+    "f1": 0.0976,
+    "method": "deterministic anchor-based span detection (NOT paper's human annotation, NOT LLM-as-judge)",
+    "caveats": [
+      "只覆盖 Baseless Info 型；Evident Conflict 未实现",
+      "句子级粗粒度，人工 span 可能只是句中短语 → IOU 偏低属预期",
+      "专名识别对缩写/小写实体不鲁棒"
+    ]
+  },
+  "records": [
+    {
+      "id": "11904",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 1,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 185,
+          "end": 244,
+          "text": "Some may be entitled to overtime under certain conditions."
+        }
+      ]
+    },
+    {
+      "id": "11905",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "11906",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 1,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 0,
+          "end": 41,
+          "text": "Unable to answer based on given passages."
+        }
+      ]
+    },
+    {
+      "id": "11907",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 2,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 234,
+          "end": 385,
+          "text": "According to passage 1, technicians who are paid on a flat-rate or flag-rate basis are entitled to overtime under the Fa"
+        },
+        {
+          "start": 712,
+          "end": 896,
+          "text": "Passage 3 provides information on the varying pay structures among different companies, with some offering hourly and co"
+        }
+      ]
+    },
+    {
+      "id": "11908",
+      "task_type": "QA",
+      "n_gold": 1,
+      "n_pred": 2,
+      "n_hit": 0,
+      "gold_labels": [
+        "Evident Baseless Info"
+      ],
+      "pred_spans": [
+        {
+          "start": 221,
+          "end": 301,
+          "text": "70 per hour or $49,400 per year) and the lowest average pay in Mississippi ($18."
+        },
+        {
+          "start": 301,
+          "end": 335,
+          "text": "60 per hour or $38,900 per year)."
+        }
+      ]
+    },
+    {
+      "id": "11909",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 1,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 268,
+          "end": 489,
+          "text": "According to the Bureau of Labor Statistics (BLS), the highest-paying industry for automotive technicians is aerospace p"
+        }
+      ]
+    },
+    {
+      "id": "12012",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 1,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 86,
+          "end": 154,
+          "text": "They are both used in the beverage industry and drug manufacturing."
+        }
+      ]
+    },
+    {
+      "id": "12013",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12014",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 1,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 474,
+          "end": 699,
+          "text": "Another important difference is that succinate has a greater dehydrating effect and may cause side effects like constipa"
+        }
+      ]
+    },
+    {
+      "id": "12015",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 1,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 287,
+          "end": 386,
+          "text": "Formation: Succinate is derived from succinic acid, while tartrate is derived from tartaric acid."
+        }
+      ]
+    },
+    {
+      "id": "12016",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12017",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12018",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12019",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12020",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12021",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 3,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 208,
+          "end": 334,
+          "text": "(Passage 1)\n* Made up of molecules called nucleotides, each containing a phosphate group, a sugar group, and a nitrogen "
+        },
+        {
+          "start": 388,
+          "end": 478,
+          "text": "(Passage 2)\n* A double helix formed by base pairs attached to a sugar-phosphate backbone."
+        },
+        {
+          "start": 478,
+          "end": 542,
+          "text": "(Passage 3)\n\nTherefore, the answer to the question \"What is DNA?"
+        }
+      ]
+    },
+    {
+      "id": "12022",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12023",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12042",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 1,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 295,
+          "end": 348,
+          "text": "Ensure that the grill is hot, clean, and lubricated."
+        }
+      ]
+    },
+    {
+      "id": "12043",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 1,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 0,
+          "end": 41,
+          "text": "Unable to answer based on given passages."
+        }
+      ]
+    },
+    {
+      "id": "12044",
+      "task_type": "QA",
+      "n_gold": 4,
+      "n_pred": 4,
+      "n_hit": 3,
+      "gold_labels": [
+        "Evident Baseless Info",
+        "Evident Baseless Info",
+        "Evident Baseless Info",
+        "Evident Baseless Info"
+      ],
+      "pred_spans": [
+        {
+          "start": 358,
+          "end": 470,
+          "text": "Once the grill is heated, leave the porterhouse steak out at room temperature for about an hour before cooking."
+        },
+        {
+          "start": 473,
+          "end": 505,
+          "text": "Preheat the grill to high heat."
+        },
+        {
+          "start": 508,
+          "end": 570,
+          "text": "Season the porterhouse steak generously with salt and pepper."
+        },
+        {
+          "start": 687,
+          "end": 780,
+          "text": "Remove the steak from the grill and let it rest for 10-15 minutes before slicing and serving."
+        }
+      ]
+    },
+    {
+      "id": "12045",
+      "task_type": "QA",
+      "n_gold": 2,
+      "n_pred": 3,
+      "n_hit": 1,
+      "gold_labels": [
+        "Evident Baseless Info",
+        "Evident Baseless Info"
+      ],
+      "pred_spans": [
+        {
+          "start": 338,
+          "end": 398,
+          "text": "Preheat the grill to high heat (unspecified in passages)\n6."
+        },
+        {
+          "start": 398,
+          "end": 470,
+          "text": "Place the Porterhouse steak on the grill, bone side down (Passage 3)\n7."
+        },
+        {
+          "start": 594,
+          "end": 891,
+          "text": "Remove from the grill and let rest for 5-10 minutes before slicing and serving (unspecified in passages)\n\nNote: The pass"
+        }
+      ]
+    },
+    {
+      "id": "12046",
+      "task_type": "QA",
+      "n_gold": 1,
+      "n_pred": 1,
+      "n_hit": 0,
+      "gold_labels": [
+        "Evident Baseless Info"
+      ],
+      "pred_spans": [
+        {
+          "start": 428,
+          "end": 489,
+          "text": "Keep the grill grate hot, clean, and lubricated (Passage 2)."
+        }
+      ]
+    },
+    {
+      "id": "12047",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 1,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 0,
+          "end": 43,
+          "text": "Unable to answer based on given passages."
+        }
+      ]
+    },
+    {
+      "id": "12066",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12067",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 1,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 299,
+          "end": 460,
+          "text": "They also offer continuing education clock hours/credits for e-learning courses and host weekly Q&A sessions for provide"
+        }
+      ]
+    },
+    {
+      "id": "12068",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12069",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12070",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12071",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 1,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 0,
+          "end": 43,
+          "text": "Unable to answer based on given passages."
+        }
+      ]
+    },
+    {
+      "id": "12102",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12103",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 2,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 684,
+          "end": 730,
+          "text": "Ensure all the door's hinge screws are tight."
+        },
+        {
+          "start": 730,
+          "end": 788,
+          "text": "Following these steps should help fix the door lock issue."
+        }
+      ]
+    },
+    {
+      "id": "12104",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 1,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 591,
+          "end": 640,
+          "text": "Check if the door now shuts and locks normally."
+        }
+      ]
+    },
+    {
+      "id": "12105",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 3,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 0,
+          "end": 197,
+          "text": "Based on the provided passages, here is how to fix a door that won't lock:\n\nPassage 1 provides tips on how to repair stu"
+        },
+        {
+          "start": 277,
+          "end": 446,
+          "text": "Passage 2 provides instructions on how to fix a door that won't shut or lock properly by removing the door stop on the s"
+        },
+        {
+          "start": 527,
+          "end": 656,
+          "text": "Passage 3 provides additional troubleshooting steps for when a door latch won't catch due to misalignment with the strik"
+        }
+      ]
+    },
+    {
+      "id": "12106",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 3,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 76,
+          "end": 230,
+          "text": "Check the door stop: According to passage 2, if the door won't lock, try tapping the end of a chisel under the door stop"
+        },
+        {
+          "start": 488,
+          "end": 652,
+          "text": "Adjust the latch hole: If the latch doesn't align with the hole in the strike plate, you may need to enlarge the latch h"
+        },
+        {
+          "start": 783,
+          "end": 926,
+          "text": "If the passages do not provide sufficient information to answer the question, the response would be: \"Unable to answer b"
+        }
+      ]
+    },
+    {
+      "id": "12107",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 2,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 91,
+          "end": 137,
+          "text": "Check if the door stops are properly aligned."
+        },
+        {
+          "start": 500,
+          "end": 579,
+          "text": "Check if the latch hole in the jamb is properly aligned with the strike plate."
+        }
+      ]
+    },
+    {
+      "id": "12132",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12133",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 1,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 206,
+          "end": 281,
+          "text": "Optionally, layer the fillets with onion, green pepper, and tomato slices."
+        }
+      ]
+    },
+    {
+      "id": "12134",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12135",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12136",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 4,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 212,
+          "end": 310,
+          "text": "Place the pollock fillets on a baking sheet lined with butter-flavored cooking spray (Passage 1)."
+        },
+        {
+          "start": 313,
+          "end": 389,
+          "text": "Add onion, green pepper, and tomato slices to the baking sheet (Passage 1)."
+        },
+        {
+          "start": 530,
+          "end": 688,
+          "text": "To add cheesy flavor, turn off the oven, place two slices of cheese on each fillet, and return the fish to the oven for "
+        },
+        {
+          "start": 688,
+          "end": 831,
+          "text": "Note that Passage 3 does not provide any specific instructions for cooking the pollock, but rather suggests adding chees"
+        }
+      ]
+    },
+    {
+      "id": "12137",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 2,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 232,
+          "end": 315,
+          "text": "You can also add sliced onions, green peppers, and tomatoes on top of the fillets."
+        },
+        {
+          "start": 491,
+          "end": 562,
+          "text": "Therefore, the answer is not \"Unable to answer based on given passages."
+        }
+      ]
+    },
+    {
+      "id": "12180",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 2,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 345,
+          "end": 421,
+          "text": "Afterward, rub the area with a damp cloth to rinse the nail polish remover."
+        },
+        {
+          "start": 588,
+          "end": 737,
+          "text": "Some plastic may be extremely difficult to remove, in which case you can try heating the plastic with a hair dryer or he"
+        }
+      ]
+    },
+    {
+      "id": "12181",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12182",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12183",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 1,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 699,
+          "end": 758,
+          "text": "(Passage 3)\n\nUnable to answer based on the given passages."
+        }
+      ]
+    },
+    {
+      "id": "12184",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12185",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12216",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 1,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 287,
+          "end": 410,
+          "text": "Follow this by folding the top left corner down toward the center of the quilt, again making sure the fold is on the bia"
+        }
+      ]
+    },
+    {
+      "id": "12217",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 1,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 0,
+          "end": 41,
+          "text": "Unable to answer based on given passages."
+        }
+      ]
+    },
+    {
+      "id": "12218",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12219",
+      "task_type": "QA",
+      "n_gold": 1,
+      "n_pred": 4,
+      "n_hit": 1,
+      "gold_labels": [
+        "Evident Conflict"
+      ],
+      "pred_spans": [
+        {
+          "start": 0,
+          "end": 138,
+          "text": "Based on the provided passages, here is how to fold a quilt:\n\nPassage 1 provides instructions for sewing binding to the "
+        },
+        {
+          "start": 286,
+          "end": 368,
+          "text": "Passage 2 describes how to fold a quilt into thirds along the bias of the fabric."
+        },
+        {
+          "start": 846,
+          "end": 975,
+          "text": "Therefore, based on Passage 2, you should fold a quilt by laying it flat and folding it in thirds along the bias of the "
+        },
+        {
+          "start": 975,
+          "end": 1037,
+          "text": "Passage 3 does not provide instructions for folding a quilt."
+        }
+      ]
+    },
+    {
+      "id": "12220",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12221",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12228",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12229",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12230",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12231",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 5,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 0,
+          "end": 107,
+          "text": "Based on the provided passages, the benefits of using a water pick (also known as a Waterpik) include:\n\n1."
+        },
+        {
+          "start": 206,
+          "end": 293,
+          "text": "Being a great oral care tool for removing food from areas that brushing cannot access."
+        },
+        {
+          "start": 296,
+          "end": 381,
+          "text": "Massaging and stimulating soft tissue in the mouth to reduce the risk of gingivitis."
+        },
+        {
+          "start": 384,
+          "end": 461,
+          "text": "Being an alternative to flossing and potentially offering similar benefits."
+        },
+        {
+          "start": 461,
+          "end": 503,
+          "text": "Unable to answer based on given passages."
+        }
+      ]
+    },
+    {
+      "id": "12232",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 2,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 219,
+          "end": 306,
+          "text": "* Massaging and stimulating soft tissue in the mouth to reduce the risk of gingivitis."
+        },
+        {
+          "start": 306,
+          "end": 416,
+          "text": "* Cleaning better around the teeth and gums, removing food particles from areas that brushing cannot access."
+        }
+      ]
+    },
+    {
+      "id": "12233",
+      "task_type": "QA",
+      "n_gold": 1,
+      "n_pred": 1,
+      "n_hit": 0,
+      "gold_labels": [
+        "Evident Conflict"
+      ],
+      "pred_spans": [
+        {
+          "start": 0,
+          "end": 546,
+          "text": "Based on the given passages, the benefits of a water pick include:\n\n* Helping to keep teeth, gums, mouth, and overall bo"
+        }
+      ]
+    },
+    {
+      "id": "12240",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 1,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 537,
+          "end": 636,
+          "text": "Remember to move the plastic hawk periodically to prevent the birds from becoming accustomed to it."
+        }
+      ]
+    },
+    {
+      "id": "12241",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 1,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 0,
+          "end": 135,
+          "text": "One way to keep birds from building a nest on your porch is to attach bird netting to the eaves or top of the porch with"
+        }
+      ]
+    },
+    {
+      "id": "12242",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12243",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 1,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 909,
+          "end": 1135,
+          "text": "(Passage 3:1)\n\nTherefore, based on the provided passages, you can keep birds from building nests on your porch by using "
+        }
+      ]
+    },
+    {
+      "id": "12244",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 3,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 296,
+          "end": 399,
+          "text": "Install bird netting over the top of the light fixture to block the birds' access to it (Passage 2:1)."
+        },
+        {
+          "start": 540,
+          "end": 631,
+          "text": "Mount a plastic hawk on or near your porch to scare the birds from the area (Passage 3:1)."
+        },
+        {
+          "start": 713,
+          "end": 837,
+          "text": "Please note that the effectiveness of these methods may vary depending on the type of birds and the location of your por"
+        }
+      ]
+    },
+    {
+      "id": "12245",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12258",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12259",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12260",
+      "task_type": "QA",
+      "n_gold": 1,
+      "n_pred": 2,
+      "n_hit": 0,
+      "gold_labels": [
+        "Evident Baseless Info"
+      ],
+      "pred_spans": [
+        {
+          "start": 301,
+          "end": 331,
+          "text": "Click on the Application tab."
+        },
+        {
+          "start": 381,
+          "end": 433,
+          "text": "Select Firefox from the list of installed browsers."
+        }
+      ]
+    },
+    {
+      "id": "12261",
+      "task_type": "QA",
+      "n_gold": 2,
+      "n_pred": 5,
+      "n_hit": 0,
+      "gold_labels": [
+        "Evident Baseless Info",
+        "Evident Baseless Info"
+      ],
+      "pred_spans": [
+        {
+          "start": 206,
+          "end": 233,
+          "text": "Click on Internet Options."
+        },
+        {
+          "start": 236,
+          "end": 266,
+          "text": "Click on the Connections tab."
+        },
+        {
+          "start": 963,
+          "end": 985,
+          "text": "Open Mozilla Firefox."
+        },
+        {
+          "start": 1143,
+          "end": 1169,
+          "text": "Click on the General tab."
+        },
+        {
+          "start": 1172,
+          "end": 1224,
+          "text": "Under Browsing history, select Use the current tab."
+        }
+      ]
+    },
+    {
+      "id": "12262",
+      "task_type": "QA",
+      "n_gold": 1,
+      "n_pred": 3,
+      "n_hit": 1,
+      "gold_labels": [
+        "Evident Baseless Info"
+      ],
+      "pred_spans": [
+        {
+          "start": 563,
+          "end": 585,
+          "text": "Open Firefox browser."
+        },
+        {
+          "start": 732,
+          "end": 760,
+          "text": "Click on the \"General\" tab."
+        },
+        {
+          "start": 763,
+          "end": 851,
+          "text": "Under the \"Web browsers\" section, select \"Use Firefox as my default browser\" checkbox."
+        }
+      ]
+    },
+    {
+      "id": "12263",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 2,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 0,
+          "end": 32,
+          "text": "Sure, I can help you with that!"
+        },
+        {
+          "start": 982,
+          "end": 1028,
+          "text": "Let me know if you have any further questions."
+        }
+      ]
+    },
+    {
+      "id": "12294",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12295",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12296",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12297",
+      "task_type": "QA",
+      "n_gold": 1,
+      "n_pred": 2,
+      "n_hit": 0,
+      "gold_labels": [
+        "Evident Conflict"
+      ],
+      "pred_spans": [
+        {
+          "start": 0,
+          "end": 96,
+          "text": "Based on the provided passages, the proper way to dispose of a worn USA flag is as follows:\n\n1."
+        },
+        {
+          "start": 472,
+          "end": 738,
+          "text": "(Passage 2)\n\nTherefore, the proper way to dispose of a worn USA flag is through burning it in a peaceful manner during a"
+        }
+      ]
+    },
+    {
+      "id": "12298",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 4,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 0,
+          "end": 91,
+          "text": "Based on the given passages, the proper way to dispose of a worn US flag is to either:\n\n1."
+        },
+        {
+          "start": 91,
+          "end": 180,
+          "text": "Burn it in a peaceful manner, removing the blue field first and burying the ashes, or\n2."
+        },
+        {
+          "start": 180,
+          "end": 265,
+          "text": "Perform a proper ceremony by folding the flag in a triangle fold before burning it."
+        },
+        {
+          "start": 265,
+          "end": 313,
+          "text": "Therefore, the answer is: \"Option 1 or Option 2."
+        }
+      ]
+    },
+    {
+      "id": "12299",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 3,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 0,
+          "end": 91,
+          "text": "Based on the given passages, the proper way to dispose of a worn US flag is to either:\n\n1."
+        },
+        {
+          "start": 251,
+          "end": 281,
+          "text": "Therefore, the answer is:\n\n1."
+        },
+        {
+          "start": 281,
+          "end": 322,
+          "text": "Remove the blue field and burn it, or\n2."
+        }
+      ]
+    },
+    {
+      "id": "12330",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12331",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12332",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 1,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 0,
+          "end": 41,
+          "text": "Unable to answer based on given passages."
+        }
+      ]
+    },
+    {
+      "id": "12333",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 1,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 257,
+          "end": 303,
+          "text": "Findings reasons to be near you (Passage 3)."
+        }
+      ]
+    },
+    {
+      "id": "12334",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 1,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 221,
+          "end": 345,
+          "text": "Eye contact: If your coworker is consistently staring at you, it may be a sign that they are interested in you (Passage "
+        }
+      ]
+    },
+    {
+      "id": "12335",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12342",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12343",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12344",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12345",
+      "task_type": "QA",
+      "n_gold": 1,
+      "n_pred": 1,
+      "n_hit": 0,
+      "gold_labels": [
+        "Evident Baseless Info"
+      ],
+      "pred_spans": [
+        {
+          "start": 0,
+          "end": 174,
+          "text": "Here is how you can cook brats according to the provided passages:\n\nTo cook brats, follow these steps:\n\nPassage 1:\n\n* Pr"
+        }
+      ]
+    },
+    {
+      "id": "12346",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 1,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 584,
+          "end": 662,
+          "text": "Step 6: Serve the bratwurst with the beer mixture as a topping or side dish."
+        }
+      ]
+    },
+    {
+      "id": "12347",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12432",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12433",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 1,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 113,
+          "end": 281,
+          "text": "Individuals with IBS may also experience belly pains or cramps, especially in the lower half of the belly, which worsen "
+        }
+      ]
+    },
+    {
+      "id": "12434",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 1,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 319,
+          "end": 566,
+          "text": "Causes of irritable bowel syndrome are unknown but it is believed to be due to a number of factors including alteration "
+        }
+      ]
+    },
+    {
+      "id": "12435",
+      "task_type": "QA",
+      "n_gold": 1,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [
+        "Evident Conflict"
+      ],
+      "pred_spans": []
+    },
+    {
+      "id": "12436",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12437",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 1,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 0,
+          "end": 32,
+          "text": "Sure, I can help you with that!"
+        }
+      ]
+    },
+    {
+      "id": "12438",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12439",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12440",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 3,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 0,
+          "end": 50,
+          "text": "To prepare a blood slide, follow these steps:\n\n1."
+        },
+        {
+          "start": 322,
+          "end": 378,
+          "text": "Gently push the slide to produce a thin smear of blood."
+        },
+        {
+          "start": 381,
+          "end": 449,
+          "text": "Repeat the process, making two smears and allowing them to air dry."
+        }
+      ]
+    },
+    {
+      "id": "12441",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 8,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 0,
+          "end": 42,
+          "text": "Sure, I'd be happy to help you with that!"
+        },
+        {
+          "start": 42,
+          "end": 122,
+          "text": "Here are the steps to prepare a blood slide based on the provided passages:\n\n1."
+        },
+        {
+          "start": 122,
+          "end": 188,
+          "text": "First, sterilize a needle with a flame as described in Passage 1."
+        },
+        {
+          "start": 355,
+          "end": 444,
+          "text": "Place a drop of blood towards one end of a clean glass slide as instructed in Passage 2."
+        },
+        {
+          "start": 640,
+          "end": 732,
+          "text": "Gently push the blood along the length of the first slide to produce a thin smear of blood."
+        },
+        {
+          "start": 732,
+          "end": 769,
+          "text": "Repeat this step to make two smears."
+        },
+        {
+          "start": 772,
+          "end": 928,
+          "text": "Allow the smears to air dry completely before labeling them clearly and placing them in the provided slide transport con"
+        },
+        {
+          "start": 947,
+          "end": 993,
+          "text": "Let me know if you have any further questions."
+        }
+      ]
+    },
+    {
+      "id": "12442",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 2,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 0,
+          "end": 32,
+          "text": "Sure, I can help you with that!"
+        },
+        {
+          "start": 32,
+          "end": 110,
+          "text": "Based on the given passages, here are the steps to prepare a blood slide:\n\n1."
+        }
+      ]
+    },
+    {
+      "id": "12443",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 2,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 0,
+          "end": 50,
+          "text": "To prepare a blood slide, follow these steps:\n\n1."
+        },
+        {
+          "start": 439,
+          "end": 473,
+          "text": "Repeat step 4 to make two smears."
+        }
+      ]
+    },
+    {
+      "id": "12444",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12445",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12446",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12447",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12448",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 3,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 309,
+          "end": 465,
+          "text": "Passage 1 states that nine amino acids are essential for humans, but only eight of them are essential for adults (histid"
+        },
+        {
+          "start": 465,
+          "end": 629,
+          "text": "Passage 2 explains that nonessential amino acids are not unnecessary, as the body can produce them from essential amino "
+        },
+        {
+          "start": 629,
+          "end": 789,
+          "text": "Passage 3 reiterates that nonessential amino acids can be made by the body, while essential amino acids cannot be produc"
+        }
+      ]
+    },
+    {
+      "id": "12449",
+      "task_type": "QA",
+      "n_gold": 2,
+      "n_pred": 1,
+      "n_hit": 0,
+      "gold_labels": [
+        "Evident Baseless Info",
+        "Evident Baseless Info"
+      ],
+      "pred_spans": [
+        {
+          "start": 714,
+          "end": 930,
+          "text": "There are nine essential amino acids that humans need to consume regularly: valine, isoleucine, leucine, lysine, methion"
+        }
+      ]
+    },
+    {
+      "id": "12456",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12457",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12458",
+      "task_type": "QA",
+      "n_gold": 1,
+      "n_pred": 1,
+      "n_hit": 0,
+      "gold_labels": [
+        "Evident Baseless Info"
+      ],
+      "pred_spans": [
+        {
+          "start": 370,
+          "end": 430,
+          "text": "However, the driest year was recorded in 1934, with only 24."
+        }
+      ]
+    },
+    {
+      "id": "12459",
+      "task_type": "QA",
+      "n_gold": 2,
+      "n_pred": 1,
+      "n_hit": 0,
+      "gold_labels": [
+        "Evident Baseless Info",
+        "Evident Baseless Info"
+      ],
+      "pred_spans": [
+        {
+          "start": 796,
+          "end": 851,
+          "text": "(Passage 3)\n\nUnable to answer based on given passages."
+        }
+      ]
+    },
+    {
+      "id": "12460",
+      "task_type": "QA",
+      "n_gold": 3,
+      "n_pred": 9,
+      "n_hit": 1,
+      "gold_labels": [
+        "Evident Baseless Info",
+        "Evident Baseless Info",
+        "Evident Baseless Info"
+      ],
+      "pred_spans": [
+        {
+          "start": 163,
+          "end": 294,
+          "text": "According to the passage, Indianapolis receives an average of 17 inches of snow per year, with the most snow falling in "
+        },
+        {
+          "start": 305,
+          "end": 410,
+          "text": "Fort Wayne receives an average of 35 inches of snow per year, with the most snow falling in February (12."
+        },
+        {
+          "start": 529,
+          "end": 634,
+          "text": "South Bend receives an average of 31 inches of snow per year, with the most snow falling in February (10."
+        },
+        {
+          "start": 734,
+          "end": 831,
+          "text": "The summer months are hot and humid, with temperatures ranging from 70°F to 90°F (21°C to 32°C)."
+        },
+        {
+          "start": 831,
+          "end": 930,
+          "text": "The winter months are chilly and windy, with temperatures ranging from 15°F to 35°F (-9°C to 1°C)."
+        },
+        {
+          "start": 930,
+          "end": 989,
+          "text": "The year-round average temperature is around 50°F (10°C)."
+        },
+        {
+          "start": 1064,
+          "end": 1109,
+          "text": "The wettest year on record was 1876, with 57."
+        },
+        {
+          "start": 1153,
+          "end": 1187,
+          "text": "The driest year was 1934, with 24."
+        },
+        {
+          "start": 1429,
+          "end": 1533,
+          "text": "The state experiences a moderate amount of snowfall, with the most snow falling in January and February."
+        }
+      ]
+    },
+    {
+      "id": "12461",
+      "task_type": "QA",
+      "n_gold": 2,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [
+        "Evident Baseless Info",
+        "Evident Baseless Info"
+      ],
+      "pred_spans": []
+    },
+    {
+      "id": "12468",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12469",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12470",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 1,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 68,
+          "end": 98,
+          "text": "Open iTunes on your computer."
+        }
+      ]
+    },
+    {
+      "id": "12471",
+      "task_type": "QA",
+      "n_gold": 2,
+      "n_pred": 3,
+      "n_hit": 0,
+      "gold_labels": [
+        "Evident Conflict",
+        "Evident Conflict"
+      ],
+      "pred_spans": [
+        {
+          "start": 169,
+          "end": 216,
+          "text": "* Open OverDrive for Windows on your computer."
+        },
+        {
+          "start": 530,
+          "end": 615,
+          "text": "* Find the audiobook you want to transfer and click the box next to it to select it."
+        },
+        {
+          "start": 1357,
+          "end": 1418,
+          "text": "Open iTunes and turn on the \"Manually manage music\" setting."
+        }
+      ]
+    },
+    {
+      "id": "12472",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 4,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 511,
+          "end": 616,
+          "text": "Alternatively, you can use Syncios Audiobook Transfer to transfer audiobooks from your iPhone to iTunes."
+        },
+        {
+          "start": 823,
+          "end": 875,
+          "text": "Launch Syncios Audiobook Transfer on your computer."
+        },
+        {
+          "start": 978,
+          "end": 1071,
+          "text": "Select the audiobooks you want to transfer and click \"Export\" to save them to your computer."
+        },
+        {
+          "start": 1074,
+          "end": 1174,
+          "text": "Alternatively, you can also click \"Import\" to add new audiobooks from your computer to your iPhone."
+        }
+      ]
+    },
+    {
+      "id": "12473",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 3,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 145,
+          "end": 175,
+          "text": "Open iTunes on your computer."
+        },
+        {
+          "start": 551,
+          "end": 667,
+          "text": "Alternatively, you can use Syncios Audiobook Transfer to transfer audiobooks from your computer to your iOS device."
+        },
+        {
+          "start": 703,
+          "end": 755,
+          "text": "Launch Syncios Audiobook Transfer on your computer."
+        }
+      ]
+    },
+    {
+      "id": "12516",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 1,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 341,
+          "end": 561,
+          "text": "Similarly, the respiratory system also collaborates with all other systems to provide oxygen to all body parts and remov"
+        }
+      ]
+    },
+    {
+      "id": "12517",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 2,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 251,
+          "end": 392,
+          "text": "Each system has its own specific functions, but they also work in conjunction with one another to ensure the overall wel"
+        },
+        {
+          "start": 557,
+          "end": 734,
+          "text": "Similarly, the respiratory system provides oxygen to all body parts and removes carbon dioxide from the muscular, digest"
+        }
+      ]
+    },
+    {
+      "id": "12518",
+      "task_type": "QA",
+      "n_gold": 1,
+      "n_pred": 1,
+      "n_hit": 0,
+      "gold_labels": [
+        "Subtle Baseless Info"
+      ],
+      "pred_spans": [
+        {
+          "start": 313,
+          "end": 417,
+          "text": "Similarly, the nervous system controls and coordinates the activities of all other systems in the body."
+        }
+      ]
+    },
+    {
+      "id": "12519",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 2,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 0,
+          "end": 79,
+          "text": "Based on the provided passages, here's how the body systems work together:\n\n1."
+        },
+        {
+          "start": 669,
+          "end": 876,
+          "text": "(Passage 3)\n\nTherefore, the body systems work together in the following ways:\n\n* The skeletal system provides support an"
+        }
+      ]
+    },
+    {
+      "id": "12520",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12521",
+      "task_type": "QA",
+      "n_gold": 1,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [
+        "Subtle Baseless Info"
+      ],
+      "pred_spans": []
+    },
+    {
+      "id": "12522",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12523",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12524",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12525",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12526",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12527",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12552",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12553",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12554",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12555",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 2,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 651,
+          "end": 843,
+          "text": "Passage 3 provides general information about buying a home with water shares or rights, including the need to understand"
+        },
+        {
+          "start": 936,
+          "end": 1066,
+          "text": "Therefore, based on the provided passages, the answer to the question is:\n\nTransferring water shares involves paying a f"
+        }
+      ]
+    },
+    {
+      "id": "12556",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 1,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 391,
+          "end": 552,
+          "text": "Please note that the passages only refer to the transfer of Water Stock Certificates and do not provide information on o"
+        }
+      ]
+    },
+    {
+      "id": "12557",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12600",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12601",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12602",
+      "task_type": "QA",
+      "n_gold": 1,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [
+        "Evident Conflict"
+      ],
+      "pred_spans": []
+    },
+    {
+      "id": "12603",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12604",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 2,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 124,
+          "end": 167,
+          "text": "* In Greek, it means \"reaper\" (passage 2)."
+        },
+        {
+          "start": 167,
+          "end": 328,
+          "text": "* It has uncertain etymology, but is thought to come from the Greek words \"therizein\" meaning \"to harvest, harvester\" or"
+        }
+      ]
+    },
+    {
+      "id": "12605",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12618",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12619",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12620",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12621",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 1,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 139,
+          "end": 246,
+          "text": "According to passage 1, step 1, you should prepare the site by laying down a 4\" layer of compacted gravel."
+        }
+      ]
+    },
+    {
+      "id": "12622",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12623",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 1,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 0,
+          "end": 51,
+          "text": "What are the dimensions of the shed in passage 3?"
+        }
+      ]
+    },
+    {
+      "id": "12690",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12691",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 1,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 541,
+          "end": 582,
+          "text": "Unable to answer based on given passages."
+        }
+      ]
+    },
+    {
+      "id": "12692",
+      "task_type": "QA",
+      "n_gold": 1,
+      "n_pred": 1,
+      "n_hit": 0,
+      "gold_labels": [
+        "Evident Conflict"
+      ],
+      "pred_spans": [
+        {
+          "start": 103,
+          "end": 288,
+          "text": "While Vietnam focuses on making its education system relatively equitable for all students, regardless of socioeconomic "
+        }
+      ]
+    },
+    {
+      "id": "12693",
+      "task_type": "QA",
+      "n_gold": 1,
+      "n_pred": 2,
+      "n_hit": 0,
+      "gold_labels": [
+        "Evident Baseless Info"
+      ],
+      "pred_spans": [
+        {
+          "start": 434,
+          "end": 516,
+          "text": "Both countries gained independence from their colonizers in the mid-20th century."
+        },
+        {
+          "start": 1051,
+          "end": 1092,
+          "text": "Unable to answer based on given passages."
+        }
+      ]
+    },
+    {
+      "id": "12694",
+      "task_type": "QA",
+      "n_gold": 1,
+      "n_pred": 3,
+      "n_hit": 0,
+      "gold_labels": [
+        "Evident Baseless Info"
+      ],
+      "pred_spans": [
+        {
+          "start": 85,
+          "end": 270,
+          "text": "Education system: According to Passage 1, the education system in Vietnam is relatively equitable, meaning that poorer c"
+        },
+        {
+          "start": 408,
+          "end": 533,
+          "text": "Colonial history: While both countries were colonized by European powers, the nature of their colonial experiences diffe"
+        },
+        {
+          "start": 533,
+          "end": 659,
+          "text": "India was colonized by the British for over two centuries, while Vietnam was colonized by the French for much shorter pe"
+        }
+      ]
+    },
+    {
+      "id": "12695",
+      "task_type": "QA",
+      "n_gold": 1,
+      "n_pred": 2,
+      "n_hit": 0,
+      "gold_labels": [
+        "Evident Baseless Info"
+      ],
+      "pred_spans": [
+        {
+          "start": 468,
+          "end": 555,
+          "text": "Both countries gained independence from their colonial rulers in the mid-20th century."
+        },
+        {
+          "start": 668,
+          "end": 809,
+          "text": "Political system: Vietnam has been ruled by the Communist Party since 1976, while India has been a democracy since its i"
+        }
+      ]
+    },
+    {
+      "id": "12702",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 1,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 612,
+          "end": 721,
+          "text": "Once roasted, the garlic cloves can be stored in an airtight container in the refrigerator for up to 10 days."
+        }
+      ]
+    },
+    {
+      "id": "12703",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12704",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 1,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 597,
+          "end": 680,
+          "text": "Once done, remove from the oven and let cool slightly before peeling off the skin."
+        }
+      ]
+    },
+    {
+      "id": "12705",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 4,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 0,
+          "end": 220,
+          "text": "Here are brief answers to the question on how to roast individual garlic cloves based on the provided passages:\n\nPassage"
+        },
+        {
+          "start": 388,
+          "end": 556,
+          "text": "Passage 2: This passage provides some options for seasoning the garlic before roasting, but it does not provide instruct"
+        },
+        {
+          "start": 556,
+          "end": 695,
+          "text": "Passage 3: This passage provides a method for roasting entire garlic heads, but it does not address how to roast individ"
+        },
+        {
+          "start": 894,
+          "end": 935,
+          "text": "Unable to answer based on given passages."
+        }
+      ]
+    },
+    {
+      "id": "12706",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 1,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 6,
+          "end": 143,
+          "text": "Here's how to roast individual garlic cloves based on the provided passages:\n\nTo roast individual garlic cloves, follow "
+        }
+      ]
+    },
+    {
+      "id": "12707",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12762",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12763",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12764",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12765",
+      "task_type": "QA",
+      "n_gold": 1,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [
+        "Evident Conflict"
+      ],
+      "pred_spans": []
+    },
+    {
+      "id": "12766",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 2,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 0,
+          "end": 310,
+          "text": "Based on the provided passages, the treatment when an asset is discarded as per the Income Tax Act is as follows:\n\nAccor"
+        },
+        {
+          "start": 380,
+          "end": 506,
+          "text": "Passage 3 further states that the assessee is entitled to claim depreciation on the residual value of such discarded ass"
+        }
+      ]
+    },
+    {
+      "id": "12767",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12840",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 1,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 88,
+          "end": 247,
+          "text": "Start by making a zipper sandwich, which involves placing a piece of lining fabric face up, then the zipper, and then th"
+        }
+      ]
+    },
+    {
+      "id": "12841",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 1,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 0,
+          "end": 41,
+          "text": "Unable to answer based on given passages."
+        }
+      ]
+    },
+    {
+      "id": "12842",
+      "task_type": "QA",
+      "n_gold": 1,
+      "n_pred": 1,
+      "n_hit": 0,
+      "gold_labels": [
+        "Evident Baseless Info"
+      ],
+      "pred_spans": [
+        {
+          "start": 1081,
+          "end": 1227,
+          "text": "Switch back to a normal foot and stitch on the seam allowance around the zipper gusset so that the main and lining fabri"
+        }
+      ]
+    },
+    {
+      "id": "12843",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 2,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 6,
+          "end": 121,
+          "text": "Here's how to sew a zipper gusset based on the provided passages:\n\nTo sew a zipper gusset, follow these steps:\n\n1."
+        },
+        {
+          "start": 991,
+          "end": 1015,
+          "text": "(Passage 3)\n\nThat's it!"
+        }
+      ]
+    },
+    {
+      "id": "12844",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12845",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 1,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 0,
+          "end": 193,
+          "text": "Based on the given passages, here's a brief answer to the question \"How to sew a zipper gusset\":\n\nTo sew a zipper gusset"
+        }
+      ]
+    },
+    {
+      "id": "12900",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 1,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 125,
+          "end": 225,
+          "text": "Once the water starts to simmer, turn off the heat, cover the pan, and let it stand for 17 minutes."
+        }
+      ]
+    },
+    {
+      "id": "12901",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 1,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 175,
+          "end": 273,
+          "text": "Once it does, turn off the heat, cover the pan with a lid, and let the eggs stand for 17 minutes."
+        }
+      ]
+    },
+    {
+      "id": "12902",
+      "task_type": "QA",
+      "n_gold": 1,
+      "n_pred": 1,
+      "n_hit": 1,
+      "gold_labels": [
+        "Evident Baseless Info"
+      ],
+      "pred_spans": [
+        {
+          "start": 436,
+          "end": 537,
+          "text": "Once the eggs are cooked, transfer them to a bowl of ice water to cool and make them easier to peel."
+        }
+      ]
+    },
+    {
+      "id": "12903",
+      "task_type": "QA",
+      "n_gold": 1,
+      "n_pred": 4,
+      "n_hit": 0,
+      "gold_labels": [
+        "Evident Baseless Info"
+      ],
+      "pred_spans": [
+        {
+          "start": 0,
+          "end": 134,
+          "text": "Based on the provided passages, here is how to bake hard-boiled eggs:\n\nPassage 1 provides the steps for cooking hard-boi"
+        },
+        {
+          "start": 260,
+          "end": 373,
+          "text": "Once the water is simmering, turn off the heat, cover the pan with a lid, and let the eggs stand for 17 minutes."
+        },
+        {
+          "start": 1367,
+          "end": 1499,
+          "text": "Bake the eggs in a preheated oven at 300°F (150°C) for 15-20 minutes, or until the whites are set and the yolks are cook"
+        },
+        {
+          "start": 1567,
+          "end": 1609,
+          "text": "Unable to answer based on given passages."
+        }
+      ]
+    },
+    {
+      "id": "12904",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12905",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 1,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 0,
+          "end": 43,
+          "text": "Unable to answer based on given passages."
+        }
+      ]
+    },
+    {
+      "id": "12912",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12913",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12914",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12915",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 3,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 114,
+          "end": 164,
+          "text": "\" is:\n\nUnable to answer based on given passages."
+        },
+        {
+          "start": 164,
+          "end": 257,
+          "text": "None of the passages explicitly state what the drawer at the bottom of an oven stove is for."
+        },
+        {
+          "start": 358,
+          "end": 485,
+          "text": "Without additional information, it cannot be determined what the specific purpose of this drawer is on a particular oven"
+        }
+      ]
+    },
+    {
+      "id": "12916",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "12917",
+      "task_type": "QA",
+      "n_gold": 1,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [
+        "Evident Conflict"
+      ],
+      "pred_spans": []
+    },
+    {
+      "id": "13038",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "13039",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "13040",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 1,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 352,
+          "end": 402,
+          "text": "Confirm the reset by pressing \"Erase Everything\"."
+        }
+      ]
+    },
+    {
+      "id": "13041",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "13042",
+      "task_type": "QA",
+      "n_gold": 2,
+      "n_pred": 4,
+      "n_hit": 1,
+      "gold_labels": [
+        "Subtle Baseless Info",
+        "Subtle Baseless Info"
+      ],
+      "pred_spans": [
+        {
+          "start": 224,
+          "end": 306,
+          "text": "Alternatively, you can also perform a factory reset by following these steps:\n\n1."
+        },
+        {
+          "start": 675,
+          "end": 709,
+          "text": "Wait for the process to complete."
+        },
+        {
+          "start": 712,
+          "end": 833,
+          "text": "Once the reset is done, select \"Reboot System\" from the recovery menu and press the Power button to restart the device."
+        },
+        {
+          "start": 833,
+          "end": 971,
+          "text": "Please note that performing a factory reset will erase all data on the device, so make sure to back up any important dat"
+        }
+      ]
+    },
+    {
+      "id": "13043",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "13068",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "13069",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "13070",
+      "task_type": "QA",
+      "n_gold": 1,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [
+        "Evident Baseless Info"
+      ],
+      "pred_spans": []
+    },
+    {
+      "id": "13071",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 2,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 796,
+          "end": 924,
+          "text": "(Passage 3)\n* Free PSA test can help to distinguish between prostate cancer and other non-cancer causes of elevated PSA "
+        },
+        {
+          "start": 924,
+          "end": 1034,
+          "text": "(Passage 3)\n\nTherefore, based on the provided passages, the answer to the question \"What does PSA levels mean?"
+        }
+      ]
+    },
+    {
+      "id": "13072",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "13073",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": []
+    },
+    {
+      "id": "13104",
+      "task_type": "QA",
+      "n_gold": 0,
+      "n_pred": 1,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred_spans": [
+        {
+          "start": 633,
+          "end": 745,
+          "text": "Regardless of the type of graph you choose, it should provide a clear visual representation of your information."
+        }
+      ]
+    },
+    {
+      "id": "13105",
+      "task_type": "QA",
+      "n_gold": 4,
+      "n_pred": 5,
+      "n_hit": 3,
+      "gold_labels": [
+        "Evident Baseless Info",
+        "Evident Baseless Info",
+        "Evident Baseless Info",
+        "Evident Baseless Info"
+      ],
+      "pred_spans": [
+        {
+          "start": 213,
+          "end": 290,
+          "text": "Determine the title of your graph and the range of values it needs to cover."
+        },
+        {
+          "start": 378,
+          "end": 452,
+          "text": "Draw a horizontal line for the x-axis and a vertical line for the y-axis."
+        },
+        {
+          "start": 455,
+          "end": 521,
+          "text": "Label the x-axis with the categories or groups you are comparing."
+        },
+        {
+          "start": 524,
+          "end": 612,
+          "text": "Label the y-axis with the appropriate scale that represents the values or measurements."
+        },
+        {
+          "start": 615,
+          "end": 737,
+          "text": "Draw rectangular bars above each category on the x-axis, with each bar's height proportionate to the value it represents"
+        }
+      ]
+    }
+  ]
+}

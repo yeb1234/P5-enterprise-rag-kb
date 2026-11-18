@@ -1,0 +1,1067 @@
+{
+  "summary": {
+    "split": "QA",
+    "n_selected": 50,
+    "n_judged_ok": 49,
+    "iou_threshold": 0.5,
+    "judge_model": "deepseek-v4.1-flash-1017",
+    "gold_spans": 36,
+    "pred_spans": 69,
+    "hits": 15,
+    "precision": 0.2174,
+    "recall": 0.4167,
+    "f1": 0.2857,
+    "exception_note": "LLM-as-judge 破例，仅 span 专项；不进 evalbench 主口径、不参与收敛。裁判未见人工标签。",
+    "caveats": [
+      "句子级 span 与人工短语级 span 的 IOU 天然偏低",
+      "裁判模型自身可能漏判/误判",
+      "样本量小"
+    ]
+  },
+  "records": [
+    {
+      "id": "11908",
+      "task_type": "QA",
+      "status": "ok",
+      "from_cache": true,
+      "n_gold": 1,
+      "n_pred": 3,
+      "n_hit": 0,
+      "gold_labels": [
+        "Evident Baseless Info"
+      ],
+      "pred": [
+        {
+          "start": 130,
+          "end": 335,
+          "text": "The specific amount of pay varies by location, with the highest average pay in Alaska ($23.70 per ho",
+          "label": "baseless"
+        },
+        {
+          "start": 532,
+          "end": 656,
+          "text": "However, the passages do not provide specific information on how automotive technicians get paid or ",
+          "label": "conflict"
+        },
+        {
+          "start": 656,
+          "end": 730,
+          "text": "Therefore, I am unable to answer the question based on the given passages.",
+          "label": "conflict"
+        }
+      ]
+    },
+    {
+      "id": "12044",
+      "task_type": "QA",
+      "status": "ok",
+      "from_cache": true,
+      "n_gold": 4,
+      "n_pred": 5,
+      "n_hit": 3,
+      "gold_labels": [
+        "Evident Baseless Info",
+        "Evident Baseless Info",
+        "Evident Baseless Info",
+        "Evident Baseless Info"
+      ],
+      "pred": [
+        {
+          "start": 358,
+          "end": 470,
+          "text": "Once the grill is heated, leave the porterhouse steak out at room temperature for about an hour befo",
+          "label": "baseless"
+        },
+        {
+          "start": 473,
+          "end": 505,
+          "text": "Preheat the grill to high heat.",
+          "label": "baseless"
+        },
+        {
+          "start": 508,
+          "end": 570,
+          "text": "Season the porterhouse steak generously with salt and pepper.",
+          "label": "baseless"
+        },
+        {
+          "start": 573,
+          "end": 683,
+          "text": "Grill the steak over the hot side of the grill for about 4-5 minutes per side, depending on desired ",
+          "label": "baseless"
+        },
+        {
+          "start": 687,
+          "end": 780,
+          "text": "Remove the steak from the grill and let it rest for 10-15 minutes before slicing and serving.",
+          "label": "baseless"
+        }
+      ]
+    },
+    {
+      "id": "12045",
+      "task_type": "QA",
+      "status": "ok",
+      "from_cache": true,
+      "n_gold": 2,
+      "n_pred": 4,
+      "n_hit": 1,
+      "gold_labels": [
+        "Evident Baseless Info",
+        "Evident Baseless Info"
+      ],
+      "pred": [
+        {
+          "start": 338,
+          "end": 398,
+          "text": "Preheat the grill to high heat (unspecified in passages)\n6.",
+          "label": "baseless"
+        },
+        {
+          "start": 398,
+          "end": 470,
+          "text": "Place the Porterhouse steak on the grill, bone side down (Passage 3)\n7.",
+          "label": "baseless"
+        },
+        {
+          "start": 470,
+          "end": 594,
+          "text": "Cook for 4-5 minutes per side, or until the internal temperature reaches your desired doneness (unsp",
+          "label": "baseless"
+        },
+        {
+          "start": 594,
+          "end": 891,
+          "text": "Remove from the grill and let rest for 5-10 minutes before slicing and serving (unspecified in passa",
+          "label": "baseless"
+        }
+      ]
+    },
+    {
+      "id": "12046",
+      "task_type": "QA",
+      "status": "ok",
+      "from_cache": true,
+      "n_gold": 1,
+      "n_pred": 1,
+      "n_hit": 1,
+      "gold_labels": [
+        "Evident Baseless Info"
+      ],
+      "pred": [
+        {
+          "start": 492,
+          "end": 563,
+          "text": "Cook the Porterhouse until it reaches your desired level of doneness.",
+          "label": "baseless"
+        }
+      ]
+    },
+    {
+      "id": "12219",
+      "task_type": "QA",
+      "status": "ok",
+      "from_cache": true,
+      "n_gold": 1,
+      "n_pred": 3,
+      "n_hit": 0,
+      "gold_labels": [
+        "Evident Conflict"
+      ],
+      "pred": [
+        {
+          "start": 286,
+          "end": 368,
+          "text": "Passage 2 describes how to fold a quilt into thirds along the bias of the fabric.",
+          "label": "baseless"
+        },
+        {
+          "start": 846,
+          "end": 975,
+          "text": "Therefore, based on Passage 2, you should fold a quilt by laying it flat and folding it in thirds al",
+          "label": "baseless"
+        },
+        {
+          "start": 1146,
+          "end": 1200,
+          "text": "Fold the quilt in thirds along the bias of the fabric.",
+          "label": "baseless"
+        }
+      ]
+    },
+    {
+      "id": "12233",
+      "task_type": "QA",
+      "status": "ok",
+      "from_cache": true,
+      "n_gold": 1,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [
+        "Evident Conflict"
+      ],
+      "pred": []
+    },
+    {
+      "id": "12260",
+      "task_type": "QA",
+      "status": "ok",
+      "from_cache": true,
+      "n_gold": 1,
+      "n_pred": 4,
+      "n_hit": 0,
+      "gold_labels": [
+        "Evident Baseless Info"
+      ],
+      "pred": [
+        {
+          "start": 301,
+          "end": 331,
+          "text": "Click on the Application tab.",
+          "label": "baseless"
+        },
+        {
+          "start": 334,
+          "end": 378,
+          "text": "Scroll down to the Default browser section.",
+          "label": "baseless"
+        },
+        {
+          "start": 381,
+          "end": 433,
+          "text": "Select Firefox from the list of installed browsers.",
+          "label": "baseless"
+        },
+        {
+          "start": 436,
+          "end": 468,
+          "text": "Click the Set as default button.",
+          "label": "baseless"
+        }
+      ]
+    },
+    {
+      "id": "12261",
+      "task_type": "QA",
+      "status": "ok",
+      "from_cache": true,
+      "n_gold": 2,
+      "n_pred": 8,
+      "n_hit": 0,
+      "gold_labels": [
+        "Evident Baseless Info",
+        "Evident Baseless Info"
+      ],
+      "pred": [
+        {
+          "start": 183,
+          "end": 203,
+          "text": "Open Control Panel.",
+          "label": "baseless"
+        },
+        {
+          "start": 206,
+          "end": 233,
+          "text": "Click on Internet Options.",
+          "label": "baseless"
+        },
+        {
+          "start": 236,
+          "end": 266,
+          "text": "Click on the Connections tab.",
+          "label": "baseless"
+        },
+        {
+          "start": 269,
+          "end": 318,
+          "text": "Select the default web browser you want to use.",
+          "label": "baseless"
+        },
+        {
+          "start": 574,
+          "end": 624,
+          "text": "Click on the System option in the left-hand menu.",
+          "label": "conflict"
+        },
+        {
+          "start": 1143,
+          "end": 1169,
+          "text": "Click on the General tab.",
+          "label": "baseless"
+        },
+        {
+          "start": 1172,
+          "end": 1224,
+          "text": "Under Browsing history, select Use the current tab.",
+          "label": "baseless"
+        },
+        {
+          "start": 1227,
+          "end": 1258,
+          "text": "Click OK to save the changes.",
+          "label": "baseless"
+        }
+      ]
+    },
+    {
+      "id": "12262",
+      "task_type": "QA",
+      "status": "ok",
+      "from_cache": true,
+      "n_gold": 1,
+      "n_pred": 2,
+      "n_hit": 0,
+      "gold_labels": [
+        "Evident Baseless Info"
+      ],
+      "pred": [
+        {
+          "start": 732,
+          "end": 760,
+          "text": "Click on the \"General\" tab.",
+          "label": "baseless"
+        },
+        {
+          "start": 763,
+          "end": 851,
+          "text": "Under the \"Web browsers\" section, select \"Use Firefox as my default browser\" checkbox.",
+          "label": "baseless"
+        }
+      ]
+    },
+    {
+      "id": "12297",
+      "task_type": "QA",
+      "status": "ok",
+      "from_cache": true,
+      "n_gold": 1,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [
+        "Evident Conflict"
+      ],
+      "pred": []
+    },
+    {
+      "id": "12345",
+      "task_type": "QA",
+      "status": "ok",
+      "from_cache": true,
+      "n_gold": 1,
+      "n_pred": 2,
+      "n_hit": 0,
+      "gold_labels": [
+        "Evident Baseless Info"
+      ],
+      "pred": [
+        {
+          "start": 936,
+          "end": 1047,
+          "text": "* Cook the bratwurst on the preheated grill for 10-14 minutes, turning occasionally to brown evenly ",
+          "label": "baseless"
+        },
+        {
+          "start": 1047,
+          "end": 1156,
+          "text": "It is important to note that the cooking time may vary depending on the size and thickness of the br",
+          "label": "baseless"
+        }
+      ]
+    },
+    {
+      "id": "12435",
+      "task_type": "QA",
+      "status": "ok",
+      "from_cache": true,
+      "n_gold": 1,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [
+        "Evident Conflict"
+      ],
+      "pred": []
+    },
+    {
+      "id": "12449",
+      "task_type": "QA",
+      "status": "ok",
+      "from_cache": true,
+      "n_gold": 2,
+      "n_pred": 3,
+      "n_hit": 2,
+      "gold_labels": [
+        "Evident Baseless Info",
+        "Evident Baseless Info"
+      ],
+      "pred": [
+        {
+          "start": 281,
+          "end": 449,
+          "text": "Essential amino acids are also referred to as \"limiting\" amino acids, meaning that the body cannot s",
+          "label": "baseless"
+        },
+        {
+          "start": 449,
+          "end": 592,
+          "text": "In contrast, non-essential amino acids are considered \"dispensable\" because the body can either synt",
+          "label": "baseless"
+        },
+        {
+          "start": 592,
+          "end": 714,
+          "text": "Essential amino acids are vital for various bodily functions such as protein synthesis, tissue repai",
+          "label": "baseless"
+        }
+      ]
+    },
+    {
+      "id": "12458",
+      "task_type": "QA",
+      "status": "ok",
+      "from_cache": true,
+      "n_gold": 1,
+      "n_pred": 1,
+      "n_hit": 1,
+      "gold_labels": [
+        "Evident Baseless Info"
+      ],
+      "pred": [
+        {
+          "start": 135,
+          "end": 241,
+          "text": "The temperature ranges from 22°F to 85°F throughout the year, with an average annual temperature of ",
+          "label": "baseless"
+        }
+      ]
+    },
+    {
+      "id": "12459",
+      "task_type": "QA",
+      "status": "ok",
+      "from_cache": true,
+      "n_gold": 2,
+      "n_pred": 2,
+      "n_hit": 1,
+      "gold_labels": [
+        "Evident Baseless Info",
+        "Evident Baseless Info"
+      ],
+      "pred": [
+        {
+          "start": 160,
+          "end": 278,
+          "text": "The average temperature ranges from 22°F to 85°F throughout the year, with an average annual snowfal",
+          "label": "baseless"
+        },
+        {
+          "start": 278,
+          "end": 389,
+          "text": "(Passage 1)\n* Average weather in Indianapolis, IN: The city has a moderate climate with four distinc",
+          "label": "baseless"
+        }
+      ]
+    },
+    {
+      "id": "12460",
+      "task_type": "QA",
+      "status": "ok",
+      "from_cache": true,
+      "n_gold": 3,
+      "n_pred": 8,
+      "n_hit": 1,
+      "gold_labels": [
+        "Evident Baseless Info",
+        "Evident Baseless Info",
+        "Evident Baseless Info"
+      ],
+      "pred": [
+        {
+          "start": 163,
+          "end": 305,
+          "text": "According to the passage, Indianapolis receives an average of 17 inches of snow per year, with the m",
+          "label": "baseless"
+        },
+        {
+          "start": 305,
+          "end": 421,
+          "text": "Fort Wayne receives an average of 35 inches of snow per year, with the most snow falling in February",
+          "label": "baseless"
+        },
+        {
+          "start": 421,
+          "end": 529,
+          "text": "Gary receives an average of 24 inches of snow per year, with the most snow falling in January (9.5 i",
+          "label": "baseless"
+        },
+        {
+          "start": 529,
+          "end": 646,
+          "text": "South Bend receives an average of 31 inches of snow per year, with the most snow falling in February",
+          "label": "baseless"
+        },
+        {
+          "start": 734,
+          "end": 831,
+          "text": "The summer months are hot and humid, with temperatures ranging from 70°F to 90°F (21°C to 32°C).",
+          "label": "baseless"
+        },
+        {
+          "start": 831,
+          "end": 930,
+          "text": "The winter months are chilly and windy, with temperatures ranging from 15°F to 35°F (-9°C to 1°C).",
+          "label": "baseless"
+        },
+        {
+          "start": 930,
+          "end": 989,
+          "text": "The year-round average temperature is around 50°F (10°C).",
+          "label": "baseless"
+        },
+        {
+          "start": 1429,
+          "end": 1533,
+          "text": "The state experiences a moderate amount of snowfall, with the most snow falling in January and Febru",
+          "label": "baseless"
+        }
+      ]
+    },
+    {
+      "id": "12461",
+      "task_type": "QA",
+      "status": "ok",
+      "from_cache": false,
+      "n_gold": 2,
+      "n_pred": 3,
+      "n_hit": 1,
+      "gold_labels": [
+        "Evident Baseless Info",
+        "Evident Baseless Info"
+      ],
+      "pred": [
+        {
+          "start": 0,
+          "end": 390,
+          "text": "Based on the given passages, the typical weather in Indiana can be described as follows:\n\n* Summer: ",
+          "label": "baseless"
+        },
+        {
+          "start": 390,
+          "end": 485,
+          "text": "* Snowfall: Averages around 20-30 inches per year, with a record high of 74.5 inches in 1979.",
+          "label": "baseless"
+        },
+        {
+          "start": 485,
+          "end": 654,
+          "text": "Therefore, the typical weather in Indiana is characterized by mild summers, cold winters, and modera",
+          "label": "conflict"
+        }
+      ]
+    },
+    {
+      "id": "12471",
+      "task_type": "QA",
+      "status": "ok",
+      "from_cache": true,
+      "n_gold": 2,
+      "n_pred": 2,
+      "n_hit": 0,
+      "gold_labels": [
+        "Evident Conflict",
+        "Evident Conflict"
+      ],
+      "pred": [
+        {
+          "start": 274,
+          "end": 344,
+          "text": "* Transfer the audiobook from OverDrive for Windows to your computer.",
+          "label": "baseless"
+        },
+        {
+          "start": 1421,
+          "end": 1489,
+          "text": "Transfer the audiobook from OverDrive for Windows to your computer.",
+          "label": "baseless"
+        }
+      ]
+    },
+    {
+      "id": "12518",
+      "task_type": "QA",
+      "status": "ok",
+      "from_cache": true,
+      "n_gold": 1,
+      "n_pred": 3,
+      "n_hit": 0,
+      "gold_labels": [
+        "Subtle Baseless Info"
+      ],
+      "pred": [
+        {
+          "start": 123,
+          "end": 313,
+          "text": "For example, the digestive system breaks down food into smaller molecules that can be absorbed by th",
+          "label": "baseless"
+        },
+        {
+          "start": 313,
+          "end": 417,
+          "text": "Similarly, the nervous system controls and coordinates the activities of all other systems in the bo",
+          "label": "baseless"
+        },
+        {
+          "start": 417,
+          "end": 535,
+          "text": "Overall, these systems work together to maintain homeostasis and ensure the proper functioning of th",
+          "label": "baseless"
+        }
+      ]
+    },
+    {
+      "id": "12521",
+      "task_type": "QA",
+      "status": "ok",
+      "from_cache": true,
+      "n_gold": 1,
+      "n_pred": 3,
+      "n_hit": 0,
+      "gold_labels": [
+        "Subtle Baseless Info"
+      ],
+      "pred": [
+        {
+          "start": 566,
+          "end": 769,
+          "text": "For example, the muscular system helps move the body, the digestive system breaks down food for ener",
+          "label": "baseless"
+        },
+        {
+          "start": 769,
+          "end": 906,
+          "text": "The endocrine system produces hormones that regulate various bodily functions, while the lymphatic s",
+          "label": "baseless"
+        },
+        {
+          "start": 906,
+          "end": 1042,
+          "text": "The immune system protects the body against infections and diseases, and the reproductive system is ",
+          "label": "baseless"
+        }
+      ]
+    },
+    {
+      "id": "12602",
+      "task_type": "QA",
+      "status": "ok",
+      "from_cache": false,
+      "n_gold": 1,
+      "n_pred": 1,
+      "n_hit": 1,
+      "gold_labels": [
+        "Evident Conflict"
+      ],
+      "pred": [
+        {
+          "start": 347,
+          "end": 427,
+          "text": "However, the Italian meaning of Teresa is not explicitly stated in the passages.",
+          "label": "conflict"
+        }
+      ]
+    },
+    {
+      "id": "12692",
+      "task_type": "QA",
+      "status": "ok",
+      "from_cache": false,
+      "n_gold": 1,
+      "n_pred": 1,
+      "n_hit": 1,
+      "gold_labels": [
+        "Evident Conflict"
+      ],
+      "pred": [
+        {
+          "start": 496,
+          "end": 610,
+          "text": "However, there does not seem to be any significant cultural or economic links mentioned between the ",
+          "label": "conflict"
+        }
+      ]
+    },
+    {
+      "id": "12693",
+      "task_type": "QA",
+      "status": "ok",
+      "from_cache": true,
+      "n_gold": 1,
+      "n_pred": 2,
+      "n_hit": 1,
+      "gold_labels": [
+        "Evident Baseless Info"
+      ],
+      "pred": [
+        {
+          "start": 519,
+          "end": 659,
+          "text": "Relationship with France: India supported Vietnam's independence from France, whereas France opposed",
+          "label": "baseless"
+        },
+        {
+          "start": 842,
+          "end": 1051,
+          "text": "Post-colonial division: Unlike India, where the country became divided between Hindus, Muslims, and ",
+          "label": "baseless"
+        }
+      ]
+    },
+    {
+      "id": "12694",
+      "task_type": "QA",
+      "status": "ok",
+      "from_cache": true,
+      "n_gold": 1,
+      "n_pred": 2,
+      "n_hit": 1,
+      "gold_labels": [
+        "Evident Baseless Info"
+      ],
+      "pred": [
+        {
+          "start": 270,
+          "end": 405,
+          "text": "In contrast, the education system in India is not as equitable, with poorer children facing challeng",
+          "label": "baseless"
+        },
+        {
+          "start": 533,
+          "end": 659,
+          "text": "India was colonized by the British for over two centuries, while Vietnam was colonized by the French",
+          "label": "baseless"
+        }
+      ]
+    },
+    {
+      "id": "12695",
+      "task_type": "QA",
+      "status": "ok",
+      "from_cache": true,
+      "n_gold": 1,
+      "n_pred": 3,
+      "n_hit": 0,
+      "gold_labels": [
+        "Evident Baseless Info"
+      ],
+      "pred": [
+        {
+          "start": 558,
+          "end": 665,
+          "text": "Religion: India is a diverse country with a majority of Hindus, while Vietnam has a majority of Budd",
+          "label": "baseless"
+        },
+        {
+          "start": 668,
+          "end": 809,
+          "text": "Political system: Vietnam has been ruled by the Communist Party since 1976, while India has been a d",
+          "label": "baseless"
+        },
+        {
+          "start": 812,
+          "end": 976,
+          "text": "Economic development: Vietnam has been rapidly industrializing and has a more planned economy, while",
+          "label": "baseless"
+        }
+      ]
+    },
+    {
+      "id": "11904",
+      "task_type": "QA",
+      "status": "ok",
+      "from_cache": true,
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred": []
+    },
+    {
+      "id": "11905",
+      "task_type": "QA",
+      "status": "ok",
+      "from_cache": true,
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred": []
+    },
+    {
+      "id": "11906",
+      "status": "judge_failed",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0
+    },
+    {
+      "id": "11907",
+      "task_type": "QA",
+      "status": "ok",
+      "from_cache": true,
+      "n_gold": 0,
+      "n_pred": 3,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred": [
+        {
+          "start": 385,
+          "end": 516,
+          "text": "However, the passage does not provide specific information on the average hourly rate or salary rang",
+          "label": "conflict"
+        },
+        {
+          "start": 896,
+          "end": 1020,
+          "text": "However, the passage does not provide specific data on the average hourly rate or salary range for a",
+          "label": "conflict"
+        },
+        {
+          "start": 1020,
+          "end": 1115,
+          "text": "Therefore, based on the provided passages, it is unable to answer the question with confidence.",
+          "label": "baseless"
+        }
+      ]
+    },
+    {
+      "id": "11909",
+      "task_type": "QA",
+      "status": "ok",
+      "from_cache": true,
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred": []
+    },
+    {
+      "id": "12012",
+      "task_type": "QA",
+      "status": "ok",
+      "from_cache": true,
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred": []
+    },
+    {
+      "id": "12013",
+      "task_type": "QA",
+      "status": "ok",
+      "from_cache": true,
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred": []
+    },
+    {
+      "id": "12014",
+      "task_type": "QA",
+      "status": "ok",
+      "from_cache": true,
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred": []
+    },
+    {
+      "id": "12015",
+      "task_type": "QA",
+      "status": "ok",
+      "from_cache": false,
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred": []
+    },
+    {
+      "id": "12016",
+      "task_type": "QA",
+      "status": "ok",
+      "from_cache": false,
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred": []
+    },
+    {
+      "id": "12017",
+      "task_type": "QA",
+      "status": "ok",
+      "from_cache": true,
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred": []
+    },
+    {
+      "id": "12018",
+      "task_type": "QA",
+      "status": "ok",
+      "from_cache": true,
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred": []
+    },
+    {
+      "id": "12019",
+      "task_type": "QA",
+      "status": "ok",
+      "from_cache": true,
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred": []
+    },
+    {
+      "id": "12020",
+      "task_type": "QA",
+      "status": "ok",
+      "from_cache": true,
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred": []
+    },
+    {
+      "id": "12021",
+      "task_type": "QA",
+      "status": "ok",
+      "from_cache": true,
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred": []
+    },
+    {
+      "id": "12022",
+      "task_type": "QA",
+      "status": "ok",
+      "from_cache": true,
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred": []
+    },
+    {
+      "id": "12023",
+      "task_type": "QA",
+      "status": "ok",
+      "from_cache": true,
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred": []
+    },
+    {
+      "id": "12042",
+      "task_type": "QA",
+      "status": "ok",
+      "from_cache": true,
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred": []
+    },
+    {
+      "id": "12043",
+      "task_type": "QA",
+      "status": "ok",
+      "from_cache": false,
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred": []
+    },
+    {
+      "id": "12047",
+      "task_type": "QA",
+      "status": "ok",
+      "from_cache": true,
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred": []
+    },
+    {
+      "id": "12066",
+      "task_type": "QA",
+      "status": "ok",
+      "from_cache": true,
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred": []
+    },
+    {
+      "id": "12067",
+      "task_type": "QA",
+      "status": "ok",
+      "from_cache": true,
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred": []
+    },
+    {
+      "id": "12068",
+      "task_type": "QA",
+      "status": "ok",
+      "from_cache": true,
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred": []
+    },
+    {
+      "id": "12069",
+      "task_type": "QA",
+      "status": "ok",
+      "from_cache": true,
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred": []
+    },
+    {
+      "id": "12070",
+      "task_type": "QA",
+      "status": "ok",
+      "from_cache": true,
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred": []
+    }
+  ]
+}

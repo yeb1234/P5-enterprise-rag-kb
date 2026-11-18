@@ -85,7 +85,7 @@ def _parse_answer(data) -> tuple[str, bool, bool]:
     return (content or reasoning), reasoning_only, bool(choices)
 
 
-def call_live(model_cfg: dict, prompt: str, params: dict) -> dict:
+def call_live(model_cfg: dict, prompt: str, params: dict, extra_fields: dict | None = None) -> dict:
     base = os.environ.get("DISCOVERY_BASE_URL", "").rstrip("/")
     key = os.environ.get("DISCOVERY_API_KEY", "")
     adaptations = model_cfg.get("adaptations", [])
@@ -101,6 +101,8 @@ def call_live(model_cfg: dict, prompt: str, params: dict) -> dict:
         "temperature": float(params["temperature"]),
         "top_p": float(params["top_p"]),
     }
+    if extra_fields:
+        payload.update(extra_fields)
     url = base + "/chat/completions"
     last_error = ""
     for attempt in range(4):

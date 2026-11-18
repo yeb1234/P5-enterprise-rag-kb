@@ -30,7 +30,8 @@ def main() -> int:
     ap.add_argument("--samples", default="", help="逗号分隔的样本 id；留空为全部")
     ap.add_argument("--dataset", default="samples_v1.jsonl",
                     help="样本文件，相对 evalbench/datasets/；公开集用 public/xxx.jsonl")
-    ap.add_argument("--limit", type=int, default=0, help="只取前 N 条样本（冒烟用）")
+    ap.add_argument("--limit", type=int, default=0, help="只取 N 条样本（冒烟/分批用）")
+    ap.add_argument("--offset", type=int, default=0, help="从第 N 条样本开始（分批跑用，配合 --limit）")
     ap.add_argument("--repeats", type=int, default=1, help="每组合重复次数")
     ap.add_argument("--offline", action="store_true", help="离线占位，comparable=false，不调用 API")
     ap.add_argument("--list-samples", action="store_true", help="列出样本后退出")
@@ -43,9 +44,10 @@ def main() -> int:
         return 0
 
     sample_ids = [x.strip() for x in args.samples.split(",") if x.strip()] or None
-    if args.limit:
+    if args.limit or args.offset:
         all_ids = [s["id"] for s in runner.load_samples(args.dataset)]
-        sample_ids = all_ids[:args.limit]
+        end = args.offset + args.limit if args.limit else None
+        sample_ids = all_ids[args.offset:end]
         if args.samples:
             sample_ids = [x for x in sample_ids if x in args.samples.split(",")]
 

@@ -139,7 +139,29 @@ pre{background:#1f2430;color:#e5e7eb;border-radius:8px;padding:14px 16px;overflo
 <p class="note">保留意见：EN 差异 2/60、ZH 差异 1/60 接近噪声，采纳 A 靠"不劣于 B 的重复性"而非大幅质量提升；中文假阴性使 A/B 的 acc 都是下界；重复实验只做英文集。</p>
 </div>
 
-<h2>6 · 局限（必须与结果一起读）</h2>
+<h2>6 · 全量基线 + span 级复现（处理两个"未做"）</h2>
+<h3>全量 SQuAD 11,873 条</h3>
+<div class="card">
+用户确认配额够 → 移除"配额限制"借口，全量跑。指数退避：<code>wait × factor^attempt</code>（30s × 1.6）+ ±20% 抖动，
+单次封顶 300s；失败项走缓存只补失败；进度写 <code>full_baseline_progress.json</code>，中断可续。
+<p class="note">实测首批 400 条首轮 397 ok / 3 限流 → 退避补齐。30 批后台跑批中，完整基线待跑完，不提前给结论。</p>
+</div>
+<h3>RAGTruth span 级标注复现</h3>
+<table>
+<thead><tr><th>方法</th><th>precision</th><th>recall</th><th>F1</th></tr></thead>
+<tbody>
+<tr><td>确定性规则（符合"不用 LLM 裁判"原则）</td><td>0.061</td><td>0.250</td><td>0.098</td></tr>
+<tr><td>LLM 裁判（整句级，隔离破例）</td><td>0.188</td><td>0.375</td><td>0.250</td></tr>
+<tr><td>LLM 裁判 + refine</td><td>0.217</td><td>0.417</td><td class="up">0.286</td></tr>
+</tbody></table>
+<div class="card">
+<b>规则法三次修复仍 F1 0.098</b>——span 标注是语义判断，字符串规则无法可靠复现。用户决定破例用 LLM 裁判，
+严格隔离（不进主 run、不参与收敛、裁判未见人工标签）。工程坑：推理模型思考吃光 token（关 thinking + 2048 预算）、
+小数点切句、句首虚词误判、句子级 vs 短语级 span 粒度错配（加 refine）。
+<p class="note"><b>诚实定位</b>：F1 0.286 不是论文级复现——论文是人工标注，脚本替代不了。只证明"LLM 裁判明显优于规则法"。50 条样本、句子级粒度、裁判误差都要一起读。</p>
+</div>
+
+<h2>7 · 局限（必须与结果一起读）</h2>
 <div class="card"><ul>
 <li><b>规模小</b>：SQuAD 60 / RAGTruth 30 / CMRC 60 条，无统计显著性。</li>
 <li><b>字符串评分假阴性</b>：不做同义改写识别，accuracy 是下界；<b>中文尤甚</b>（0.767 vs 人工复核 0.983，差 0.217）。</li>
@@ -151,20 +173,20 @@ pre{background:#1f2430;color:#e5e7eb;border-radius:8px;padding:14px 16px;overflo
 <li><b>收敛差异接近噪声</b>：A vs B 的 EN 差 2/60、ZH 差 1/60；中文 repeats 未做，稳定性结论仅限英文集。</li>
 </ul></div>
 
-<h2>7 · 三态</h2>
+<h2>8 · 三态</h2>
 <table>
 <thead><tr><th>项</th><th>状态</th></tr></thead>
 <tbody>
 <tr><td>公开集下载 / 适配 / 实跑</td><td class="up">已实现</td></tr>
 <tr><td>提示词语言匹配对英文集有效</td><td class="up">已实测（同批公平对照）</td></tr>
-<tr><td>全量 11,873 条 SQuAD 质量基线</td><td class="warn">未做（配额限制）</td></tr>
-<tr><td>RAGTruth span 级标注复现</td><td class="warn">未做（机械近似替代）</td></tr>
+<tr><td>全量 11,873 条 SQuAD 质量基线</td><td class="warn">跑批中（脚本就位，首批 397/400 ok）</td></tr>
+<tr><td>RAGTruth span 级标注复现</td><td class="warn">部分实现（规则 F1 0.098 / LLM 裁判+refine 0.286，非论文级）</td></tr>
 <tr><td>中文公开集 CMRC 2018 实跑</td><td class="up">已实测（字符串 0.767 / 人工复核 0.983）</td></tr>
 <tr><td>限流自动等待退避</td><td class="up">已实现（中文集 5 条限流 30s 后补齐）</td></tr>
 <tr><td>公开集参数收敛 A/B/C</td><td class="up">已实测（采纳 A，推翻自建轮的 B）</td></tr>
 </tbody></table>
 
-<h2>8 · 可复现</h2>
+<h2>9 · 可复现</h2>
 <pre>python evalbench/datasets/public/build_samples.py --n-per-class 30 --seed 42
 
 python evalbench/run_eval.py --label public-squad-deepseek-v4 \

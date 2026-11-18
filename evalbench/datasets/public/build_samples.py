@@ -98,11 +98,36 @@ def main() -> int:
     ap.add_argument("--dataset", choices=("squad", "cmrc"), default="squad",
                     help="适配哪个公开集")
     ap.add_argument("--cmrc-n", type=int, default=60, help="CMRC 抽取条数")
+    ap.add_argument("--full", action="store_true", help="生成全量 SQuAD validation（11,873 条，不分层的质量基线）")
     args = ap.parse_args()
 
     if args.dataset == "cmrc":
         samples = build_cmrc(args.cmrc_n, args.seed)
         out_path = HERE / f"cmrc2018_sample_{args.cmrc_n}.jsonl"
+    elif args.full:
+        # 全量基线：不抽样、不分层，保持原始顺序，供 --offset/--limit 分批跑。
+        rows = pq.read_table(RAW / "squad_v2_validation.parquet").to_pylist()
+        samples = []
+        for r in rows:
+            votes = Counter(x.strip() for x in r["answers"]["text"] if x.strip())
+            gold = votes.most_common(1)[0][0] if votes else ""
+            is_abstain = not r["answers"]["text"]
+            tag = "negative_rejection" if is_abstain else "grounded_extraction"
+            samples.append({
+                "id": "SQ_" + r["id"],
+                "task_category": tag,
+                "dimensions": ["answer_accuracy", "rejection_correctness", "faithfulness",
+                               "format_compliance", "answer_economy"],
+                "question": r["question"].strip(),
+                "passages": [{"doc_id": "S1", "kind": "positive", "text": r["context"].strip()}],
+                "reference_answer": gold,
+                "key_facts": [] if is_abstain else ([gold] if gold else []),
+                "forbidden_facts": [],
+                "expected_behavior": "abstain" if is_abstain else "answer",
+                "source_basis": "SQuAD v2 validation (rajpurkar/squad_v2, CC BY-SA 4.0) FULL",
+                "note": "全量基线；" + ("不可回答" if is_abstain else "可回答"),
+            })
+        out_path = HERE / "squad_v2_full.jsonl"
     else:
         samples = build_squad(args.n_per_class, args.seed)
         out_path = HERE / f"squad_v2_sample_{args.n_per_class * 2}.jsonl"

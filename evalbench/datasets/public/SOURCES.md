@@ -15,6 +15,8 @@
 | **SQuAD 2.0 validation** | `rajpurkar/squad_v2` | CC BY-SA 4.0 | hf-mirror.com（国内镜像） | `squad_v2/validation-00000-of-00001.parquet`（1,351,051 B / 11,873 行） | 生成质量：抽取准确性 + 不可回答拒答 |
 | **RAGTruth test / qa** | `flowaicom/RAGTruth_test`（原论文 [arXiv:2305.11747](https://arxiv.org/abs/2305.11747) / [ParticleMedia/RAGTruth](https://github.com/ParticleMedia/RAGTruth)） | MIT | hf-mirror.com | `data/qa-00000-of-00001.parquet`（497,975 B / 900 行） | 忠实度专项：检索增强生成的幻觉检测 |
 | **CMRC 2018 validation** | `hfl/cmrc2018`（Chinese Machine Reading Comprehension 2018，CLUE 基准） | CC BY-SA 4.0 | hf-mirror.com | `data/validation-00000-of-00001.parquet`（1,136,115 B / 3,219 行） | **中文**抽取式 QA：中文语料上的抽取准确率 |
+| **RAGTruth-processed（span 标注）** | `wandb/RAGTruth-processed`（原论文人工 span 标注版） | MIT | hf-mirror.com | `data/test-00000-of-00001.parquet`（3,882,700 B / 2,700 行） | **span 级**幻觉标注复现（Evident Conflict / Baseless Info） |
+| **SQuAD 2.0 validation 全量** | 同上 SQuAD | CC BY-SA 4.0 | hf-mirror.com | 全量 11,873 条（`squad_v2_full.jsonl`） | 全量质量基线（分批跑，退避+断点续跑） |
 
 下载命令（可复现）：
 
@@ -140,3 +142,60 @@ python evalbench/run_with_backoff.py --label public-cmrc-deepseek-v3 \
 每轮产生独立 run_id、失败轮也保留（负结果可查）；全部补齐后落盘
 `evalbench/out/<label>_backoff.json`，含所有轮次的 run_id 与最终汇总。
 **不要**手动反复敲 `run_eval.py` 碰运气——退避脚本的等待是确定性的、可复现的。
+
+---
+
+## 7. 全量基线与 span 级标注复现（2026-11-18 追加）
+
+### 7.1 全量 SQuAD 11,873 条
+
+`build_samples.py --full --dataset squad` 生成全量样本（不抽样、保持原始顺序，
+可答 5,928 / 不可答 5,945）。`run_full_baseline.py` 分批跑：
+
+```bash
+python evalbench/run_full_baseline.py --label squad-full-A \
+  --dataset public/squad_v2_full.jsonl --batch 400 \
+  --models deepseek-v4.1-flash-1017 --prompts v4_en_grounded --params A \
+  --wait 30 --factor 1.6 --cap 300 --max-retries 15
+```
+
+**指数退避设计**：`wait × factor^attempt` 再叠加 ±20% 抖动（防多进程同频重试），
+单次上限 `--cap=300s`。每批失败项靠"runner 只对 ok 写缓存"补齐，
+进度写 `out/full_baseline_progress.json`（已完成的 offset + 累计 run_id），
+Ctrl+C 后重跑同一命令从断点续上。批次 run 全部保留，不删历史。
+实测首批 400 条首轮 397 ok / 3 rate_limited，退避后补齐——机制有效。
+
+### 7.2 RAGTruth span 级标注复现（LLM 裁判破例）
+
+**数据源**：`wandb/RAGTruth-processed` test（2,700 条，含人工 span 标注），
+其中 QA 子集 900 条、160 条有 span。标注三类：
+`Evident Baseless Info`(156) / `Subtle Baseless Info`(49) / `Evident Conflict`(30)。
+
+**方法学死结与破例**：
+- 确定性规则法（`evaluate_span_hallucination.py`）：句子级锚点比对 + IOU 对拍，
+  实测 precision 0.061 / recall 0.25 / **F1 0.098**——语义型人工标注无法用字符串规则复现。
+- 项目主口径明确"不用第二个 LLM 当裁判"（`core/scoring.py`、`README.md`）。
+- 用户决定**破例**：`span_llm_judge.py` 用 deepseek-v4.1 做 span 专项裁判，
+  **严格隔离**：不进 evalbench 主 run、不参与任何收敛、产物只在 `datasets/public/`。
+  裁判看不到人工标签（防泄露假绿）。
+
+**裁判工程坑（都已修）**：
+1. deepseek 是推理模型，默认思考过程吃掉 1024 token 预算 → JSON 输不完，
+   8 条里 6 条 `judge_failed`。修法：`thinking_fields(disabled=True)` + `max_tokens=2048`
+   （该字段经 2026-11-14 网关实测 reasoning_tokens 55→0），失败率降到 2/8。
+2. 分句正则把 `$23.70` 的小数点当句末 → 残句。修法：小数点换单字符占位再切句。
+3. 句首虚词（Then/Fold）被当专名 → 误报。修法：`_SENT_STARTERS` 过滤。
+4. 人工 span 是短语级(~75字符)、裁判是整句级(~205字符) → IOU 天然低。
+   修法：`--refine` 让规则缩边界到句内含证据外锚点的子句（判定仍由 LLM 做）。
+
+**结果**（QA 子集 50 条，43 条裁判成功）：
+
+| 方法 | precision | recall | F1 |
+|---|---|---|---|
+| 确定性规则 | 0.061 | 0.250 | 0.098 |
+| LLM 裁判（整句级） | 0.188 | 0.375 | 0.250 |
+| LLM 裁判 + refine | 0.217 | 0.417 | **0.286** |
+
+**诚实定位**：即使 LLM 裁判 + refine，F1 也只有 0.286，**不是论文级 span 复现**——
+论文是人工标注，无法用脚本替代。本评估只证明"LLM 裁判明显优于规则法"，
+且提供可复现的 span 级对拍框架。样本量小、句子级粒度、裁判自身误差都要一起读。
