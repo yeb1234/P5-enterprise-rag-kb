@@ -1,0 +1,12 @@
+{
+  "id": "D",
+  "label": "细网格-temp0.1",
+  "source": "Step1 短集细网格：在采纳的 A(temp=0.2) 基础上向下细扫 temperature",
+  "temperature": 0.1,
+  "top_p": 1.0,
+  "max_tokens": 512,
+  "passage_num": 5,
+  "noise_rate": 0.6,
+  "repeats": 1,
+  "note": "仅 temperature 与 A 不同，隔离变量"
+}

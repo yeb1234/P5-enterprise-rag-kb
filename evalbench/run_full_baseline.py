@@ -29,20 +29,25 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 EB = ROOT / "evalbench"
-PROGRESS = EB / "out" / "full_baseline_progress.json"
+def progress_path(pass_id: str) -> Path:
+    """每个 pass 独立进度文件，p1/p2 互不覆盖。"""
+    return EB / "out" / f"full_baseline_progress_{pass_id}.json"
 
 
-def load_progress(label: str) -> dict:
-    if PROGRESS.exists():
-        data = json.loads(PROGRESS.read_text(encoding="utf-8"))
+def load_progress(label: str, pass_id: str) -> dict:
+    p = progress_path(pass_id)
+    if p.exists():
+        data = json.loads(p.read_text(encoding="utf-8"))
         if data.get("label") == label:
             return data
-    return {"label": label, "done_offsets": [], "batch_runs": {}, "started_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+    return {"label": label, "pass_id": pass_id, "done_offsets": [], "batch_runs": {},
+            "started_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
 
 
-def save_progress(p: dict) -> None:
-    PROGRESS.parent.mkdir(parents=True, exist_ok=True)
-    PROGRESS.write_text(json.dumps(p, ensure_ascii=False, indent=2), encoding="utf-8")
+def save_progress(p: dict, pass_id: str) -> None:
+    path = progress_path(pass_id)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(p, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def latest_summary(after_mtime: float) -> Path | None:
@@ -66,6 +71,9 @@ def main() -> int:
     ap.add_argument("--label", required=True)
     ap.add_argument("--dataset", required=True)
     ap.add_argument("--batch", type=int, default=400)
+    ap.add_argument("--max-batches", type=int, default=0,
+                    help="本次最多跑多少批就退出（0=跑完所有）；配合定时任务分批推进，避免单进程长跑卡死")
+    ap.add_argument("--pass-id", default="p1", help="pass 标识（p1/p2），用于独立进度文件，支持两轮全量对照")
     ap.add_argument("--total", type=int, default=0, help="样本总数，0=自动从文件读")
     ap.add_argument("--models", default="deepseek-v4.1-flash-1017")
     ap.add_argument("--prompts", default="v4_en_grounded")
@@ -79,14 +87,20 @@ def main() -> int:
 
     dataset_path = EB / "datasets" / args.dataset
     total = args.total or sum(1 for line in dataset_path.read_text(encoding="utf-8").splitlines() if line.strip())
-    progress = load_progress(args.label)
-    print(f"全量基线 {args.label}: 总计 {total} 条, 批大小 {args.batch}, "
-          f"已完成 {len(progress['done_offsets'])} 批", flush=True)
+    progress = load_progress(args.label, args.pass_id)
+    print(f"全量基线 {args.label} [{args.pass_id}]: 总计 {total} 条, 批大小 {args.batch}, "
+          f"已完成 {len(progress['done_offsets'])} 批, 本次最多 {args.max_batches or '全部'} 批", flush=True)
 
+    ran_this_time = 0
     for offset in range(0, total, args.batch):
         if offset in progress["done_offsets"]:
             print(f"[SKIP] offset={offset} 已完成", flush=True)
             continue
+        if args.max_batches and ran_this_time >= args.max_batches:
+            print(f"[PAUSE] 本次已跑 {ran_this_time} 批，达到 --max-batches={args.max_batches}，"
+                  f"进度已存，下次从 offset={offset} 续跑", flush=True)
+            return 0
+        ran_this_time += 1
         limit = min(args.batch, total - offset)
         print(f"\n===== 批次 offset={offset} limit={limit} =====", flush=True)
 
@@ -117,7 +131,7 @@ def main() -> int:
                     "run_id": summ["run_id"], "n_ok": counts.get("ok", 0),
                     "summary": summ,
                 }
-                save_progress(progress)
+                save_progress(progress, args.pass_id)
                 batch_ok = True
                 break
             wait_with_jitter(args.wait, args.factor, args.cap, retry)
@@ -131,7 +145,7 @@ def main() -> int:
     total_ok = sum(v["n_ok"] for v in progress["batch_runs"].values())
     out = EB / "out" / f"{args.label}_full_summary.json"
     out.write_text(json.dumps({
-        "label": args.label, "dataset": args.dataset, "total": total,
+        "label": args.label, "pass_id": args.pass_id, "dataset": args.dataset, "total": total,
         "total_ok": total_ok, "batches": len(progress["batch_runs"]),
         "model": args.models, "prompt": args.prompts, "params": args.params,
         "batch_runs": progress["batch_runs"],
