@@ -1,0 +1,493 @@
+[
+  {
+    "group": "hallucinated(score0)",
+    "ragtruth_id": 11908,
+    "score": 0,
+    "question": "how do automotive technicians get paid",
+    "status": "ok",
+    "answer": "They may be paid on a flat-rate or flag-rate, or through various combinations of hourly and commission pay rates. (P1, P3)",
+    "suspicious_entities": [
+      "1,",
+      "p1",
+      "p3"
+    ],
+    "has_suspicion": true,
+    "latency_ms": 1940,
+    "suspicious_entities_v2": [],
+    "has_suspicion_v2": false
+  },
+  {
+    "group": "hallucinated(score0)",
+    "ragtruth_id": 12044,
+    "score": 0,
+    "question": "how to grill a porterhouse",
+    "status": "ok",
+    "answer": "INSUFFICIENT",
+    "suspicious_entities": [],
+    "has_suspicion": false,
+    "latency_ms": 1395,
+    "suspicious_entities_v2": [],
+    "has_suspicion_v2": false
+  },
+  {
+    "group": "hallucinated(score0)",
+    "ragtruth_id": 12045,
+    "score": 0,
+    "question": "how to grill a porterhouse",
+    "status": "ok",
+    "answer": "INSUFFICIENT",
+    "suspicious_entities": [],
+    "has_suspicion": false,
+    "latency_ms": 2071,
+    "suspicious_entities_v2": [],
+    "has_suspicion_v2": false
+  },
+  {
+    "group": "hallucinated(score0)",
+    "ragtruth_id": 12046,
+    "score": 0,
+    "question": "how to grill a porterhouse",
+    "status": "rate_limited",
+    "answer": "",
+    "suspicious_entities": [],
+    "has_suspicion": false,
+    "latency_ms": 345,
+    "suspicious_entities_v2": [],
+    "has_suspicion_v2": false
+  },
+  {
+    "group": "hallucinated(score0)",
+    "ragtruth_id": 12219,
+    "score": 0,
+    "question": "how to fold a quilt",
+    "status": "ok",
+    "answer": "Lay the quilt flat, then fold the lower right, lower left, top left, and top right corners toward the center, keeping each fold on the bias. (P2, P3)",
+    "suspicious_entities": [],
+    "has_suspicion": false,
+    "latency_ms": 2558,
+    "suspicious_entities_v2": [],
+    "has_suspicion_v2": false
+  },
+  {
+    "group": "hallucinated(score0)",
+    "ragtruth_id": 12233,
+    "score": 0,
+    "question": "benefits of a water pick",
+    "status": "ok",
+    "answer": "Helps keep teeth, gums, mouth, and overall body healthier; removes germs and plaque at the gum line; maintains good oral health; massages/stimulates soft tissue to reduce gingivitis risk; and removes food from areas brushing cannot access. (P1, P3)",
+    "suspicious_entities": [
+      "1,",
+      "3",
+      "p1",
+      "p3"
+    ],
+    "has_suspicion": true,
+    "latency_ms": 3684,
+    "suspicious_entities_v2": [],
+    "has_suspicion_v2": false
+  },
+  {
+    "group": "hallucinated(score0)",
+    "ragtruth_id": 12260,
+    "score": 0,
+    "question": "set default browser to windows",
+    "status": "ok",
+    "answer": "We need answer strictly from passages. Question: \"set default browser to windows\" Ambiguous. Need determine if passages enough? They describe setting default web browser in Windows 7, and Windows Settings app method to set Chrome default, and Firefox steps. \"set default browser to windows\" maybe means set default browser in Windows? Need answer briefly conclusion only. Since passages contain how to set default browser in Windows 7 and Windows 10 settings. But question wording \"to windows\" maybe asks set default browser to Windows? There is no \"Windows browser\" except Edge? P2 says click Edge browser entry (or any browser other than Chrome) to reveal Choose an app, then click Google Chrome to set it as default browser. P1 says decide which browser you want default and perform steps. P3 Firefox. Need answer maybe \"Open Settings > System > Default apps > Web browser, then choose the desired browser.\" But exact wording? Need cite. However if question asks \"set default browser to windows\" maybe insufficient because no browser named Windows. Need output INSUFFICIENT? Let's parse.\n\nThe question: \"set default browser to windows\" likely from a QA dataset where question is a command: \"set default browser to windows\" They want answer from passages. Passages include \"How To: Set the Default Web Browser in Windows 7\" and \"Method 1 of 2\" for Windows 10. The answer could be \"Open Settings app, click System, click Default apps, scroll to Web browser, click Edge browser entry (or any browser other than Chrome), then click Google Chrome to set it as default browser.\" But that sets Chrome, not \"windows\". The phrase \"to windows\" might mean \"in Windows\" not \"to Windows browser\". The question is ungrammatical. We need answer strictly from passages. If passages do not contain enough info to answer, output exactly INSUFFICIENT. Does passage contain enough to answer \"set default browser to windows\"? It contains instructions to set default browser in Windows 7 and Windows 10. But \"to windows\" could mean set default browser to Windows (as browser). There is no Windows browser. So insufficient. But maybe they expect \"Open Settings app...\"? Need decide.\n\nRules: If passages do not contain enough information to answer, output exactly one word: INSUFFICIENT. Answer briefly with conclusion only. Use same language. Prefer exact wording. Append citation. If insufficient, exactly one word? Rule 1 says output exactly one",
+    "suspicious_entities": [
+      "default web browser",
+      "google chrome",
+      "how to",
+      "open settings",
+      "windows settings"
+    ],
+    "has_suspicion": true,
+    "latency_ms": 5547,
+    "suspicious_entities_v2": [
+      "default web browser",
+      "google chrome",
+      "how to",
+      "open settings",
+      "windows settings"
+    ],
+    "has_suspicion_v2": true
+  },
+  {
+    "group": "hallucinated(score0)",
+    "ragtruth_id": 12261,
+    "score": 0,
+    "question": "set default browser to windows",
+    "status": "ok",
+    "answer": "Open Settings > System > Default apps > Web browser, then choose the browser (P2).",
+    "suspicious_entities": [
+      "open settings"
+    ],
+    "has_suspicion": true,
+    "latency_ms": 3549,
+    "suspicious_entities_v2": [
+      "open settings"
+    ],
+    "has_suspicion_v2": true
+  },
+  {
+    "group": "hallucinated(score0)",
+    "ragtruth_id": 12262,
+    "score": 0,
+    "question": "set default browser to windows",
+    "status": "ok",
+    "answer": "Open Settings > System > Default apps > Web browser, then choose the desired browser. (P2)",
+    "suspicious_entities": [
+      "open settings"
+    ],
+    "has_suspicion": true,
+    "latency_ms": 2944,
+    "suspicious_entities_v2": [
+      "open settings"
+    ],
+    "has_suspicion_v2": true
+  },
+  {
+    "group": "hallucinated(score0)",
+    "ragtruth_id": 12297,
+    "score": 0,
+    "question": "what is the proper way to dispose of a worn usa flag",
+    "status": "ok",
+    "answer": "Burn it yourself in a proper ceremony after folding it in the customary triangle fold, or remove the blue field, burn it peacefully, bury the ashes, and put the flag out for collection. (P1, P3)",
+    "suspicious_entities": [
+      "1,",
+      "3",
+      "p1",
+      "p3"
+    ],
+    "has_suspicion": true,
+    "latency_ms": 3210,
+    "suspicious_entities_v2": [],
+    "has_suspicion_v2": false
+  },
+  {
+    "group": "hallucinated(score0)",
+    "ragtruth_id": 12345,
+    "score": 0,
+    "question": "how to cook brats",
+    "status": "ok",
+    "answer": "Prick the bratwurst with a fork, simmer in beer with onions and butter for 15 to 20 minutes, then grill on medium-high for 10 to 14 minutes, turning occasionally. (P2)",
+    "suspicious_entities": [],
+    "has_suspicion": false,
+    "latency_ms": 7223,
+    "suspicious_entities_v2": [],
+    "has_suspicion_v2": false
+  },
+  {
+    "group": "hallucinated(score0)",
+    "ragtruth_id": 12435,
+    "score": 0,
+    "question": "symptoms and causes of ibs",
+    "status": "ok",
+    "answer": "Cause is unknown; contributing factors include abnormal GI tract movements/motility, increased awareness/sensitivity to pain, disrupted brain–GI communication, abnormal nervous system signals, and food intolerances. Symptoms include diarrhea, constipation, alternating constipation and diarrhea, belly pains/cramps (worse after meals, better after a bowel movement), gas, and bloating. (P1, P2, P3)",
+    "suspicious_entities": [],
+    "has_suspicion": false,
+    "latency_ms": 4068,
+    "suspicious_entities_v2": [],
+    "has_suspicion_v2": false
+  },
+  {
+    "group": "hallucinated(score0)",
+    "ragtruth_id": 12449,
+    "score": 0,
+    "question": "what is the difference between essential and nonessential amino acids",
+    "status": "ok",
+    "answer": "Essential amino acids cannot be made by the body and must be obtained from the diet, while nonessential amino acids can be made by the body. (P3)",
+    "suspicious_entities": [
+      "3",
+      "p3"
+    ],
+    "has_suspicion": true,
+    "latency_ms": 1309,
+    "suspicious_entities_v2": [],
+    "has_suspicion_v2": false
+  },
+  {
+    "group": "hallucinated(score0)",
+    "ragtruth_id": 12458,
+    "score": 0,
+    "question": "typical weather in indiana",
+    "status": "ok",
+    "answer": "Summers are long, warm, humid, and wet; winters are chilly and windy; it is partly cloudy year round, with temperatures typically varying from 22°F to 85°F. (P2)",
+    "suspicious_entities": [],
+    "has_suspicion": false,
+    "latency_ms": 2321,
+    "suspicious_entities_v2": [],
+    "has_suspicion_v2": false
+  },
+  {
+    "group": "hallucinated(score0)",
+    "ragtruth_id": 12459,
+    "score": 0,
+    "question": "typical weather in indiana",
+    "status": "ok",
+    "answer": "Summers are long, warm, humid, and wet; winters are chilly and windy; it is partly cloudy year round, with temperatures typically varying from 22°F to 85°F. (P2)",
+    "suspicious_entities": [],
+    "has_suspicion": false,
+    "latency_ms": 2569,
+    "suspicious_entities_v2": [],
+    "has_suspicion_v2": false
+  },
+  {
+    "group": "faithful(score1)",
+    "ragtruth_id": 11904,
+    "score": 1,
+    "question": "how do automotive technicians get paid",
+    "status": "ok",
+    "answer": "They are paid through various compensation methods, including combinations of hourly and commission pay rates; some are paid on a flat-rate or flag-rate. (P3; P1)",
+    "suspicious_entities": [
+      "p1",
+      "p3"
+    ],
+    "has_suspicion": true,
+    "latency_ms": 2352,
+    "suspicious_entities_v2": [],
+    "has_suspicion_v2": false
+  },
+  {
+    "group": "faithful(score1)",
+    "ragtruth_id": 11905,
+    "score": 1,
+    "question": "how do automotive technicians get paid",
+    "status": "ok",
+    "answer": "Various combinations of hourly and commission pay rates, including flat-rate or flag-rate. (P1, P3)",
+    "suspicious_entities": [
+      "1,",
+      "p1",
+      "p3"
+    ],
+    "has_suspicion": true,
+    "latency_ms": 2080,
+    "suspicious_entities_v2": [],
+    "has_suspicion_v2": false
+  },
+  {
+    "group": "faithful(score1)",
+    "ragtruth_id": 11906,
+    "score": 1,
+    "question": "how do automotive technicians get paid",
+    "status": "ok",
+    "answer": "Through various combinations of hourly and commission pay rates, including flat-rate or flag-rate pay. (P1, P3)",
+    "suspicious_entities": [
+      "1,",
+      "p1",
+      "p3"
+    ],
+    "has_suspicion": true,
+    "latency_ms": 3708,
+    "suspicious_entities_v2": [],
+    "has_suspicion_v2": false
+  },
+  {
+    "group": "faithful(score1)",
+    "ragtruth_id": 11907,
+    "score": 1,
+    "question": "how do automotive technicians get paid",
+    "status": "ok",
+    "answer": "Through various combinations of hourly and commission pay rates, including flat-rate or flag-rate and commission or not (P1, P3).",
+    "suspicious_entities": [
+      "1,",
+      "p1",
+      "p3"
+    ],
+    "has_suspicion": true,
+    "latency_ms": 2588,
+    "suspicious_entities_v2": [],
+    "has_suspicion_v2": false
+  },
+  {
+    "group": "faithful(score1)",
+    "ragtruth_id": 11909,
+    "score": 1,
+    "question": "how do automotive technicians get paid",
+    "status": "ok",
+    "answer": "Various compensation methods, including flat-rate or flag-rate, hourly, commission, and combinations of hourly and commission pay rates. (P1, P3)",
+    "suspicious_entities": [
+      "1,",
+      "p1",
+      "p3"
+    ],
+    "has_suspicion": true,
+    "latency_ms": 1895,
+    "suspicious_entities_v2": [],
+    "has_suspicion_v2": false
+  },
+  {
+    "group": "faithful(score1)",
+    "ragtruth_id": 12012,
+    "score": 1,
+    "question": "what is the difference between tartate and succinate",
+    "status": "ok",
+    "answer": "Metoprolol succinate is extended-release and taken once daily; metoprolol tartrate is immediate-release and usually taken at least twice a day (P1, P2, P3).",
+    "suspicious_entities": [
+      "2,",
+      "3",
+      "p1",
+      "p2",
+      "p3"
+    ],
+    "has_suspicion": true,
+    "latency_ms": 3542,
+    "suspicious_entities_v2": [],
+    "has_suspicion_v2": false
+  },
+  {
+    "group": "faithful(score1)",
+    "ragtruth_id": 12013,
+    "score": 1,
+    "question": "what is the difference between tartate and succinate",
+    "status": "ok",
+    "answer": "Succinate is extended/long-acting and taken once daily, while tartrate is immediate/shorter-acting and taken at least twice a day or at regular intervals. (P1, P2, P3)",
+    "suspicious_entities": [
+      "2,",
+      "3",
+      "p1",
+      "p2",
+      "p3"
+    ],
+    "has_suspicion": true,
+    "latency_ms": 2816,
+    "suspicious_entities_v2": [],
+    "has_suspicion_v2": false
+  },
+  {
+    "group": "faithful(score1)",
+    "ragtruth_id": 12014,
+    "score": 1,
+    "question": "what is the difference between tartate and succinate",
+    "status": "ok",
+    "answer": "Succinate is derived from succinic acid and is extended-release, lasting 24 hours (once daily); tartrate is derived from tartaric acid and is immediate-release/shorter-acting, usually taken at least twice a day. (P2, P3, P1)",
+    "suspicious_entities": [
+      "2,",
+      "3,",
+      "p1",
+      "p2",
+      "p3"
+    ],
+    "has_suspicion": true,
+    "latency_ms": 3007,
+    "suspicious_entities_v2": [],
+    "has_suspicion_v2": false
+  },
+  {
+    "group": "faithful(score1)",
+    "ragtruth_id": 12015,
+    "score": 1,
+    "question": "what is the difference between tartate and succinate",
+    "status": "ok",
+    "answer": "Succinate is long-acting/extended-release (once daily, 24 hours), while tartrate is shorter-acting/immediate-release (usually at least twice daily/regular intervals); they also differ in derivation and side effects. (P1, P2, P3)",
+    "suspicious_entities": [
+      "2,",
+      "3",
+      "p1",
+      "p2",
+      "p3"
+    ],
+    "has_suspicion": true,
+    "latency_ms": 4183,
+    "suspicious_entities_v2": [],
+    "has_suspicion_v2": false
+  },
+  {
+    "group": "faithful(score1)",
+    "ragtruth_id": 12016,
+    "score": 1,
+    "question": "what is the difference between tartate and succinate",
+    "status": "ok",
+    "answer": "Succinate is extended/long-acting and taken once daily, while tartrate is immediate/shorter-acting and usually taken at least twice a day. (P1, P2, P3)",
+    "suspicious_entities": [
+      "2,",
+      "3",
+      "p1",
+      "p2",
+      "p3"
+    ],
+    "has_suspicion": true,
+    "latency_ms": 3044,
+    "suspicious_entities_v2": [],
+    "has_suspicion_v2": false
+  },
+  {
+    "group": "faithful(score1)",
+    "ragtruth_id": 12017,
+    "score": 1,
+    "question": "what is the difference between tartate and succinate",
+    "status": "ok",
+    "answer": "Succinate is extended/long-acting and taken once daily, while tartrate is immediate/shorter-acting and usually taken at least twice a day. (P1, P2, P3)",
+    "suspicious_entities": [
+      "2,",
+      "3",
+      "p1",
+      "p2",
+      "p3"
+    ],
+    "has_suspicion": true,
+    "latency_ms": 3239,
+    "suspicious_entities_v2": [],
+    "has_suspicion_v2": false
+  },
+  {
+    "group": "faithful(score1)",
+    "ragtruth_id": 12018,
+    "score": 1,
+    "question": "wat is dna",
+    "status": "ok",
+    "answer": "DNA is a nucleic acid that contains the genetic instructions used in the development and functioning of all known living organisms and some viruses. (P1)",
+    "suspicious_entities": [
+      "1",
+      "p1"
+    ],
+    "has_suspicion": true,
+    "latency_ms": 3590,
+    "suspicious_entities_v2": [],
+    "has_suspicion_v2": false
+  },
+  {
+    "group": "faithful(score1)",
+    "ragtruth_id": 12019,
+    "score": 1,
+    "question": "wat is dna",
+    "status": "ok",
+    "answer": "DNA is a nucleic acid that contains the genetic instructions used in the development and functioning of all known living organisms and some viruses. (P1)",
+    "suspicious_entities": [
+      "1",
+      "p1"
+    ],
+    "has_suspicion": true,
+    "latency_ms": 1815,
+    "suspicious_entities_v2": [],
+    "has_suspicion_v2": false
+  },
+  {
+    "group": "faithful(score1)",
+    "ragtruth_id": 12020,
+    "score": 1,
+    "question": "wat is dna",
+    "status": "rate_limited",
+    "answer": "",
+    "suspicious_entities": [],
+    "has_suspicion": false,
+    "latency_ms": 371,
+    "suspicious_entities_v2": [],
+    "has_suspicion_v2": false
+  },
+  {
+    "group": "faithful(score1)",
+    "ragtruth_id": 12021,
+    "score": 1,
+    "question": "wat is dna",
+    "status": "ok",
+    "answer": "Deoxyribonucleic acid (DNA) is a nucleic acid that contains the genetic instructions used in the development and functioning of all known living organisms and some viruses. (P1)",
+    "suspicious_entities": [
+      "1",
+      "p1"
+    ],
+    "has_suspicion": true,
+    "latency_ms": 3974,
+    "suspicious_entities_v2": [],
+    "has_suspicion_v2": false
+  }
+]

@@ -1,0 +1,75 @@
+{
+  "groups": [
+    {
+      "model": "minimax-m3",
+      "prompt_version": "v2_grounded",
+      "params_id": "B",
+      "task_category": "grounded_extraction",
+      "dimension": "answer_accuracy",
+      "mean": 1.0,
+      "n": 4
+    },
+    {
+      "model": "minimax-m3",
+      "prompt_version": "v2_grounded",
+      "params_id": "B",
+      "task_category": "grounded_extraction",
+      "dimension": "answer_economy",
+      "mean": 0.0,
+      "n": 4
+    },
+    {
+      "model": "minimax-m3",
+      "prompt_version": "v2_grounded",
+      "params_id": "B",
+      "task_category": "grounded_extraction",
+      "dimension": "faithfulness",
+      "mean": 1.0,
+      "n": 4
+    },
+    {
+      "model": "minimax-m3",
+      "prompt_version": "v2_grounded",
+      "params_id": "B",
+      "task_category": "grounded_extraction",
+      "dimension": "format_compliance",
+      "mean": 0.0,
+      "n": 4
+    },
+    {
+      "model": "minimax-m3",
+      "prompt_version": "v2_grounded",
+      "params_id": "B",
+      "task_category": "grounded_extraction",
+      "dimension": "rejection_correctness",
+      "mean": 1.0,
+      "n": 4
+    }
+  ],
+  "by_model": {
+    "minimax-m3": {
+      "per_category": {
+        "grounded_extraction": 1.0
+      },
+      "overall": 1.0,
+      "avg_latency_ms": 0.0
+    }
+  },
+  "scored_records": 4,
+  "skipped_records": 0,
+  "run_id": "RUN-31836d0144c4",
+  "label": "public-squad-smoke",
+  "mode": "offline",
+  "comparable": false,
+  "git": {
+    "branch": "eval/public-benchmarks",
+    "commit": "514d6d9",
+    "commit_full": "514d6d9f7a5824c27f7ec410bc24536465cbf47e",
+    "dirty": true,
+    "captured_at": "2026-11-18T04:02:46Z"
+  },
+  "n_records": 4,
+  "status_counts": {
+    "ok": 4
+  }
+}

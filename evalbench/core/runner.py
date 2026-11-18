@@ -27,8 +27,13 @@ def _sha(obj) -> str:
     return hashlib.sha256(json.dumps(obj, ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()[:16]
 
 
-def load_samples() -> list[dict]:
-    path = ROOT / "datasets" / "samples_v1.jsonl"
+def load_samples(dataset_file: str = "samples_v1.jsonl") -> list[dict]:
+    """加载样本集。默认仍用自建 samples_v1；公开集通过 dataset_file 显式指定。
+
+    路径相对 evalbench/datasets/，允许 public/ 子目录。不改默认行为，
+    避免既有 run 的复现语义漂移。
+    """
+    path = ROOT / "datasets" / dataset_file
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
@@ -171,8 +176,9 @@ def append_cache(key: str, value: dict) -> None:
 
 def run_stage(*, label: str, models: list[str], prompts: list[str], params: list[str],
               sample_ids: list[str] | None = None, offline: bool = False,
-              repeats: int = 1, verbose: bool = True) -> tuple[str, dict]:
-    samples = load_samples()
+              repeats: int = 1, verbose: bool = True,
+              dataset_file: str = "samples_v1.jsonl") -> tuple[str, dict]:
+    samples = load_samples(dataset_file)
     if sample_ids:
         samples = [s for s in samples if s["id"] in sample_ids]
     model_index = {m["id"]: m for m in load_models()["selected"]}
@@ -187,8 +193,11 @@ def run_stage(*, label: str, models: list[str], prompts: list[str], params: list
         "mode": "offline" if offline else "live",
         "comparable": not offline,
         "git": git,
-        "dataset": {"file": "samples_v1.jsonl", "hash": _sha([s["id"] for s in samples]),
-                    "n_samples": len(samples), "origin": "self_built_v1 (见 datasets/SOURCES.md)"},
+        "dataset": {"file": dataset_file, "hash": _sha([s["id"] for s in samples]),
+                    "n_samples": len(samples),
+                    "origin": ("self_built_v1 (见 datasets/SOURCES.md)"
+                               if dataset_file == "samples_v1.jsonl"
+                               else f"public_dataset (见 datasets/public/SOURCES.md): {dataset_file}")},
         "metrics_version": scoring.load_metrics()["version"],
         "models": {m: model_index[m] for m in models},
         "prompts": {v: {"sha256_16": prompt_assets[v][1]} for v in prompts},

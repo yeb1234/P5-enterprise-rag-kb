@@ -8,6 +8,7 @@
 | v1 | `v1_baseline.md` | 初始朴素提示：资料 + 问题，无 grounding 约束、无拒答出口、无格式约束 | 基线，用于暴露「硬凑答案 / 复述资料 / 噪声泄漏」 | 基线 |
 | v2 | `v2_grounded.md` | ① 明确「只能用资料」；② 引入字面拒答出口 `INSUFFICIENT`；③ 要求简短结论 + 引用编号；④ 禁止复述原文 | [显式 escape hatch 实践](http://patrickgawron.com/articles/temperature-does-not-stop-hallucinations/)；RGB 负面拒绝需可判定信号 | 待实测对照 |
 | v3 | `v3_structured.md` | ① 单行、1~3 句、分号分隔；② 结论后统一 `（参考 Dxx）`；③ 加 1 条 few-shot；④ 显式禁止思考标签与推理过程 | 结构化输出 / few-shot 锚定（见 `datasets/SOURCES.md` §4）；便于流式过滤器与格式合规判定 | 待实测对照 |
+| v4 | `v4_en_grounded.md` | 英文集专用：规则同 v2，但显式要求「与问题同语言、沿用片段原文措辞」，消除英文 SQuAD 题被中文提示带跑导致的字符串假阴性 | 公开集 SQuAD v2 是英文抽取式 QA，v1-v3 均要求中文输出，answer_accuracy 归一化匹配会把语义正确的中文答案判 0（实测 `Economist` vs `经济学家`） | 公开集专用，不参与中文集收敛 |
 
 ## 收敛口径
 

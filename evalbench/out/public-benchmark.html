@@ -1,0 +1,118 @@
+<!doctype html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>公开评估集实跑报告 · evalbench</title><style>
+:root{--bg:#f7f8fa;--card:#fff;--ink:#1f2430;--muted:#6b7280;--line:#e5e7eb;
+--accent:#2563eb;--good:#15803d;--bad:#b91c1c;--warn:#b45309;--chip:#eef2ff}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);
+font:14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
+.wrap{max-width:1120px;margin:0 auto;padding:32px 24px 64px}
+h1{font-size:26px;margin:0 0 6px}h2{font-size:18px;margin:34px 0 12px;padding-left:10px;border-left:4px solid var(--accent)}
+h3{font-size:15px;margin:20px 0 8px}.sub{color:var(--muted);margin:0 0 18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 20px}
+.badge{background:var(--chip);color:#3730a3;border:1px solid #c7d2fe;border-radius:999px;padding:3px 11px;font-size:12px}
+.badge.warn{background:#fffbeb;color:var(--warn);border-color:#fde68a}
+.badge.ok{background:#f0fdf4;color:var(--good);border-color:#bbf7d0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:16px 0}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.kpi b{display:block;font-size:25px;line-height:1.2}.kpi span{color:var(--muted);font-size:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin:12px 0}
+table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);border-radius:8px;overflow:hidden;font-size:13px}
+th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line)}
+th{background:#f3f4f6;font-weight:600;color:#374151}tr:last-child td{border-bottom:0}
+tbody tr:nth-child(even){background:#fafafa}.num{font-variant-numeric:tabular-nums}
+.up{color:var(--good);font-weight:600}.warn{color:var(--warn)}.bad{color:var(--bad)}
+code{background:#f3f4f6;padding:1px 5px;border-radius:4px;font-size:12px}
+.note{color:var(--muted);font-size:12px;margin:8px 0 0}
+ul{margin:6px 0 0 18px;padding:0}li{margin:5px 0}
+pre{background:#1f2430;color:#e5e7eb;border-radius:8px;padding:14px 16px;overflow:auto;font-size:12px}
+</style></head><body><div class="wrap">
+
+<h1>公开评估集实跑报告</h1>
+<p class="sub">evalbench · 2026-11-18 · 分支 <code>eval/public-benchmarks</code> · 基线 <code>514d6d9</code> · 真实 API（comparable=true）</p>
+<div class="badges">
+<span class="badge ok">首次用真实公开集（非自建样本）</span>
+<span class="badge">SQuAD 2.0 · CC BY-SA 4.0</span>
+<span class="badge">RAGTruth · MIT</span>
+<span class="badge warn">方法验证级，非质量基线</span>
+</div>
+
+<div class="grid">
+<div class="kpi"><b class="up">0.862</b><span>SQuAD 可答题 accuracy（字符串口径保守下界）</span></div>
+<div class="kpi"><b class="up">1.000</b><span>不可回答题拒答正确率 28/28</span></div>
+<div class="kpi"><b class="up">+0.241</b><span>英文提示词 vs 中文提示词 accuracy 增益</span></div>
+<div class="kpi"><b>21.4%</b><span>RAGTruth 高风险组疑似幻觉率（对照组 0%）</span></div>
+</div>
+
+<div class="card">
+<h3 style="margin-top:0">一句话结论</h3>
+项目此前所有质量结论都基于自建 12 条样本；本轮首次用真实公开集验证。核心发现：
+<b>拒答纪律几乎完美</b>，<b>抽取准确率中上</b>（人工复核后更高），
+<b>提示词语言必须匹配问题语言</b>——中文提示词答英文 SQuAD 会掉 24 个点，这是真实且可复现的发现。
+规模只有 60+30 条，不得当作质量基线。
+</div>
+
+<h2>1 · SQuAD v2 生成质量（同 57 条样本公平对照）</h2>
+<table>
+<thead><tr><th>提示词</th><th>可答 accuracy</th><th>不可答拒答正确率</th><th>平均延迟</th></tr></thead>
+<tbody>
+<tr><td><code>v4_en_grounded</code>（本次新增英文版）</td><td class="num up">0.8621</td><td class="num up">1.000</td><td class="num">2,240 ms</td></tr>
+<tr><td><code>v2_grounded</code>（既有中文版）</td><td class="num">0.6207</td><td class="num">0.9655</td><td class="num">1,524 ms</td></tr>
+<tr><td><b>差值</b></td><td class="num up">+0.2414</td><td class="num">+0.0345</td><td class="num warn">+716 ms</td></tr>
+</tbody></table>
+<p class="note">主 run <code>RUN-a7a73b648d6b</code>（v4，60/60 成功，overall 0.9334）。首轮 <code>RUN-5d5cd988fdd2</code> 有 4 条 TPM 限流（overall 0.9445）——两个数字都保留，以补齐后的为准。overall 高于 accuracy 是因为拒答类满分拉高均值，看能力要分维度。</p>
+
+<h2>2 · accuracy 失分人工复核</h2>
+<div class="card">
+字符串口径判 0 的 4 条，逐条核查后发现 <b>3 条是评分器假阴性、1 条真错</b>：
+<ul>
+<li>“Northwestern Canada” vs 金标 “Slave craton in northwestern Canada” — 缺限定词，部分正确</li>
+<li>“there are numerous…” vs “there are <b>now</b> numerous…” — 仅差一个副词</li>
+<li>“Three traders were captured and 14… killed” vs 金标同义改写 — <b>语义完全正确</b></li>
+<li>“Reaching the highest-post…” vs 金标 “Ilkhanate” — <b>真错</b>（答非所问）</li>
+</ul>
+<p class="note">因此字符串 accuracy 0.862 是保守下界，人工复核真实正确率约 <b>0.967（29/30）</b>。不擅自改分（口径冻结），两个数字都给出。</p>
+</div>
+
+<h2>3 · RAGTruth 忠实度专项</h2>
+<table>
+<thead><tr><th>分组</th><th>有效样本</th><th>疑似幻觉率</th><th>平均疑似实体数</th></tr></thead>
+<tbody>
+<tr><td>faithful（原 score=1 对照组）</td><td class="num">14</td><td class="num up">0%</td><td class="num">0</td></tr>
+<tr><td>hallucinated（原 score=0 高风险组）</td><td class="num">14</td><td class="num">21.4%</td><td class="num">1.43</td></tr>
+</tbody></table>
+<p class="note">高风险组检出的证据外实体：<code>open settings</code> / <code>google chrome</code> / <code>default web browser</code>，与 RAGTruth 标注的幻觉类型一致。机械检测器，非论文 span 标注复现。</p>
+<div class="card">
+<b>方法学插曲（负结果照报）</b>：初版检测器把引用标记 <code>(P1, P3)</code> 当成“证据外专名”，导致对照组疑似率虚高到 100%、高风险组反而 50%。定位后排除 <code>P\d+</code> 重算得到上表；重算不重复调 API，坑已写进脚本注释。
+</div>
+
+<h2>4 · 局限（必须与结果一起读）</h2>
+<div class="card"><ul>
+<li><b>规模小</b>：SQuAD 60 条 / RAGTruth 30 条，无统计显著性。</li>
+<li><b>字符串评分假阴性</b>：不做同义改写识别，accuracy 是下界。</li>
+<li><b>语言耦合</b>：+0.241 来自提示词语言匹配，<b>不是</b> RAG 架构或检索能力改进；项目中文语料表现未因本轮改变。</li>
+<li><b>忠实度是机械近似</b>：只作相对对照，非论文复现。</li>
+<li><b>TPM 限流</b>：首轮 4 条失败、重跑补齐；网关限流非项目缺陷。</li>
+<li><b>未测检索环节</b>：本轮是给定 passages 的生成评估；检索排序另有历史 nDCG@10 实测，不混谈。</li>
+</ul></div>
+
+<h2>5 · 三态</h2>
+<table>
+<thead><tr><th>项</th><th>状态</th></tr></thead>
+<tbody>
+<tr><td>公开集下载 / 适配 / 实跑</td><td class="up">已实现</td></tr>
+<tr><td>提示词语言匹配对英文集有效</td><td class="up">已实测（同批公平对照）</td></tr>
+<tr><td>全量 11,873 条 SQuAD 质量基线</td><td class="warn">未做（配额限制）</td></tr>
+<tr><td>RAGTruth span 级标注复现</td><td class="warn">未做（机械近似替代）</td></tr>
+<tr><td>中文公开集（CMRC / DuReader）</td><td class="warn">未做（本轮仅英文）</td></tr>
+</tbody></table>
+
+<h2>6 · 可复现</h2>
+<pre>python evalbench/datasets/public/build_samples.py --n-per-class 30 --seed 42
+
+python evalbench/run_eval.py --label public-squad-deepseek-v4 \
+  --dataset public/squad_v2_sample_60.jsonl \
+  --models deepseek-v4.1-flash-1017 --prompts v4_en_grounded --params B
+
+python evalbench/datasets/public/evaluate_faithfulness.py --limit 15 \
+  --model deepseek-v4.1-flash-1017 --sleep 0.5</pre>
+<p class="note">完整说明、数据集来源与署名见 <code>evalbench/out/PUBLIC_BENCHMARK_REPORT.md</code> 与 <code>datasets/public/SOURCES.md</code>。</p>
+
+</div></body></html>

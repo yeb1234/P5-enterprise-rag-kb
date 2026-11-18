@@ -28,6 +28,8 @@ def main() -> int:
     ap.add_argument("--prompts", default="v1_baseline", help="逗号分隔的提示词版本")
     ap.add_argument("--params", default="A", help="逗号分隔的参数组 id（A/B/C）")
     ap.add_argument("--samples", default="", help="逗号分隔的样本 id；留空为全部")
+    ap.add_argument("--dataset", default="samples_v1.jsonl",
+                    help="样本文件，相对 evalbench/datasets/；公开集用 public/xxx.jsonl")
     ap.add_argument("--limit", type=int, default=0, help="只取前 N 条样本（冒烟用）")
     ap.add_argument("--repeats", type=int, default=1, help="每组合重复次数")
     ap.add_argument("--offline", action="store_true", help="离线占位，comparable=false，不调用 API")
@@ -36,13 +38,13 @@ def main() -> int:
     args = ap.parse_args()
 
     if args.list_samples:
-        for s in runner.load_samples():
+        for s in runner.load_samples(args.dataset):
             print(f"{s['id']}\t{s['task_category']:<24}\t{s['expected_behavior']:<8}\t{s['question']}")
         return 0
 
     sample_ids = [x.strip() for x in args.samples.split(",") if x.strip()] or None
     if args.limit:
-        all_ids = [s["id"] for s in runner.load_samples()]
+        all_ids = [s["id"] for s in runner.load_samples(args.dataset)]
         sample_ids = all_ids[:args.limit]
         if args.samples:
             sample_ids = [x for x in sample_ids if x in args.samples.split(",")]
@@ -56,6 +58,7 @@ def main() -> int:
         offline=args.offline,
         repeats=args.repeats,
         verbose=not args.quiet,
+        dataset_file=args.dataset,
     )
     print(json.dumps({
         "run_id": run_id,
