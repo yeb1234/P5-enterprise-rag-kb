@@ -1,0 +1,113 @@
+{
+  "groups": [
+    {
+      "model": "deepseek-v4.1-flash-1017",
+      "prompt_version": "v4_en_grounded",
+      "params_id": "C",
+      "task_category": "grounded_extraction",
+      "dimension": "answer_accuracy",
+      "mean": 0.8621,
+      "n": 29
+    },
+    {
+      "model": "deepseek-v4.1-flash-1017",
+      "prompt_version": "v4_en_grounded",
+      "params_id": "C",
+      "task_category": "grounded_extraction",
+      "dimension": "answer_economy",
+      "mean": 1.0,
+      "n": 29
+    },
+    {
+      "model": "deepseek-v4.1-flash-1017",
+      "prompt_version": "v4_en_grounded",
+      "params_id": "C",
+      "task_category": "grounded_extraction",
+      "dimension": "faithfulness",
+      "mean": 1.0,
+      "n": 29
+    },
+    {
+      "model": "deepseek-v4.1-flash-1017",
+      "prompt_version": "v4_en_grounded",
+      "params_id": "C",
+      "task_category": "grounded_extraction",
+      "dimension": "format_compliance",
+      "mean": 1.0,
+      "n": 29
+    },
+    {
+      "model": "deepseek-v4.1-flash-1017",
+      "prompt_version": "v4_en_grounded",
+      "params_id": "C",
+      "task_category": "grounded_extraction",
+      "dimension": "rejection_correctness",
+      "mean": 1.0,
+      "n": 29
+    },
+    {
+      "model": "deepseek-v4.1-flash-1017",
+      "prompt_version": "v4_en_grounded",
+      "params_id": "C",
+      "task_category": "negative_rejection",
+      "dimension": "answer_economy",
+      "mean": 1.0,
+      "n": 30
+    },
+    {
+      "model": "deepseek-v4.1-flash-1017",
+      "prompt_version": "v4_en_grounded",
+      "params_id": "C",
+      "task_category": "negative_rejection",
+      "dimension": "faithfulness",
+      "mean": 1.0,
+      "n": 30
+    },
+    {
+      "model": "deepseek-v4.1-flash-1017",
+      "prompt_version": "v4_en_grounded",
+      "params_id": "C",
+      "task_category": "negative_rejection",
+      "dimension": "format_compliance",
+      "mean": 1.0,
+      "n": 30
+    },
+    {
+      "model": "deepseek-v4.1-flash-1017",
+      "prompt_version": "v4_en_grounded",
+      "params_id": "C",
+      "task_category": "negative_rejection",
+      "dimension": "rejection_correctness",
+      "mean": 1.0,
+      "n": 30
+    }
+  ],
+  "by_model": {
+    "deepseek-v4.1-flash-1017": {
+      "per_category": {
+        "grounded_extraction": 0.8621,
+        "negative_rejection": 1.0
+      },
+      "overall": 0.931,
+      "avg_latency_ms": 1401.0
+    }
+  },
+  "scored_records": 59,
+  "skipped_records": 1,
+  "run_id": "RUN-8ff3d5bf1465",
+  "label": "conv-squad-C-r1",
+  "mode": "live",
+  "comparable": true,
+  "git": {
+    "branch": "eval/public-benchmarks",
+    "commit": "917ab05",
+    "commit_full": "917ab05e35200bb8e30d891c367f56311165fdce",
+    "dirty": true,
+    "captured_at": "2026-11-18T04:36:59Z"
+  },
+  "n_records": 60,
+  "status_counts": {
+    "ok": 59,
+    "rate_limited": 1
+  }
+}

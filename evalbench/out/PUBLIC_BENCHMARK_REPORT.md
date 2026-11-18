@@ -16,6 +16,8 @@
 | ⑤ **中文抽取准确率被测出** | CMRC 2018 字符串口径 **0.767**，人工复核上界 **0.983**（14 条失分 13 条是假阴性） | 中：60 条中文子集 |
 | ⑥ **中文同义改写的假阴性比英文更严重** | 中文 13/14 失分为措辞差异，英文 3/4；字符串口径严重低估中文能力 | 中：人工逐条复核，见 `cmrc_manual_review.json` |
 | ⑦ **首次调用有 TPM 限流** | 首轮 60 条中 4 条 `rate_limited`，重跑补齐后 60/60 OK；中文集首轮 5 条限流，退避脚本 30s 后补齐 | 事实：记录可查 |
+| ⑧ **temp=0 并未更可复现（推翻前轮结论）** | 3 次重复：temp=0 有 2/60 题分数翻转，temp=0.2 为 0；逐答案一致率同为 81.7% | 高：180 条独立调用实测 |
+| ⑨ **参数收敛采纳 A（temp=0.2）** | 中英 acc 均不低于 B/C；自建样本轮采纳 B 的理由被公开集证据推翻 | 中：EN 差 2/60、ZH 差 1/60，接近噪声 |
 
 **最重要的一条**：此前项目所有质量结论都基于**自建 12 条样本**（旧 `datasets/SOURCES.md` 已诚实声明"不是官方抽样"）。本报告首次用**真实公开集**验证，补上了这个缺口——但规模是"方法验证级"，**不构成质量基线**，也不得对外说成"在 SQuAD/RAGTruth 上达到 X 分"而不 explanatory 限定条件。
 
@@ -136,6 +138,42 @@
 
 ---
 
+## 3.5 参数组收敛（本轮新增：用公开集重新收敛参数）
+
+**为什么做**：前四轮收敛在自建 12 条样本上得出"采纳 B(temp=0)，主要依据可复现性"。
+公开集有 60 条 × 2 语言，分辨率更高，且能检验"temp=0 是否真的更可复现"。
+模型固定 deepseek-v4.1、提示词固定（英文 v4 / 中文 v3）、**评分器不动**。
+
+**变量隔离**：`passage_num` 在两个公开集上不生效（每样本只有 1 段，A/B/C 都只注入 1 段），
+所以有效变量是 A↔B 的 `temperature`、B↔C 的 `max_tokens`。
+
+| 组 | EN acc | EN 拒答 | EN 延迟 | ZH acc | ZH 拒答 | ZH 延迟 |
+|---|---|---|---|---|---|---|
+| **A (temp=0.2)** | **0.900** | 1.000 | 1801ms | **0.7833** | 0.9833 | 1889ms |
+| B (temp=0) | 0.8667 | 1.000 | 2240ms | 0.7667 | 0.9833 | 2095ms |
+| C (temp=0, 768tok) | 0.8667 | 1.000 | 1402ms | 0.7333 | 0.9833 | 1821ms |
+
+**反直觉的关键实证 —— temp=0 并未更可复现**。英文集做 3 次独立重复（key 含 rep，真调用非缓存）：
+
+| 组 | 三次 acc | 极差 | 逐答案一致率 | 逐题分数翻转 |
+|---|---|---|---|---|
+| A (temp=0.2) | 0.9 / 0.9 / 0.9 | **0** | 81.7% | **0/60** |
+| B (temp=0) | 0.8667 / 0.9 / 0.8333 | 0.0667 | 81.7% | **2/60** |
+
+两组逐答案一致率完全相同，但 temp=0 有 2 题在 0/1 间翻转、temp=0.2 为 0——
+**"temp=0 保证可复现"在这条网关上不成立**，与旧 SOURCES.md 早写下的"共享 GPU 批处理仍会漂移"一致。
+
+**收敛结论：采纳 A**（temp=0.2 / top_p=1.0 / max_tokens=512）。
+否决 B（acc 不占优、可复现性也未占优，原采纳理由被推翻）；
+否决 C（中文 acc 降到 0.7333，且 passage_num 无效使归因不纯）。
+**这是首次公开集证据推翻自建样本轮结论**，逐项数据见
+`iterations/comparisons/params_public_v1.json` 与 `iterations/iteration_log.md` §迭代5。
+
+**保留意见（必须一起读）**：EN 差异 2/60、ZH 差异 1/60 接近噪声，采纳 A 靠的是"不劣于 B 的重复性"
+而非大幅质量提升；中文字符串假阴性使 A/B 的 acc 都是下界；重复实验只做了英文集。
+
+---
+
 ## 4. 局限（必须与结果一起读）
 
 1. **规模小**：SQuAD 60 条、RAGTruth 30 条，无统计显著性，误差棒远大于 0.02 的差异不可信。
@@ -162,6 +200,7 @@
 | RAGTruth span 级幻觉标注复现 | **未做** | 用机械检测近似替代 |
 | 中文公开集 CMRC 2018 实跑 | **已实测**（本轮补） | 60 条中文抽取，字符串 0.767 / 人工复核 0.983 |
 | 限流自动等待退避 | **已实现** | `run_with_backoff.py`，中文集 5 条限流 30s 后补齐 |
+| 公开集参数收敛 A/B/C | **已实测**（本轮） | 6 组单次 + 英文 A/B 各 3 次重复；采纳 A，推翻自建轮的 B |
 
 ---
 
@@ -197,6 +236,23 @@ python evalbench/run_with_backoff.py --label public-cmrc-deepseek-v3 \
   --max-rounds 8 --wait 30 --factor 1.5 --cap 120 -- \
   python evalbench/run_eval.py --dataset public/cmrc2018_sample_60.jsonl \
     --models deepseek-v4.1-flash-1017 --prompts v3_structured --params B --quiet
+```
+
+参数收敛复跑（上面是收敛前的历史命令，保留原样；收敛后建议用采纳的 A）：
+
+```bash
+# 英文集 A/B/C（每次只改 --params；模型与提示词固定）
+for P in A B C; do
+  python evalbench/run_with_backoff.py --label conv-squad-$P --max-rounds 10 --wait 30 -- \
+    -- python evalbench/run_eval.py --dataset public/squad_v2_sample_60.jsonl \
+       --models deepseek-v4.1-flash-1017 --prompts v4_en_grounded --params $P --quiet
+done
+# 中文集同理（--prompts v3_structured --dataset public/cmrc2018_sample_60.jsonl）
+
+# temp=0 可复现性反证：3 次独立重复（key 含 rep，非缓存）
+python evalbench/run_with_backoff.py --label conv-squad-A-rep3 --max-rounds 12 --wait 30 -- \
+  -- python evalbench/run_eval.py --dataset public/squad_v2_sample_60.jsonl \
+     --models deepseek-v4.1-flash-1017 --prompts v4_en_grounded --params A --repeats 3 --quiet
 ```
 
 > 注意：评估脚本会从项目根 `.env` 读网关配置；批跑前确保无冲突环境变量。

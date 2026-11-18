@@ -40,6 +40,7 @@ pre{background:#1f2430;color:#e5e7eb;border-radius:8px;padding:14px 16px;overflo
 <div class="kpi"><b class="up">+0.241</b><span>英文提示词 vs 中文提示词 accuracy 增益</span></div>
 <div class="kpi"><b>21.4%</b><span>RAGTruth 高风险组疑似幻觉率（对照组 0%）</span></div>
 <div class="kpi"><b>0.767 → 0.983</b><span>CMRC 中文字符串口径 → 人工复核上界</span></div>
+<div class="kpi"><b>A (temp=0.2)</b><span>参数收敛采纳配置——推翻自建轮的 B(temp=0)</span></div>
 </div>
 
 <div class="card">
@@ -112,7 +113,33 @@ pre{background:#1f2430;color:#e5e7eb;border-radius:8px;padding:14px 16px;overflo
 </div>
 <p class="note"><b>中英 accuracy 不可直接比</b>：CMRC 用 v3 中文提示词且全可答，SQuAD 用 v4 英文提示词且含一半不可答题——语料/提示词/样本构成三者同时变化，0.767 vs 0.862 不是纯语言能力差异。</p>
 
-<h2>5 · 局限（必须与结果一起读）</h2>
+<h2>5 · 参数组收敛（公开集重新收敛）</h2>
+<p class="sub">模型固定 deepseek-v4.1、提示词固定、评分器不动。变量隔离：passage_num 在单段落公开集上不生效（A/B/C 都只注入 1 段），有效变量是 A↔B 的 temperature、B↔C 的 max_tokens。</p>
+<table>
+<thead><tr><th>参数组</th><th>EN acc</th><th>ZH acc</th><th>EN 延迟</th><th>ZH 延迟</th></tr></thead>
+<tbody>
+<tr><td><b>A (temp=0.2)</b></td><td class="num up">0.900</td><td class="num up">0.7833</td><td class="num">1801ms</td><td class="num">1889ms</td></tr>
+<tr><td>B (temp=0)</td><td class="num">0.8667</td><td class="num">0.7667</td><td class="num">2240ms</td><td class="num">2095ms</td></tr>
+<tr><td>C (temp=0, 768tok)</td><td class="num">0.8667</td><td class="num">0.7333</td><td class="num">1402ms</td><td class="num">1821ms</td></tr>
+</tbody></table>
+<div class="card">
+<b>反直觉实证：temp=0 并未更可复现</b>（英文集 3 次独立重复，key 含 rep 非缓存）：
+<table style="margin-top:10px">
+<thead><tr><th>组</th><th>三次 acc</th><th>极差</th><th>逐答案一致率</th><th>逐题分数翻转</th></tr></thead>
+<tbody>
+<tr><td>A (temp=0.2)</td><td>0.9 / 0.9 / 0.9</td><td class="num up">0</td><td>81.7%</td><td class="num up">0/60</td></tr>
+<tr><td>B (temp=0)</td><td>0.8667 / 0.9 / 0.8333</td><td class="num">0.0667</td><td>81.7%</td><td class="num bad">2/60</td></tr>
+</tbody></table>
+<p class="note">两组逐答案一致率相同，但 temp=0 反而有 2 题分数在 0/1 间翻转。与旧 SOURCES.md「共享 GPU 批处理仍漂移」一致——<b>推翻自建样本轮「采纳 B 依据可复现性」的理由</b>。</p>
+</div>
+<div class="card">
+<b>收敛结论：采纳 A（temp=0.2 / top_p=1.0 / max_tokens=512）</b>。
+否决 B（acc 与稳定性都不占优）、否决 C（中文降到 0.7333，且 passage_num 无效使归因不纯）。
+这是首次公开集证据推翻自建样本轮结论，逐项数据见 <code>iterations/comparisons/params_public_v1.json</code>。
+<p class="note">保留意见：EN 差异 2/60、ZH 差异 1/60 接近噪声，采纳 A 靠"不劣于 B 的重复性"而非大幅质量提升；中文假阴性使 A/B 的 acc 都是下界；重复实验只做英文集。</p>
+</div>
+
+<h2>6 · 局限（必须与结果一起读）</h2>
 <div class="card"><ul>
 <li><b>规模小</b>：SQuAD 60 / RAGTruth 30 / CMRC 60 条，无统计显著性。</li>
 <li><b>字符串评分假阴性</b>：不做同义改写识别，accuracy 是下界；<b>中文尤甚</b>（0.767 vs 人工复核 0.983，差 0.217）。</li>
@@ -121,9 +148,10 @@ pre{background:#1f2430;color:#e5e7eb;border-radius:8px;padding:14px 16px;overflo
 <li><b>忠实度是机械近似</b>：只作相对对照，非论文复现。</li>
 <li><b>TPM 限流</b>：英文首轮 4 条、中文首轮 5 条失败，退避脚本等待重跑补齐；网关限流非项目缺陷。</li>
 <li><b>未测检索环节</b>：本轮是给定 passages 的生成评估；检索排序另有历史 nDCG@10 实测，不混谈。</li>
+<li><b>收敛差异接近噪声</b>：A vs B 的 EN 差 2/60、ZH 差 1/60；中文 repeats 未做，稳定性结论仅限英文集。</li>
 </ul></div>
 
-<h2>6 · 三态</h2>
+<h2>7 · 三态</h2>
 <table>
 <thead><tr><th>项</th><th>状态</th></tr></thead>
 <tbody>
@@ -133,9 +161,10 @@ pre{background:#1f2430;color:#e5e7eb;border-radius:8px;padding:14px 16px;overflo
 <tr><td>RAGTruth span 级标注复现</td><td class="warn">未做（机械近似替代）</td></tr>
 <tr><td>中文公开集 CMRC 2018 实跑</td><td class="up">已实测（字符串 0.767 / 人工复核 0.983）</td></tr>
 <tr><td>限流自动等待退避</td><td class="up">已实现（中文集 5 条限流 30s 后补齐）</td></tr>
+<tr><td>公开集参数收敛 A/B/C</td><td class="up">已实测（采纳 A，推翻自建轮的 B）</td></tr>
 </tbody></table>
 
-<h2>7 · 可复现</h2>
+<h2>8 · 可复现</h2>
 <pre>python evalbench/datasets/public/build_samples.py --n-per-class 30 --seed 42
 
 python evalbench/run_eval.py --label public-squad-deepseek-v4 \
