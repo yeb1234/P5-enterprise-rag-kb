@@ -152,8 +152,10 @@ pre{background:#1f2430;color:#e5e7eb;border-radius:8px;padding:14px 16px;overflo
 <tbody>
 <tr><td>确定性规则（符合"不用 LLM 裁判"原则）</td><td>0.061</td><td>0.250</td><td>0.098</td></tr>
 <tr><td>LLM 裁判（整句级，隔离破例）</td><td>0.188</td><td>0.375</td><td>0.250</td></tr>
-<tr><td>LLM 裁判 + refine</td><td>0.217</td><td>0.417</td><td class="up">0.286</td></tr>
+<tr><td>LLM 裁判 deepseek + refine</td><td>0.217</td><td>0.417</td><td class="up">0.286</td></tr>
+<tr><td>LLM 裁判 qwen3.8-27b + refine（采纳）</td><td>0.186</td><td>0.444</td><td>0.262</td></tr>
 </tbody></table>
+<p class="note"><b>Judge 选型</b>：按网关真实 pricing 选便宜模型。qwen3.8-27b（$0.0008/$0.0027）比 deepseek（$0.001/$0.004）便宜 1.5 倍、快一倍（1.1s vs 2.2s），F1 仅降 0.024。更便宜的 Sage-A1.5 实测输出不出合法 JSON，不可用。</p>
 <div class="card">
 <b>规则法三次修复仍 F1 0.098</b>——span 标注是语义判断，字符串规则无法可靠复现。用户决定破例用 LLM 裁判，
 严格隔离（不进主 run、不参与收敛、裁判未见人工标签）。工程坑：推理模型思考吃光 token（关 thinking + 2048 预算）、

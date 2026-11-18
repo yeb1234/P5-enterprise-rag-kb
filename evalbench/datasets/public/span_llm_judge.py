@@ -17,7 +17,11 @@ evalbench 主口径明确「不用第二个 LLM 当裁判」（scoring.py / READ
    报 span 级 precision / recall / F1；
 4. **裁判看不到人工标签**，避免泄露导致假绿。
 
-裁判配置固定：deepseek-v4.1-flash-1017, temperature=0, max_tokens=1024。
+裁判默认模型：qwen3.8-27b（temperature=0, max_tokens=2048）。
+选它的依据：网关 /models 真实 pricing 显示 prompt $0.0008 / completion $0.0027
+（比 deepseek-v4.1-flash 的 $0.001/$0.004 便宜），延迟快一倍（1.1s vs 2.2s），
+50 条样本 F1 0.262 vs deepseek 的 0.286（差 0.024，约 1 条 span，小样本噪声范围）。
+**更便宜的 Sage-A1.5($0.000016) 实测输出不出合法 JSON，不可用。**
 每条样本独立缓存（key 含裁判模型 + prompt hash + output hash），不重复烧 API。
 
 用法：
@@ -202,7 +206,7 @@ def main() -> int:
     ap.add_argument("--split", default="QA", choices=("QA", "Summary", "Data2txt", "ALL"))
     ap.add_argument("--limit", type=int, default=50)
     ap.add_argument("--iou-threshold", type=float, default=0.5)
-    ap.add_argument("--model", default="deepseek-v4.1-flash-1017")
+    ap.add_argument("--model", default="qwen3.8-27b", help="默认用便宜的 qwen3.8-27b；deepseek-v4.1-flash-1017 作高成本对照")
     ap.add_argument("--sleep", type=float, default=0.5)
     ap.add_argument("--refine", action="store_true", help="裁判判 baseless 后，用规则把整句缩到短语级 span（粒度对齐人工标注）")
     ap.add_argument("--out", default="")
@@ -217,7 +221,9 @@ def main() -> int:
     half = args.limit // 2
     selected = with_span[:half] + no_span[:args.limit - half]
 
-    model_cfg = {m["id"]: m for m in runner.load_models()["selected"]}[args.model]
+    # 支持任意网关模型：selected 里有的用其配置，没有的用默认超时（便宜 Judge 候选常不在 selected）
+    model_index = {m["id"]: m for m in runner.load_models()["selected"]}
+    model_cfg = model_index.get(args.model, {"id": args.model, "timeout_s": 90})
     # 2048 预算 + 关闭 thinking：deepseek 是推理模型，默认思考过程会吃掉
     # 1024 预算导致 JSON 输不完（实测 8 条里 6 条 judge_failed）。
     # thinking_fields 与 backend/llm.py 同口径，网关实测 reasoning_tokens 55→0。

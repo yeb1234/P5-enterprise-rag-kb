@@ -199,3 +199,30 @@ Ctrl+C 后重跑同一命令从断点续上。批次 run 全部保留，不删�
 **诚实定位**：即使 LLM 裁判 + refine，F1 也只有 0.286，**不是论文级 span 复现**——
 论文是人工标注，无法用脚本替代。本评估只证明"LLM 裁判明显优于规则法"，
 且提供可复现的 span 级对拍框架。样本量小、句子级粒度、裁判自身误差都要一起读。
+
+### 7.3 Judge 模型选型：用真实 pricing 选便宜的
+
+网关 `GET /models` 返回真实 `pricing.cost_usd`（不是猜的）。候选单价（USD/token）：
+
+| 模型 | prompt | completion | 能否当 Judge |
+|---|---|---|---|
+| Sage-S2.1-Flash | 0.000008 | 0.000028 | 未测（最便宜） |
+| Sage-A1.5 | 0.000016 | 0.000064 | ❌ 输出不出合法 JSON |
+| Agents-A1 | 0.000016 | 0.000064 | 未测 |
+| Atria-Dawn | 0.00008 | 0.00028 | ✅ 判定一致但延迟 5.5s |
+| qwen3.8-27b | 0.0008 | 0.0027 | ✅ **采纳**：判定一致、延迟 1.1s |
+| deepseek-v4.1-flash-1017 | 0.001 | 0.004 | ✅ 原用，较慢较贵 |
+
+单条探测（样本 11908）：Atria-Dawn / qwen3.8-27b / deepseek 三者判定**完全一致**
+（faithful / baseless / faithful / conflict / conflict），Sage-A1.5 输出无合法 JSON。
+
+50 条正式对拍（refine 后）：
+
+| Judge | F1 | 延迟 |
+|---|---|---|
+| deepseek-v4.1-flash-1017 | 0.286 | 2228ms |
+| **qwen3.8-27b（采纳）** | 0.262 | **1109ms** |
+
+**结论**：默认 Judge 改 `qwen3.8-27b`——便宜约 1.5 倍、快一倍，F1 仅降 0.024
+（50 条上约 1 条 span，小样本噪声范围）。deepseek 保留为高成本对照（`--model deepseek-v4.1-flash-1017`）。
+更便宜的 Sage-A1.5 虽更省，但输出格式不可用，不能当 Judge——便宜要以能用为前提。
