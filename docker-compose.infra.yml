@@ -20,7 +20,10 @@
 # 镜像名同样可覆盖（国内网络拉不到 Docker Hub 时用镜像站）：
 #   KB_PG_IMAGE / KB_REDIS_IMAGE / KB_MILVUS_IMAGE / KB_ETCD_IMAGE / KB_MINIO_IMAGE
 # 例：KB_PG_IMAGE=docker.m.daocloud.io/library/postgres:16-alpine
-name: kb-infra
+# 项目名 = 容器/网络前缀，P 号在前，docker ps 里按项目排序。
+# 原来叫 kb-infra，和 kb-pg / kb-webapp / kb-showcase 这些手工容器混在一起，
+# 谁管谁一眼看不出来。
+name: p5-kb-infra
 
 services:
   postgres:
@@ -28,7 +31,13 @@ services:
     # pg_init.sql 里第一句 CREATE EXTENSION vector 就会失败（有意不静默降级）。
     # 本机 Docker Hub 不可达，实际通过 KB_PG_IMAGE 指向 docker.m.daocloud.io/pgvector/pgvector:pg16。
     image: ${KB_PG_IMAGE:-pgvector/pgvector:pg16}
-    container_name: kb-pg
+    # 不写 container_name：交给 compose 生成 p5-kb-infra-postgres-1。
+    # 但 kb-webapp 的 WEBAPP_DATABASE_URL 写的是 kb-pg:5432，
+    # 所以保留同名网络别名，别把消费方的连接串打死。
+    networks:
+      default:
+        aliases:
+          - kb-pg
     restart: unless-stopped
     environment:
       POSTGRES_USER: kb
@@ -51,7 +60,10 @@ services:
 
   redis:
     image: ${KB_REDIS_IMAGE:-redis:7-alpine}
-    container_name: kb-redis
+    networks:
+      default:
+        aliases:
+          - kb-redis
     restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
     ports:
@@ -71,7 +83,6 @@ services:
     # 理由见 docs/production/08-vector-store-decision.md。
     profiles: ["milvus"]
     image: ${KB_ETCD_IMAGE:-quay.io/coreos/etcd:v3.5.16}
-    container_name: kb-etcd
     restart: unless-stopped
     mem_limit: 1g
     environment:
@@ -95,7 +106,6 @@ services:
   minio:
     # 只为 Milvus 存在（KB_MILVUS_STORAGE=minio 时的对象存储），默认不起。
     image: ${KB_MINIO_IMAGE:-minio/minio:RELEASE.2025-04-22T22-12-26Z}
-    container_name: kb-minio
     restart: unless-stopped
     # 国内拉取提示：Docker Hub 上 minio 已迁 quay，常见加速站要么 denied 要么限流。
     # 实测可用源（2026-11-16）：
@@ -128,7 +138,6 @@ services:
     # 用法：docker compose -f docker-compose.infra.yml --profile milvus up -d
     profiles: ["milvus"]
     image: ${KB_MILVUS_IMAGE:-milvusdb/milvus:v2.5.10}
-    container_name: kb-milvus
     restart: unless-stopped
     mem_limit: 4g
     command: ["milvus", "run", "standalone"]
@@ -160,10 +169,14 @@ services:
       start_period: 60s
 
 volumes:
+  # 钉住物理卷名：改项目名后不钉，compose 会按新前缀建空卷，
+  # kb-webapp 立刻连上一个空库（看起来像"数据全没了"）。
   pgdata_v2:      # 当前使用（pgvector 镜像）
+    name: kb-infra_pgdata_v2
   # pgdata:       # v1 快照：alpine 镜像 + 无 pgvector 时期的卷，回滚用；稳定后整行删除
 
   redisdata:
+    name: kb-infra_redisdata
   etcddata:
   miniodata:
   milvusdata:

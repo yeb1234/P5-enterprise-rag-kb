@@ -263,7 +263,7 @@ MILVUS_URI=http://127.0.0.1:19530
 ### 10.3 起服务 + 验证
 
 ```bash
-bash run-demo.sh                          # 内部 docker run --network kb-infra_default
+bash run-demo.sh                          # 内部 docker run --network p5-kb-infra_default
 python scripts/verify_infra.py            # 期望 INFRA_READY
 PARSING_OFFLINE=1 python -m pytest webapp/tests parsing/tests knowledge/tests cache/tests guardrails/tests showcase/tests evalfmt/tests -q   # 期望 255 passed
 python webapp/selftest.py                 # 期望 33/33 DEMO_READY（需真实外部模型）

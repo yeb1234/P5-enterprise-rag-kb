@@ -29,9 +29,12 @@ DB_URL="${WEBAPP_DATABASE_URL:-postgresql://kb:kb_demo_only@kb-pg:5432/kb}"
 # 只对 compose 起的服务生效，这两个容器是 `docker run` 起的，实测
 # `docker inspect` 的 LogConfig 是空的（json-file 默认**无上限**，会一直长到磁盘满）。
 LOG_OPTS="--log-opt max-size=10m --log-opt max-file=3"
+# 网络名跟 infra 项目名走：compose name 已从 kb-infra 改为 p5-kb-infra，
+# 默认网络随之变成 p5-kb-infra_default（旧的 kb-infra_default 已不存在）。
+# 容器名 kb-pg / kb-redis 是靠 alias 保留的，连接串不用改。
 docker run -d --name kb-webapp \
   -p 127.0.0.1:8765:8765 \
-  --network kb-infra_default \
+  --network ${KB_INFRA_NETWORK:-p5-kb-infra_default} \
   $LOG_OPTS \
   -e WEBAPP_DATABASE_URL="$DB_URL" \
   -e WEBAPP_LLM_PROVIDER=offline \
