@@ -11,7 +11,7 @@
 - **v1.3.2 日志结构化**：stdout 单行 JSON + `access_log` 中间件贯穿 trace_id（响应头/错误体/日志同值），path 不含 query、健康检查降 DEBUG。
 
 ## 公开基准
-nDCG@10 BM25 16.29% → **bge-m3 33.93%**；前缀/融合更差；重排 →36.09%。**三个负结果照说；砍弱基线让增益好看＝自欺**。明细见 `evalbench/iterations` 与 `docs/evaluation-report.md`。
+nDCG@10 BM25 16.29% → **bge-m3 33.93%**；前缀/融合更差，重排 →36.09%。三个负结果照说；砍弱基线让增益好看＝自欺。明细见 `evalbench/iterations`。
 
 ## 组织模型
 单组织+多用户多部门，**多租户只写方向不做**；webapp 成本/限流已 tenant→department，**无部门级权限**；`backend/` 的 `tenant_id` 是历史债，`org-model-change-plan.md` 13 步未改造。
@@ -35,6 +35,9 @@ nDCG@10 BM25 16.29% → **bge-m3 33.93%**；前缀/融合更差；重排 →36.0
 **池化让会话级 `SET` 跨借用人存活**（实测变 `pg_catalog`）：`connect_args.options` 管不住，`WEBAPP_DB_SCHEMA` 下必须 checkout 补 `SET` 复核；`postgresql://` 走 psycopg2 → 必须 `postgresql+psycopg://`。
 **compose 的 `x-logging` 对 `docker run` 无效**：日志上限必须写进 `run-demo.sh`，否则 json-file 无上限写满磁盘。
 **三条已证伪误报别再写**：内联处理器全有定义 / 两个 Dockerfile 都在 / `npm run build` 通过。
+
+**GitHub 远端** `git@github.com:yeb1234/P5-enterprise-rag-kb.git`（origin）；本地裸仓库改名 `local` 保留。版本口径 v1.3.2（不另建 1.0）。compose 项目名 `p5-kb-infra`，网络 `p5-kb-infra_default`（run-demo.sh 用 `KB_NETWORK` 覆盖）；本机 PG/Redis 用 5432/6379。
+**P5 共享基础设施**（2026-11-20）：P1/P2/P4 共享同一 PG+Redis，P5 加专属 schema `p5_kb`（非独立 database），DDL 仍走 `scripts/pg_init.sql` + SET search_path；Redis key `p5kb:{user_id}:{business}`，第三段必须命中业务白名单（防 `p5kb:rl:user` 把业务段当用户的弱 key）。本机演示是**模拟非真接入**，命名空间隔离 != 权限隔离。见 `docs/shared-infra/01-design.md`。
 
 ## 三查
 ① 数字实跑？② 三态分清？③ 冻结区零 diff？改约束性文本前先读 `docs/HARNESS.md`（Y1–Y22）。
