@@ -27,3 +27,6 @@ evalfmt/.cache/
 showcase/out/*
 !showcase/out/.gitkeep
 
+
+# 共享基础设施演示的运行产物（每次跑数字会变，不进版本库）
+scripts/out/
