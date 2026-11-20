@@ -6,10 +6,10 @@
   用两个独立进程各打同一个 key，内存实现会各算各的（配额翻倍），Redis 实现共享同一窗口。
 
 用法：
-    # PG + Redis 都在本机（宿主端口按需覆盖）
+    # PG + Redis 都在本机（宿主端口按 KB_PG_PORT / KB_REDIS_PORT 覆盖）
     python scripts/verify_infra.py \
-      --pg-dsn postgresql://kb:kb_demo_only@127.0.0.1:55432/kb \
-      --redis-url redis://127.0.0.1:56379/0
+      --pg-dsn postgresql://kb:kb_demo_only@127.0.0.1:5432/kb \
+      --redis-url redis://127.0.0.1:6379/0
 
     # 只验 PG / 只验 Redis
     python scripts/verify_infra.py --pg-dsn ... --skip-redis

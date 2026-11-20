@@ -23,15 +23,18 @@ echo "==> 重建容器"
 docker rm -f kb-webapp kb-showcase >/dev/null 2>&1 || true
 
 # SQLite 已移除：webapp 必须连真 PostgreSQL。
-# 先确保基础设施起着：KB_PG_PORT=55432 … docker compose -f docker-compose.infra.yml up -d postgres
+# 先确保基础设施起着：docker compose -f docker-compose.infra.yml up -d postgres redis
+# compose 项目名是 p5-kb-infra，网络名随之为 p5-kb-infra_default；
+# 用 KB_NETWORK 覆盖，别把前缀写死（换项目名时这里最容易漏改，现象是 pgkit 解析不到 kb-pg）。
 DB_URL="${WEBAPP_DATABASE_URL:-postgresql://kb:kb_demo_only@kb-pg:5432/kb}"
+NETWORK="${KB_NETWORK:-p5-kb-infra_default}"
 # 日志上限必须写在 `docker run` 上：`docker-compose.yml` 里的 x-logging 锚点
 # 只对 compose 起的服务生效，这两个容器是 `docker run` 起的，实测
 # `docker inspect` 的 LogConfig 是空的（json-file 默认**无上限**，会一直长到磁盘满）。
 LOG_OPTS="--log-opt max-size=10m --log-opt max-file=3"
 docker run -d --name kb-webapp \
   -p 127.0.0.1:8765:8765 \
-  --network kb-infra_default \
+  --network "$NETWORK" \
   $LOG_OPTS \
   -e WEBAPP_DATABASE_URL="$DB_URL" \
   -e WEBAPP_LLM_PROVIDER=offline \
