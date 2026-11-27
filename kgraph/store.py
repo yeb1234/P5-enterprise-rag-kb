@@ -8,6 +8,9 @@
   端点跑在线程池里，所以初始化要加锁。
 - **探测结果短缓存**：图库挂掉时不能每个检索请求都等一次连接超时——失败结果缓存 15 秒，
   成功结果缓存 60 秒。宁可 15 秒内这一路一直显示「不可用」，也不拖慢主链路。
+- **命名空间入口强制**：`read()` / `run()` / `explain()` 在真正连库前先过
+  `assert_namespaced()`——没带 P5 命名空间 `$kb` 的语句直接拒。把跨项目隔离
+  从「靠约定」升级为「存储层强制检查」。
 - **读写分离在会话层**：`read()` 用 READ 会话。这是只读校验之外的最后一道防线——
   即使有语句绕过了关键词校验，驱动层也会拒绝写入。
 """
@@ -20,6 +23,7 @@ from contextlib import contextmanager
 from importlib import metadata
 
 from kgraph.contracts import GRAPH_NAMESPACE
+from kgraph.cypher import assert_namespaced
 
 _PROBE_TTL_OK = 60.0
 _PROBE_TTL_FAIL = 15.0
@@ -77,17 +81,26 @@ class Neo4jStore:
             session.close()
 
     def read(self, query: str, params: dict | None = None) -> list[dict]:
-        """只读查询。参数永远走 dict，不拼进语句。"""
+        """只读查询。参数永远走 dict，不拼进语句。
+
+        执行前强制命名空间检查：没带 $kb 的语句直接拒绝，不连库。
+        """
+        assert_namespaced(query)
         with self._session() as s:
             return [r.data() for r in s.run(query, params or {})]
 
     def run(self, query: str, params: dict | None = None) -> list[dict]:
-        """写查询（建图专用）。"""
+        """写查询（建图专用）。同样强制命名空间检查。"""
+        assert_namespaced(query)
         with self._session(write=True) as s:
             return [r.data() for r in s.run(query, params or {})]
 
     def explain(self, query: str, params: dict | None = None) -> None:
-        """只让 Neo4j 编译一遍，不执行。语法错误、未知函数在这里抛出来。"""
+        """只让 Neo4j 编译一遍，不执行。语法错误、未知函数在这里抛出来。
+
+        调用方可能已拼好 EXPLAIN/PROFILE 前缀，assert_namespaced 会容忍它们。
+        """
+        assert_namespaced(query)
         with self._session() as s:
             s.run("EXPLAIN " + query, params or {}).consume()
 

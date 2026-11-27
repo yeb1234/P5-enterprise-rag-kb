@@ -504,17 +504,25 @@ def _multi_route(question: str, cfg: dict, routes: list[str]):
     return candidates, mode, fallback_reason, reports, fusion_meta
 
 
-def retrieve(question: str, top_k: int = TOP_K, with_meta: bool = False):
+def retrieve(question: str, top_k: int = TOP_K, with_meta: bool = False,
+             routes: list[str] | None = None):
     """检索：**各路召回 → （多路时）融合 → 可选 rerank → 可选新鲜度重排**。
 
     - 只开向量（默认）：词法门禁 → 向量排序，与引入三路之前逐字一致；
     - 多路：每路各自出候选，PG 复核后按「多路命中优先 + RRF」融合；
     - rerank 可选 off / llm / external；不可用时优雅跳过并标注；
     - 三路全关：返回空（`retrieval_mode=off`），不静默退回某一路。
+
+    `routes` 是可选显式指定（给 MCP 工具端点这类调用方用）：None 仍走配置开关，
+    传列表则只跑列表里的路，且非法值一律过滤掉；`[]` 表示全关。默认参数行为不变。
     """
     cfg = settings.get_all()
     emb = settings.effective_embedding(cfg)
-    routes = settings.routes_on(cfg)
+    if routes is None:
+        routes = settings.routes_on(cfg)
+    else:
+        # 参数来自外部调用方：白名单过滤，防止注入未知路由名
+        routes = [r for r in routes if r in ("vector", "graph", "wiki")]
     reports: dict[str, dict] = {}
     fusion_meta = None
     if not routes:
@@ -584,6 +592,8 @@ def retrieve(question: str, top_k: int = TOP_K, with_meta: bool = False):
         "routes": reports,
         "fusion": fusion_meta,
     }
+    if routes is not None and not routes:
+        meta["note"] = "routes=[] 显式关闭全部检索路，返回空结果"
     return (out, meta) if with_meta else out
 
 

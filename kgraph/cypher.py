@@ -83,6 +83,66 @@ def validate_readonly(cypher: str) -> str:
     return q
 
 
+# --- 存储层强制的命名空间静态检查 -------------------------------------------------
+# 纯 schema/introspection：不读业务数据，无需 $kb。用**前缀**匹配（而非宽松子串），
+# 避免把夹在中间的 `CALL db.` 当白名单放行。
+_SCHEMA_CALL = re.compile(r"^(?:EXPLAIN\s+|PROFILE\s+)*CALL\s+(?:db|dbms)\.", re.I)
+# schema DDL（建索引/约束）同样不读业务数据，也没有 $kb 的概念；ensure_indexes() 要走它。
+_SCHEMA_DDL = re.compile(r"^(?:EXPLAIN\s+|PROFILE\s+)*(?:CREATE|DROP)\s+(?:INDEX|CONSTRAINT)\b", re.I)
+# 可选的 EXPLAIN / PROFILE 前缀（explain() 的调用方可能已经拼好）。
+_EXPLAIN_PREFIX = re.compile(r"^(?:(?:EXPLAIN|PROFILE)\s+)+", re.I)
+# 带目标标签的节点模式：`(e:Entity {..})` / `(:Chunk)` 等。
+# [^()]* 不跨越嵌套括号，避免把子查询里的 ) 误当成节点模式的结束。
+_LABELLED_NODE = re.compile(
+    r"\(\s*([A-Za-z_]\w*)?\s*:\s*(Entity|Chunk|Document)\b([^()]*)\)", re.I)
+# 大括号里 kb 作为属性**键**（不是值里恰好出现 kb，如 {name: $kb} 不算）
+_PROP_KB = re.compile(r"\{\s*[^}]*\bkb\s*:", re.I)
+_PARAM_KB = re.compile(r"\$kb\b", re.I)
+
+
+def assert_namespaced(cypher: str) -> None:
+    """全项目唯一的执行入口检查：任何要落库的 Cypher 都必须带 P5 命名空间 $kb。
+
+    这是**保守的静态检查，不是完整的 Cypher 解析器**。规则：
+
+    1. 纯 schema/introspection 查询（`CALL db.` / `CALL dbms.` 开头）与 DDL
+       （`CREATE/DROP INDEX|CONSTRAINT`）不读业务数据、也没有 $kb 概念，放行；
+       可带可选的 EXPLAIN / PROFILE 前缀。
+    2. 其余语句必须先出现 `$kb` 参数。
+    3. 每个 `:(Entity|Chunk|Document)` 节点模式，要么大括号里带 `kb` 键
+       （形如 `{kb: $kb}`），要么紧随其后有 `WHERE <alias>.kb = $kb`。
+
+    不通过抛 ValueError，原因写明是哪一条。
+
+    **局限**：正则覆盖不了 Cypher 的全部语法（子查询、模式理解、路径变量、反引号
+    标识符等），复杂写法可能被误判——这里宁可拒绝也不放行（可在评审后调整检查逻辑，
+    但不能靠放宽标准绕过）。白名单用**前缀**匹配把风险面收窄到只读的内省调用，
+    但理论上若有人注册了名为 `db.*` 的自定义过程仍可能绕过；所以这一层之外还有
+    Text2Cypher 关键词白名单、EXPLAIN 预检与只读会话三道防线，不是只靠它兜底。
+    """
+    q = (cypher or "").strip()
+    if _SCHEMA_CALL.match(q) or _SCHEMA_DDL.match(q):
+        return
+    stripped = _EXPLAIN_PREFIX.sub("", q).strip()
+    if not _PARAM_KB.search(stripped):
+        raise ValueError("缺少命名空间 $kb（可能读到别的项目数据）")
+    for m in _LABELLED_NODE.finditer(stripped):
+        alias, label, detail = m.group(1), m.group(2), m.group(3)
+        if _PROP_KB.search(detail):
+            continue
+        # 退路：大括号没带 kb 时，检查紧随节点模式之后是否有 WHERE <alias>.kb = $kb。
+        # 必须带 alias 才引用得到该节点，且只匹配这个 alias——否则「上半句守规矩、
+        # 下半句换个 alias 偷读别的项目」会蒙混过关。
+        if alias:
+            tail = stripped[m.end():m.end() + 120]
+            if re.search(r"\bWHERE\s+" + re.escape(alias) + r"\.kb\s*=\s*\$kb\b", tail, re.I):
+                continue
+        who = f"节点模式 :{label}" + (f"（别名 {alias}）" if alias else "")
+        raise ValueError(
+            f"{who} 未带 kb 过滤：需在 {{}} 内写 {{kb: $kb}}，"
+            f"或紧随其后写 WHERE {(alias or '<alias>')}.kb = $kb")
+
+
 def ensure_limit(cypher: str, limit: int = DEFAULT_LIMIT) -> str:
     """没有结尾 LIMIT 就补一个；已有的超过上限则压到上限。
 

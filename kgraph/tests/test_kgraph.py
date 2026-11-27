@@ -199,6 +199,105 @@ def test_prompt_uses_in_predicate_in_examples():
     assert "配网失败怎么办" in p
 
 
+# ---------------------------------------------------------------- 命名空间入口强制
+def test_assert_namespaced_accepts_all_templates():
+    """模板（hops=1/2/3 × typed 与否）是默认检索路径，必须全部过关。"""
+    for hops in (1, 2, 3):
+        for typed in (True, False):
+            for _name, q in cypher.templates(hops, typed=typed):
+                cypher.assert_namespaced(q)
+
+
+def test_assert_namespaced_accepts_reader_and_writer_statements():
+    """取实体列表、建图写入（UNWIND/MERGE）与统计查询都要过检查。"""
+    for q in (
+        "MATCH (e:Entity {kb: $kb}) RETURN e.name AS name",
+        "UNWIND $items AS item MERGE (e:Entity {kb: $kb, name: item.name}) SET e.kind = item.kind",
+        "MATCH (d:Document {kb: $kb, doc_id: item.doc_id}), "
+        "(c:Chunk {kb: $kb, chunk_id: item.chunk_id}) MERGE (d)-[:HAS_CHUNK]->(c)",
+        "MATCH (n {kb: $kb}) RETURN labels(n)[0] AS label, count(*) AS c",
+        "MATCH (a {kb: $kb})-[r]->(b {kb: $kb}) RETURN type(r) AS type, count(*) AS c",
+    ):
+        cypher.assert_namespaced(q)
+
+
+def test_assert_namespaced_accepts_introspection_and_ddl():
+    """内省查询与 DDL 不读业务数据，必须放行（探针 / _has_typed / 建索引都走它）。"""
+    for q in (
+        "CALL db.relationshipTypes() YIELD relationshipType RETURN relationshipType AS t",
+        "CALL dbms.components() YIELD name, versions, edition RETURN name AS name",
+        "CREATE INDEX kgraph_entity_kb_name IF NOT EXISTS FOR (e:Entity) ON (e.kb, e.name)",
+    ):
+        cypher.assert_namespaced(q)
+
+
+def test_assert_namespaced_tolerates_explain_prefix():
+    """explain() 的调用方可能已拼好前缀，检查必须容忍。"""
+    cypher.assert_namespaced("EXPLAIN MATCH (e:Entity {kb: $kb}) RETURN e.name AS name")
+    cypher.assert_namespaced("PROFILE MATCH (e:Entity {kb: $kb}) RETURN e.name AS name")
+
+
+@pytest.mark.parametrize("bad,why", [
+    ("MATCH (e:Entity {kb: $other}) RETURN e.name", "缺少命名空间"),
+    ("MATCH (e:Entity) RETURN e.name LIMIT 5", "缺少命名空间"),
+    ("MATCH (e:Entity) MATCH (n {kb: $kb}) RETURN e.name LIMIT 5", ":Entity"),
+    ("MATCH (e:Entity {name: $kb}) RETURN e.name LIMIT 5", ":Entity"),
+    ("MATCH (e:Entity) WHERE e.name = 'x' MATCH (n {kb: $kb}) RETURN e.name", ":Entity"),
+])
+def test_assert_namespaced_rejects_missing_kb(bad, why):
+    """没有 $kb、或节点模式没带 kb（值里出现 $kb 不算），都要拒。"""
+    with pytest.raises(ValueError, match=why):
+        cypher.assert_namespaced(bad)
+
+
+def test_assert_namespaced_catches_sneaky_second_pattern():
+    """关键：上半句守规矩、下半句偷读别的项目——第二条 :Document 没 kb 必须被抓。"""
+    q = ("MATCH (e:Entity {kb: $kb}) WHERE e.name IN $names "
+         "MATCH (x:Document) RETURN x")
+    with pytest.raises(ValueError, match=":Document") as exc:
+        cypher.assert_namespaced(q)
+    assert "kb" in str(exc.value)
+
+
+def test_assert_namespaced_rejects_where_on_wrong_alias():
+    """WHERE 退路必须认准同一个 alias：拿别的 alias 的 kb 过滤蒙混不过。"""
+    q = "MATCH (x:Document) MATCH (e:Entity {kb: $kb}) WHERE e.kb = $kb RETURN x"
+    with pytest.raises(ValueError, match=":Document"):
+        cypher.assert_namespaced(q)
+
+
+def test_assert_namespaced_accepts_where_alias_fallback():
+    """大括号没带 kb、但紧随其后有 WHERE <alias>.kb = $kb 的合法写法要放行。"""
+    q = ("MATCH (c)-[:MENTIONS]->(m:Entity) WHERE m.kb = $kb "
+         "AND m.name IN $names RETURN m.name")
+    cypher.assert_namespaced(q)
+
+
+def test_store_entry_enforces_namespace_without_connecting():
+    """入口强制：非法查询在连库前就被拒，假 driver 一次都不该被调用。"""
+    from kgraph.store import Neo4jStore
+    st = object.__new__(Neo4jStore)      # 不触发 __init__，不需要真 neo4j 驱动
+    entered = []
+
+    def fake_session(write=False):
+        entered.append(write)
+
+        class Ctx:
+            def __enter__(self):
+                raise AssertionError("非法查询不应连库")
+
+            def __exit__(self, *exc):
+                return False
+
+        return Ctx()
+
+    st._session = fake_session
+    for method in ("read", "run", "explain"):
+        with pytest.raises(ValueError, match=r"\$kb"):
+            getattr(st, method)("MATCH (e:Entity) RETURN e.name")
+    assert entered == []
+
+
 # ---------------------------------------------------------------- 检索器
 class FakeStore:
     def __init__(self, entities=(), hop1=(), hop2=(), llm_rows=None):
@@ -316,6 +415,23 @@ def test_llm_cypher_used_when_valid():
     assert st.explained == [good]                 # 执行前确实先让 Neo4j 编译过（EXPLAIN 由真 store 加前缀）
 
 
+def test_llm_cypher_without_hop_column_uses_path_length():
+    """模型生成的 Cypher 常只返回 chunk_id + path，不返回 hop 列。
+    按 path 节点数兜底：path=[A,B] → A—B—chunk 两条边 = 2 跳，不能再全标成 1 跳。"""
+    good = ("MATCH (e:Entity {kb: $kb}) WHERE e.name IN $names "
+            "MATCH p = (e)-[:CO_MENTION*1..2]-(e2:Entity {kb: $kb}) "
+            "MATCH (e2)<-[:MENTIONS]-(c:Chunk {kb: $kb}) "
+            "RETURN c.chunk_id AS chunk_id, [n IN nodes(p) | n.name] AS path LIMIT 20")
+    st = FakeStore(entities=["配网"], llm_rows=[
+        {"chunk_id": "c1", "path": ["配网", "复位键"]},
+        {"chunk_id": "c2", "path": []},
+    ])
+    cands, rep = retriever.search("配网失败", st, mode="llm", llm=FakeLLM(good))
+    assert rep["mode"] == "llm"
+    # 候选按 (hop, -score, chunk_id) 排：1 跳在前——这是设计行为，不是 bug
+    assert [(c.chunk_id, c.hop) for c in cands] == [("c2", 1), ("c1", 2)]
+
+
 def test_llm_mode_without_model_falls_back():
     st = FakeStore(entities=["配网"], hop1=[{"chunk_id": "c1", "matched": ["配网"], "path": [], "hop": 1}])
     _, rep = retriever.search("配网失败", st, mode="llm", llm=None)
@@ -341,10 +457,23 @@ def test_extract_llm_drops_hallucinated_entities_and_dangling_relations():
     assert out["stats"]["dropped"] == 2 and out["stats"]["batches"] == 1
 
 
-def test_extract_llm_handles_bad_json_and_offline():
+def test_extract_llm_records_why_a_batch_failed():
+    """只给「失败了 2 批」的计数等于没说：实测时根本判断不出是超时还是输出被截断。"""
     chunks = [{"chunk_id": "c1", "doc_id": "d", "idx": 0, "text": "随便一段"}]
     out = extract_llm.extract_llm(chunks, FakeLLM("这不是 JSON"), batch_size=4)
     assert out["stats"]["failed_batches"] == 1 and not out["relations"]
+    assert "不是完整 JSON" in out["stats"]["failures"][0]["reason"]
+
+    class Truncated(FakeLLM):
+        def complete(self, prompt, **kw):
+            return '{"chunks":[{"index":0,"entities":[{"name":"x"}],"relations":[]'
+
+    out = extract_llm.extract_llm(chunks, Truncated(""), batch_size=1)
+    assert "截断" in out["stats"]["failures"][0]["reason"]
+
+
+def test_extract_llm_without_model_is_unavailable():
+    chunks = [{"chunk_id": "c1", "doc_id": "d", "idx": 0, "text": "随便一段"}]
     assert extract_llm.extract_llm(chunks, None)["stats"]["available"] is False
 
 
