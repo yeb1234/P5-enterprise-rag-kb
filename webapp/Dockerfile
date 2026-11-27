@@ -19,11 +19,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+# 2026-11-27 实测：pypdf 6.21.4 下 405 项单测 + 26 项 backend 全过，解析 API 无变化。
 RUN pip install --no-cache-dir -i ${PIP_INDEX_URL} \
       "fastapi>=0.110" \
       "uvicorn>=0.29" \
       "python-multipart>=0.0.9" \
-      "pypdf>=4.0" \
+      "pypdf>=6.19,<7.0" \
       "Pillow>=10.0" \
       "psycopg[binary]>=3.1" \
       "SQLAlchemy>=2.0,<2.1" \

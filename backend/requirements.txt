@@ -15,6 +15,8 @@ python-multipart>=0.0.9
 httpx>=0.27,<1.0
 pymilvus>=2.4,<3.0
 minio>=7.2,<8.0
-pypdf>=5.0,<6.0
+# pypdf 6 已实测兼容（2026-11-27，pypdf 6.21.4 下 backend 26 项 + 全量 405 项全过）。
+# 升到 6.x 是为了与 neo4j-graphrag 1.24+ 的 pypdf>=6.19 约束对齐，避免两套依赖打架。
+pypdf>=6.19,<7.0
 numpy>=1.26,<3.0
 pytest>=8.0,<9.0
