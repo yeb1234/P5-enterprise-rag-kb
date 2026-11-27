@@ -1,8 +1,8 @@
 # PII 检测与脱敏 · 企业知识库内容安全调研报告
 
 > 文档路径：`docs/content-safety/01-research.md`｜编制：`pii-researcher`｜检索日期：**2026-11-14**
-> 性质：**调研报告**。只整理可核实的工业实践与面试考点，不含代码改动、不含实测数字、不是实施记录、不是验收报告。
-> 项目定位：企业内部知识库 RAG「开发框架骨架 + 可运行演示切片」，用于学习与面试讲解，**不是上线交付版**。
+> 性质：**调研报告**。只整理可核实的工业实践与工程要点，不含代码改动、不含实测数字、不是实施记录、不是验收报告。
+> 项目定位：企业内部知识库 RAG「开发框架骨架 + 可运行演示切片」，用于工程演示，**不是上线交付版**。
 > 变更范围：本次只新增本文件；未改任何 `.py` / `.html` / `.js` / `.yml`，未动冻结区 `eval/` `demo/` `evalbench/`，未碰 `docs/knowledge/`、`docs/parsing/`、`docs/cache-recovery/`、`knowledge/`、`parsing/`、`cache/`。
 
 ---
@@ -13,7 +13,7 @@
 > §0.2 里「webapp 全明文 `TEXT` 列」「SSE 逐 token 直发」「导出明文」等条目，
 > 在编制时**都是实查得到的真实状态**，因此**不回改、不重写历史条目**。
 > 同日晚些时候，用户「PII 也做一层」的需求已按本文 §B 的四出口口径落地实现。
-> **当前状态以 `docs/content-safety/02-design.md` 与 `docs/CONTENT-SAFETY-DELIVERY.md` 为准，
+> **当前状态以 `docs/content-safety/02-design.md` 与 `docs/content-safety/02-design.md` 为准，
 > 本文件其余段落仍按调研时点阅读。**
 
 | 本文调研时点状态 | 本轮落地后的当前状态 | 落点 |
@@ -269,7 +269,7 @@ SIEM 对接、密态检索、压测与阈值标定，以及 **`backend/` 生产�
 
 ---
 
-## D. 面试考点（10 条）
+## D. 工程要点（10 条）
 
 > 每条给「错误答法」与「正确答法要点」。全部按本项目实际三态作答，不把「只设计」讲成「已做」。
 
@@ -336,7 +336,7 @@ SIEM 对接、密态检索、压测与阈值标定，以及 **`backend/` 生产�
 14. https://catalayer.com/guides/llm-security-prompt-injection — LLM Security: Prompt Injection, Data Exfiltration, and Defense Patterns
 15. https://blog.habsi.net/?p=2664 — Securing LLM Applications: A Practical Guide to Prompt Injection Defense
 
-**检索 4 — 中文「企业级知识库 PII 脱敏 入库前 检索 面试」**
+**检索 4 — 中文「企业级知识库 PII 脱敏 入库前 检索 评审」**
 
 16. https://m.zpedu.com/it/db/45441.html — 企业建设大模型知识库如何做好数据脱敏处理？（中培伟业）
 17. https://www.bestcoffer.com/en/resources/guides/how-to-build-a-sensitive-data-redaction-workflow-for-rag-systems/ — AI Redaction for RAG: How to Prepare Sensitive Documents for Enterprise Knowledge Bases
@@ -361,7 +361,7 @@ SIEM 对接、密态检索、压测与阈值标定，以及 **`backend/` 生产�
 28. https://lvshi.sogou.com/article/detail/DP4Q8SJ241T1.html — 个人信息处理者应当采取相应的加密
 29. https://www.jcwlyf.cn/content-51475.html — 网站日志中用户 ID 的脱敏存储与访问控制
 
-> 项目内事实源（均为本次实读，非外部 URL）：`backend/app/agent/orchestrator.py`、`webapp/db.py`、`webapp/routers_badcase.py`、`webapp/routers_chat.py`、`webapp/routers_docs.py`、`docs/llm-safety-positions.md`、`docs/kb-capability-checklist.md`、`docs/knowledge/02-candidates.md`。外部来源只用于确认「哪些是 2025–2026 年工业实践与面试高频考点」，**本项目的三态判定一律以仓库实查为准**。
+> 项目内事实源（均为本次实读，非外部 URL）：`backend/app/agent/orchestrator.py`、`webapp/db.py`、`webapp/routers_badcase.py`、`webapp/routers_chat.py`、`webapp/routers_docs.py`、`docs/llm-safety-positions.md`、`docs/kb-capability-checklist.md`、`docs/knowledge/02-candidates.md`。外部来源只用于确认「哪些是 2025–2026 年工业实践与高频场景考点」，**本项目的三态判定一律以仓库实查为准**。
 
 ---
 

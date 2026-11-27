@@ -1,6 +1,6 @@
 # 需求变更调整方案：多租户架构 → 多用户多部门
 
-> 编制：2026-11-13 ｜ 适用：`P5企业级知识库项目`（A/B 档开发框架骨架 + 面试讲解版）
+> 编制：2026-11-13 ｜ 适用：`P5企业级知识库项目`（A/B 档开发框架骨架 + 工程实现版）
 > **性质**：设计评审与改造方案。本次**未修改任何项目源码、未执行迁移、未改动 `eval/` 冻结对象与 demo 的 `run_id`**，仅新增本方案文档。
 > 事实源：`docs/CHANGELOG.md` §6、`docs/enterprise-readiness.md`、`docs/permission-model.md`、`docs/kb-capability-checklist.md`、`backend/app/**`、`webapp/**`，以及全栈架构交付专家团八位成员的独立产出与主理人裁决 C1–C35。
 > 三态纪律：全文严格区分「**已实现 / 只设计 / 未做**」，不把设计说成落地、不把演示替身说成生产实现。
@@ -97,7 +97,7 @@ S1/S2/S4；tenant 整体移除与角色 / 枚举合并；五条硬约束重定�
 
 - `backend/` 承担**完整部门 ACL**（本已实现，去 tenant 后成为唯一边界）。
 - `webapp/` 演示切片**必须补齐最小可演示能力**：users 带 `department_id`、部门树（至少两层）、登录用户归属部门、文档 / 会话按部门过滤、`admin` 全组织可见、侧栏「部门与成员」视图。
-- **不要求** webapp 实现完整 `ACLGrant` / 子树 / 逐段落（这些留在 backend，文档明确标「只设计」）。理由：面试讲解版讲不出部门场景则变更不可验证；但 SQLite + 进程内队列是替身，不宜承担完整 ACL。
+- **不要求** webapp 实现完整 `ACLGrant` / 子树 / 逐段落（这些留在 backend，文档明确标「只设计」）。理由：工程实现版讲不出部门场景则变更不可验证；但 SQLite + 进程内队列是替身，不宜承担完整 ACL。
 
 ---
 
@@ -148,7 +148,7 @@ flowchart TB
 | D4 | 部门树 | 保留 `Department.path` 物化路径 + `level`，子树改**路径前缀匹配** | `WITH RECURSIVE` 递归 CTE；闭包表 | 子树可见性读多写少，物化路径把递归成本从「每次读」转移到「部门变动时一次写」；闭包表要加表 + 双写，对 1 人项目过度设计。**诚实代价**：部门移动需 O(子树规模) 批量更新 path、树深 ≤10、分隔符转义 |
 | D5 ★ | tenant 维度替代 | **按职责分治**：① 成本归集 → `department_id` **事件快照、不回溯**；② 命名空间 → 静态 `ORG_NAMESPACE`，`department_id` 只作可选标签；③ 缓存 → **先按 `decide()` 过滤再写**，key 带 principal 授权快照 | 把 386 处 `tenant_id` 机械全局替换成 `department_id` | `tenant` 静态/平级/互斥，`department` 动态/层级/可变。机械替换致：转岗后 SSE 进度快照读不到、历史对象 key 与用量台账错位、部门重组后前缀失效；更严重的是**原 tenant 前缀兼做缓存隔离**，删除后若按部门分片，A 部门可能命中 B 部门缓存造成越权 |
 | D6 | Milvus 分区键 | 去 `is_partition_key=True`、删 `MILVUS_NUM_PARTITIONS=32`、重建 collection；expr 首条件换 `dept_id in [...]` | 把 `dept_id` 设为新 partition key | 实查 `milvus_client.py:36` 的 `tenant_id` 是 schema 级 partition key，**不可 ALTER**，删列必须重建 + 全量 reindex；部门动态可变、分区数固定、热点部门易倾斜 |
-| D7 | 迁移 | `0001` 基线冻结不动，新增 `0002_single_org_departments.py` 显式迁移（含 upgrade/downgrade） | 直接改 `0001` / 删库重建 | 项目约定「从 0002 起必须写显式迁移」；面试讲解版要演示迁移演进；删库重建会丢种子数据 |
+| D7 | 迁移 | `0001` 基线冻结不动，新增 `0002_single_org_departments.py` 显式迁移（含 upgrade/downgrade） | 直接改 `0001` / 删库重建 | 项目约定「从 0002 起必须写显式迁移」；工程实现版要演示迁移演进；删库重建会丢种子数据 |
 | D8 ★ | 可见集合来源 | 新增单一 `visible_department_ids()`，由 `visible_document_clause()` / `build_permission_expr()` / 列表侧共同复用 | 三处各自维护部门集合 | **实查三处口径已不一致**（SQL 只本部门 or NULL；`allowed_dept_ids()` 只本部门；`decide()` 子树用字符串 path 包含），另有 `document.py:25-36` 的 `apply_filters()` 是**第四处**。多租户时靠 `tenant_id` 硬过滤掩盖，删掉后会放大成「列表看不到但检索能召回」或反向越权 |
 
 ### 3.3 五条硬约束的修订
@@ -230,7 +230,7 @@ flowchart TB
 | 路由 | `api/v1/auth.py`(21)、`users.py`(13)、`documents.py`(17) 含 `:59` 的**对象 key 前缀越权校验**与 `:117` 的 `visibility="tenant"`、`uploads.py`(14)、`knowledge_bases.py`(8)、`categories.py`(9)、`versions.py`(8)、`tasks.py`(6)、`stats.py`(5)、`search.py`(1 但语义关键)、`audit.py`(1) | 高 |
 | 中间件 | `middleware/rate_limit.py`(2)：`tenant_key("global",...)` → `org_key(...)`；`request_context.py` 不变 | 中 |
 | webapp | `db.py`(6)、`observability.py`(12)、`main.py`(2)、`routers_chat.py:129`、`routers_evaltest.py`(5)、`tests/test_evaltest.py`(2)、`rag.py:286`、`README.md:229`、`static/app.js`/`i18n.js`/`index.html` | 高 |
-| 文档 | `permission-model.md`(15)、`kb-capability-checklist.md`(16)、`enterprise-readiness.md`(14)、`async-upload.md`(7)、`operations.md`(4)、`evaluation-report.md`/`agent-extension.md`/`next-version...md`/`learning-roadmap.md`/`CHANGELOG.md` | 高 |
+| 文档 | `permission-model.md`(15)、`kb-capability-checklist.md`(16)、`enterprise-readiness.md`(14)、`async-upload.md`(7)、`operations.md`(4)、`evaluation-report.md`/`agent-extension.md`/`next-version...md`/`CHANGELOG.md` | 高 |
 
 ### 5.3 新增
 
@@ -598,4 +598,4 @@ node --check webapp/static/i18n.js
 python -m uvicorn webapp.main:app --port 8765    # admin / admin123
 ```
 
-> **一句话给面试讲解**：这次不是「把多租户改成多部门」，而是「删掉一层用不上的组织边界，把本来就在代码里的部门树提升为唯一边界；代价是过滤条件从静态唯一值变成动态超集，所以我把权限判定收敛成唯一权威、用列表与检索的一致性对拍证明它没漏，并且如实说明隔离强度降了」。
+> **一句话给工程说明**：这次不是「把多租户改成多部门」，而是「删掉一层用不上的组织边界，把本来就在代码里的部门树提升为唯一边界；代价是过滤条件从静态唯一值变成动态超集，所以我把权限判定收敛成唯一权威、用列表与检索的一致性对拍证明它没漏，并且如实说明隔离强度降了」。

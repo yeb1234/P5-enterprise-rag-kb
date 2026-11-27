@@ -505,7 +505,7 @@ python scripts/verify_infra.py \
 
 ---
 
-## 11. 面试怎么讲这一段
+## 11. 评审怎么讲这一段
 
 **不要讲「我做了数据迁移」，要讲「我怎么判断迁移是安全的」。**
 
@@ -637,7 +637,7 @@ $ docker exec kb-webapp sh -c "grep -rln 'import sqlite3' /app --include=*.py"
   不属于运行时，删掉它等于让这次迁移不可复现。依赖方向是单向的，运行时永远不回读 SQLite。
 - **`backend/` 的 13 步去 tenant 改造仍未做**，与本次无关。
 
-### 12.6 面试怎么讲这一段
+### 12.6 评审怎么讲这一段
 
 **不要讲「我把 SQLite 换成了 PostgreSQL」——那句话谁都会说。要讲「我怎么保证 138 处改动没改坏」。**
 

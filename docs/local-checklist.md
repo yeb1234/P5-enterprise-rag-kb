@@ -38,9 +38,9 @@ curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:8767/
 
 ## 3. 讲解页（双击即可，零外部依赖）
 
-- `interview/index.html`：三态边界、核心亮点、数据流、验证快照、面试 Q&A
-- `interview/journey.html`：五段演进、8 个亮点、8 个真实缺陷、15 个面试问答
-- `interview/cases.html`：九节点数据流向图 + 14 个故障点 + 面试三层讲法 + 自测清单
+- `interview/index.html`：三态边界、核心亮点、数据流、验证快照、评审 Q&A
+- `interview/journey.html`：五段演进、8 个亮点、8 个真实缺陷、15 个常见问题
+- `interview/cases.html`：九节点数据流向图 + 14 个故障点 + 评审三层讲法 + 自测清单
 - `docs/showcase/aliyun-guide.html` / `tencent-cloud-guide.html`：两家云的上线指导
 
 ## 4. 回归（可选，确认没被后续改动弄坏）

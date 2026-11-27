@@ -32,7 +32,7 @@
 
 ```
 parsing/
-├── README.md          ← 你在这里：入口、演示步骤、面试讲法
+├── README.md          ← 你在这里：入口、演示步骤、评审讲法
 ├── __init__.py        包导出（ParseRouter / VisionBudget / 契约）
 ├── contracts.py       数据契约：QualitySignals / ParseResult / ParseTrace / 策略常量
 ├── config.py          运行时开关与阈值（PARSING_ 前缀，与其它命名空间隔离）
@@ -53,7 +53,7 @@ parsing/
 
 配套：`webapp/routers_parse.py`（演示切片 API）、`webapp/static/` 的「解析实验室」视图、`Dockerfile.parse` + compose 的 `parser` 服务、`docs/parsing/` 六份原理资料。
 
-## 90:10 到底是什么（面试最容易问）
+## 90:10 到底是什么（评审最容易问）
 
 **不是随机把 10% 的页送去调用最贵的模型。** 随机分流既不能保证疑难页被送到对的链路，又会让本来能自研解决的页白付钱。
 
@@ -104,7 +104,7 @@ curl http://127.0.0.1:8766/health/live
 - **大文件 / 多文件**：`split_pages()` 用 3000 字符为「页」切纯文本（与 `backend/app/services/parser.py` 的 `page_chars` 对齐），PDF 逐页提取，绝不整块进内存；生产链路的分片上传、`ingest`/`ingest_heavy` 双队列、按页范围并行与 Redis 计数合并见 `docs/parsing/06-department-queue.md`。
 - **分部门**：部门是**成本归因与配额标签**，不是隔离边界；进度 key 不带部门（转岗后 SSE 不断连），成本按事件发生时的部门快照记录、不回溯。当前 `backend/` 的 `tenant_id` 是历史命名技术债，完整 13 步数据模型改造见 `docs/org-model-change-plan.md`（方案已定、代码尚未改造）。
 
-## 诚实边界（面试别越线）
+## 诚实边界（评审别越线）
 
 - P0 的表格是**规则级**结构还原，处理 Markdown 管道表 / CSV / TSV；不等于工业级无边框表格识别。
 - P1 未接入任何收费服务，所有接口字段 `__TBC__`，`available()` 返回 `False` 时路由器降级留痕。
@@ -119,7 +119,7 @@ curl http://127.0.0.1:8766/health/live
 
 | 编号 | 主题 |
 |---|---|
-| 01 | 架构总览与面试讲法（含三态图例对照） |
+| 01 | 架构总览与评审讲法（含三态图例对照） |
 | 02 | PDF 文本层 / 扫描件 / OCR 原理 |
 | 03 | 表格结构语义与稳定性 |
 | 04 | 图片与多模态（含实测记录与离线/失败时怎么诚实降级） |

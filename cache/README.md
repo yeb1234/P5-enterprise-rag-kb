@@ -22,8 +22,8 @@
 
 配套适配层：`webapp/recovery.py`（启动/关闭桥接、策略持久化、模拟重启）、
 `webapp/routers_runtime.py`（`/api/runtime/*`）、`webapp/static/` 的「缓存与恢复」视图、
-`docs/cache-recovery/01-research.md`（调研 27 条来源）、`02-design.md`（设计与面试问答）、
-`docs/CACHE-DELIVERY.md`（交付说明）。
+`docs/cache-recovery/01-research.md`（调研 27 条来源）、`02-design.md`（设计与常见问题）、
+`docs/cache-recovery/02-design.md`（设计与验收）。
 
 ## 缓存 key：每一段对应一类事故
 
@@ -94,7 +94,7 @@ python -m pytest cache/tests -q
 python -m uvicorn webapp.main:app --port 8765
 #   admin / admin123 → 侧栏「缓存与恢复」→ 运行缓存演示 / 模拟重启 / 主动失效
 
-# 真·进程重启演练：隔离库启停两次，见 docs/CACHE-DELIVERY.md §3
+# 真·进程重启演练：隔离库启停两次，见 docs/cache-recovery/02-design.md §3
 ```
 
 ## 诚实边界
