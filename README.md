@@ -222,9 +222,9 @@ done
 | v1.3.1 | SQLAlchemy Engine 连接池（只接池不接 ORM） | 端到端 18.59ms → **3.77ms** |
 | v1.3.2 | stdout 单行 JSON + trace_id 贯穿 | 请求、任务、审计可用同一 id 还原 |
 | v1.3.3 | 查询向量缓存（LRU 512 / TTL 1800s） | 同一问省 **325ms**，检索 p50 855 → 529ms |
-| v1.3.4 | 自适应重排（`s1−s2 ≥ 0.05` 跳过 rerank） | 检索 mean **814 → 701ms（−14%）**，p95 −11%，R@5 −0.75~−1.0pt |
+| v1.3.4 | 自适应重排（`s1−s2 ≥ 0.05` 跳过 rerank） | 检索 mean **814 → 701ms（−14%）**，R@5 −0.75~−1.0pt；p95 本轮复跑未见稳定下降 |
 
-参数收敛结论：公开集采纳 `temperature=0.2`（A 组）；重排深度 20 仍最优。细节见 `docs/retrieval-param-convergence.md`、`docs/cmrc-chain-evaluation.md`、`docs/cmedqa-retrieval-evaluation.md`。
+参数收敛结论：公开集采纳 `temperature=0.2`（A 组）；重排深度 20 仍最优。2026-11-27 的 482 项全量测试、3000/12000 双池复核与公开基准复跑见 `docs/retrieval-param-review-2026-11-27.md`；历史方法与逐项推导见 `docs/retrieval-param-convergence.md`、`docs/cmrc-chain-evaluation.md`、`docs/cmedqa-retrieval-evaluation.md`。
 
 ## 文档导航
 
@@ -238,7 +238,7 @@ done
 | 三路取证 | `docs/kb-routes/01–05` |
 | 缓存与恢复 | `docs/cache-recovery/01–02` |
 | 生产化 | `docs/production/00–08`、`docs/deployment-guide.md`、`docs/operations.md` |
-| 评测 | `docs/evaluation-plan.md`、`docs/evaluation-report.md`、`docs/retrieval-param-convergence.md` |
+| 评测 | `docs/evaluation-plan.md`、`docs/evaluation-report.md`、`docs/retrieval-param-convergence.md`、`docs/retrieval-param-review-2026-11-27.md` |
 | 对外接口 | `docs/mcp.md` |
 | 工程规范 | `docs/HARNESS.md`、`docs/git-conventions.md` |
 | 组织模型 | `docs/org-model-change-plan.md`、`docs/multi-user-hardening.md` |

@@ -423,7 +423,9 @@ def main(argv: list[str] | None = None) -> int:
     p_embed.add_argument("--workers", type=int, default=2)
     p_run = sub.add_parser("run")
     p_run.add_argument("--top-k", type=int, default=100)
-    p_run.add_argument("--rerank-queries", type=int, default=300)
+    # 400 是文档与历史报告使用的固定子集；默认 300 会让同一命令跑出另一套
+    # nDCG（35.09 vs 36.09），看起来像回归，实际只是抽样不同。
+    p_run.add_argument("--rerank-queries", type=int, default=400)
     p_run.add_argument("--latency-probes", type=int, default=20,
                        help="延迟探针现场真调重排 API 的次数")
     args = ap.parse_args(argv)
