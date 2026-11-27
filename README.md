@@ -1,5 +1,9 @@
 # P5 · 企业级知识库与 RAG 问答系统
 
+<p align="center">
+  <a href="README.md">中文</a> · <a href="README.en.md">English</a> · <a href="docs/architecture-review.md">架构说明</a> · <a href="docs/README.md">文档索引</a>
+</p>
+
 **面向企业内部多部门的知识库系统：文档接入 → 解析分块 → 检索重排 → 带引用生成，一条链路跑通，权限、审计、降级与评测都在主链路里。**
 
 ![version](https://img.shields.io/badge/version-v1.4.0-2563EB?style=flat-square)
@@ -228,8 +232,11 @@ done
 
 ## 文档导航
 
+完整索引见 [`docs/README.md`](docs/README.md)：按“先读 / 架构 / 检索与治理 / 解析与安全 / 生产化 / 变更记录”分组，覆盖 `docs/` 下全部页面。常用入口：
+
 | 主题 | 文档 |
 |---|---|
+| English README | [`README.en.md`](README.en.md) |
 | 版本与改动 | `docs/CHANGELOG.md`、`docs/change-manifest.md` |
 | 架构复核 | `docs/architecture-review.md`、`docs/enterprise-readiness.md` |
 | 上传与解析 | `docs/async-upload.md`、`docs/parsing/01–07` |
