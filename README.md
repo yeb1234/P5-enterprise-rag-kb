@@ -12,7 +12,7 @@
 <p align="center">
   <img src="docs/assets/webapp-dashboard.png" width="920" alt="P5 webapp 工作台截图">
 </p>
-<p align="center"><sub>webapp 工作台：文档、问答、任务、评测、审计与系统边界的统一入口（真实运行截图，离线模型档）</sub></p>
+<p align="center"><sub>webapp 工作台：文档、问答、任务、评测、审计与系统边界的统一入口（真实运行截图，本地演示库）</sub></p>
 
 ## 项目简介
 
@@ -77,6 +77,26 @@ P5 是一套可运行的企业知识库 / RAG 问答系统，覆盖从文档上�
 - **Wiki 路**：`llmwiki/` 先过场景 / 信源 / 新鲜度三道门禁，再按场景筛信源，输出 Markdown 页面与 claims 证据链；源文件指纹一变，对应结论整条弃用。
 - **融合**：被多路同时命中的结果排最前，组内按 RRF（Σ 1/(60+名次)）排序；不同量纲的余弦、跳数衰减分、页面匹配分不相加。
 - **重排**：cross-encoder 或 LLM 重排；top1 领先 top2 ≥ 0.05 时自适应跳过，失败优雅跳过并留痕。
+
+
+## 运行界面
+
+以下截图来自本地启动的 webapp 与解析工作台，使用演示库数据，不是设计稿。
+
+<p align="center">
+  <img src="docs/assets/webapp-search.png" width="100%" alt="检索调试页面">
+</p>
+<p align="center"><sub>检索调试：一次查询的分词、命中/降级判定，以及每条分块的得分与来源。</sub></p>
+
+<p align="center">
+  <img src="docs/assets/webapp-runtime.png" width="100%" alt="缓存与恢复页面">
+</p>
+<p align="center"><sub>缓存与恢复：L1/L2 容量、缓存 key 逐段拆解，以及 7 项启动自检结果。</sub></p>
+
+<p align="center">
+  <img src="docs/assets/showcase-parsing.png" width="100%" alt="解析工作台页面">
+</p>
+<p align="center"><sub>解析工作台：页级解析轨迹、参数面板与入库 JSON 同屏对照。</sub></p>
 
 ## 快速开始
 

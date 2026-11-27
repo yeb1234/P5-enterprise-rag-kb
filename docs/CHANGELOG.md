@@ -272,6 +272,7 @@ $ docker logs kb-webapp | grep e3c0cb9a
 | 2026-11-27 | **自检不再数表总数** | `verify_infra.py` 的「期望 20 张表」改为 `REQUIRED_TABLES` 清单校验（含新增两张 wiki 表） | `scripts/verify_infra.py` | 加表不该让自检误报；实测踩到 `information_schema.tables` 列名是 `table_name` 不是 `tablename` |
 | 2026-11-27 | **测试** | `kgraph/tests` 60 项、`llmwiki/tests` 25 项、`webapp/tests` 197 项（含 `test_kb_routes` / `test_mcp` / 自适应重排 / 查询缓存） | 测试目录 | 合并后全量 **481 passed / 1 skipped**；跳过项需先跑两次离线评测生成对比 run |
 | 2026-11-27 | **文档收尾与配图** | README 改为传统项目介绍结构：首屏工作台截图、总体架构图、三路检索链路图；个人材料统一移入本地 `career/`（gitignored），项目文档删除个人口述段落，UI / 注释清掉 SQLite 与个人材料口吻；新增 `docs/assets/` 三张图 | `README.md`、`docs/assets/`、`docs/kb-routes/`、`docs/shared-infra/`、`webapp/static/*`、若干注释 | 本轮全量 **482 passed / 0 failed**；个人材料不入库、不回链 |
+| 2026-11-27 | **补充运行界面截图** | README 新增「运行界面」区：检索调试、缓存与恢复、解析工作台三张实际运行截图；截图取自本地 webapp / 解析工作台，不是设计稿 | `README.md`、`docs/assets/` | 只补文档与截图，不改业务代码 |
 
 **两个实测踩到的坑（都写了单测防回归）**：
 1. Neo4j 5.26 里 `MATCH (e {name: $names})` 传列表参数**恒不成立**（静默返回 0 行），放进 `NOT (...)` 里更会空真——必须用 `WHERE e.name IN $names`。
