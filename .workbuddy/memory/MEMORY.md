@@ -41,5 +41,7 @@ nDCG@10 BM25 16.29% → **bge-m3 33.93%**；前缀/融合更差，重排 →36.0
 
 **三路取证**（2026-11-27，分支 feature/graph-rag-wiki）：视频理念——三个仓库分工，多路检索后融合再重排，多路命中排前。开关落 app_settings（8 键），默认只开向量。`kgraph/` 术语共现图 + Neo4j（graphrag profile 默认不启）+ 自写 Text2Cypher 三道防护；`llmwiki/` 三道门禁 + 场景筛信源 + claims 证据链（源码一改指纹变即弃用），构建是后台任务。**没装 neo4j-graphrag**（强制 pypdf≥6.19 会动到 parsing/），只装官方驱动。**坑**：Neo4j 5.26 节点模式传列表参数恒不成立，必须 `WHERE e.name IN $names`；剪枝按前两字符索引会漏剪末尾短词；小语料 max_df 要绝对下限。详见 docs/kb-routes/01-design.md。
 
+**三路取证跟进**（2026-11-27，分支 feature/graph-routes-followup）：第 3 节 5 项边界全落地——LLM 语义建图真 API 18 批 0 失败/20 条带类型关系；Wiki 任务落库+增量重建（无变化零模型调用）；查询入口强制 kb 命名空间；MCP 风格 HTTP JSON-RPC 四工具（非完整协议）。434+26 项测试、e2e 33/33 全过。**pypdf 6 好升**（实验分支已验，主线未合）。社区版 Neo4j 无 RBAC，不假称权限隔离。详见 docs/kb-routes/01~05。
+
 ## 三查
 ① 数字实跑？② 三态分清？③ 冻结区零 diff？改约束性文本前先读 `docs/HARNESS.md`（Y1–Y22）。
