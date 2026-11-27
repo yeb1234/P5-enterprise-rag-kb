@@ -39,5 +39,7 @@ nDCG@10 BM25 16.29% → **bge-m3 33.93%**；前缀/融合更差，重排 →36.0
 **GitHub 远端** `git@github.com:yeb1234/P5-enterprise-rag-kb.git`（origin）；本地裸仓库改名 `local` 保留。版本口径 v1.3.2（不另建 1.0）。compose 项目名 `p5-kb-infra`，网络 `p5-kb-infra_default`（run-demo.sh 用 `KB_NETWORK` 覆盖）；本机 PG/Redis 用 5432/6379。
 **P5 共享基础设施**（2026-11-20）：P1/P2/P4 共享同一 PG+Redis，P5 加专属 schema `p5_kb`（非独立 database），DDL 仍走 `scripts/pg_init.sql` + SET search_path；Redis key `p5kb:{user_id}:{business}`，第三段必须命中业务白名单（防 `p5kb:rl:user` 把业务段当用户的弱 key）。本机演示是**模拟非真接入**，命名空间隔离 != 权限隔离。见 `docs/shared-infra/01-design.md`。
 
+**三路取证**（2026-11-27，分支 feature/graph-rag-wiki）：视频理念——三个仓库分工，多路检索后融合再重排，多路命中排前。开关落 app_settings（8 键），默认只开向量。`kgraph/` 术语共现图 + Neo4j（graphrag profile 默认不启）+ 自写 Text2Cypher 三道防护；`llmwiki/` 三道门禁 + 场景筛信源 + claims 证据链（源码一改指纹变即弃用），构建是后台任务。**没装 neo4j-graphrag**（强制 pypdf≥6.19 会动到 parsing/），只装官方驱动。**坑**：Neo4j 5.26 节点模式传列表参数恒不成立，必须 `WHERE e.name IN $names`；剪枝按前两字符索引会漏剪末尾短词；小语料 max_df 要绝对下限。详见 docs/kb-routes/01-design.md。
+
 ## 三查
 ① 数字实跑？② 三态分清？③ 冻结区零 diff？改约束性文本前先读 `docs/HARNESS.md`（Y1–Y22）。
