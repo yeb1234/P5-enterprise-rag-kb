@@ -254,6 +254,29 @@ $ docker logs kb-webapp | grep e3c0cb9a
 
 
 
+## v1.3.3 · 2026-11-27 · 三路取证（向量 / 图谱 / LLM Wiki），每路一个开关
+
+> 理念来自 B 站视频《企业知识库怎么选？RAG、GraphRAG、LLM Wiki，用订单排障拆开三路取证》。
+> 三个仓库分工，多路检索后融合再重排。**默认行为不变**：只开向量一路时走的还是原来的代码路径。
+
+| 日期 | 改进项 | 改动说明 | 影响范围 | 备注 |
+|---|---|---|---|---|
+| 2026-11-27 | **三路开关与融合** | `webapp/settings.py` 加 8 个白名单键与 `routes_on()`；`rag.py` 抽出 `_vector_route`（原来那段逐字搬出）并新增 `_fuse` / `_multi_route`。排序：多路命中优先 + RRF（1/(60+名次)）；图谱/Wiki 候选先回 PG 复核，同正文归并到同一代表分块 | `webapp/settings.py`、`webapp/rag.py` | 只开向量时输出仅**增加** `routes`/`fusion_score` 字段；405 项单测全过 |
+| 2026-11-27 | **图谱检索（`kgraph/`）** | 新纯函数包：离线术语共现建图 → Neo4j 5（compose `graphrag` profile，默认不启动）；多跳查询；**自己写的 Text2Cypher** 过三道防护（关键词白名单 → EXPLAIN → 只读会话），失败回退模板并留 `fallback_reason` | `kgraph/`、`docker-compose.infra.yml`、`run-demo.sh` | 没装 `neo4j-graphrag`：其 1.24.0 强制 pypdf≥6.19，本机 5.9.0，会动到 `parsing/`；只装官方驱动 6.4.1（仅依赖 pytz） |
+| 2026-11-27 | **LLM Wiki（`llmwiki/`）** | 三道门禁（场景 / 信源 / 新鲜度）+ 按场景筛信源 + MD 页面与 claims 证据链落 `wiki_pages`/`wiki_claims` + 后台构建任务（202 + 轮询进度）；构建输出过脱敏出口，失败 fail-closed | `llmwiki/`、`webapp/kb_routes.py`、`scripts/pg_init.sql` | 证据带 `source_hash`，原文一改指纹就变、结论整条弃用；真 API 实测场景筛出 20/171 段，4 批 0 失败，8 页/31 条结论 |
+| 2026-11-27 | **接口与前端** | `GET /api/kb/routes`、`POST /api/kb/graph/sync`、`POST /api/kb/wiki/build`；设置页加三路开关与同步/构建按钮，检索调试页显示每路状态、图谱子图（SVG）与 Wiki 命中页面 | `webapp/routers_routes.py`、`webapp/main.py`、`webapp/static/*`（`?v=19`→`20`）、i18n 新增 73 条 | 普通用户只看「通不通」，构建接口 admin-only；新文案中英成对 |
+| 2026-11-27 | **自检不再数表总数** | `verify_infra.py` 的「期望 20 张表」改为 `REQUIRED_TABLES` 清单校验（含新增两张 wiki 表） | `scripts/verify_infra.py` | 加表不该让自检误报；实测踩到 `information_schema.tables` 列名是 `table_name` 不是 `tablename` |
+| 2026-11-27 | **测试** | 新增 `kgraph/tests`（45 项）、`llmwiki/tests`（24 项）、`webapp/tests/test_kb_routes.py`（18 项） | 测试目录 | 全量 **405 passed** + backend 26 + e2e 33/33 + INFRA_READY；冻结区零 diff |
+
+**两个实测踩到的坑（都写了单测防回归）**：
+1. Neo4j 5.26 里 `MATCH (e {name: $names})` 传列表参数**恒不成立**（静默返回 0 行），放进 `NOT (...)` 里更会空真——必须用 `WHERE e.name IN $names`。
+2. 「最长匹配剪枝」按前两字符建索引会漏剪「绑定」在「账号绑定」末尾这种情况；改为按「包含某字符」建索引。
+
+**真 API 验证**（用户明确要求走真模型）：图谱同步 2281 术语 / 6795 共现边；Text2Cypher 生成只读 Cypher 返回 27 行、写操作被拒后回退；LLM 抽出 10 条带类型关系；Wiki 构建场景筛出 20 段、4 批 0 失败、112.6 秒、门禁三项全过。
+**边界**：图是演示规模的术语共现图（非语义图谱），Wiki 任务状态在进程内存（多副本 / 重启会丢），增量重建与跨项目 Neo4j 权限未做。详见 `docs/kb-routes/01-design.md`。
+
+---
+
 ## 2026-11-16 追加 · 向量存储选型（`production/08-vector-store-decision.md`）
 
 > 起因：被问「Milvus 和 pgvector 什么区别、中小企业是不是 pgvector 就够」。
