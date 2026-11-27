@@ -24,6 +24,10 @@ class GraphSyncBody(BaseModel):
     doc_ids: list[str] | None = None      # None = 全量重建
 
 
+class WikiBuildBody(BaseModel):
+    mode: str = "full"                    # full=全量；incremental=只重建变化文档相关页面
+
+
 def _start(action) -> dict:
     try:
         return action()
@@ -46,8 +50,12 @@ def sync_graph(body: GraphSyncBody, user: dict = Depends(require_admin)):
 
 
 @router.post("/wiki/build", status_code=202)
-def build_wiki(user: dict = Depends(require_admin)):
-    job = _start(kb_routes.wiki_build_async)
+def build_wiki(body: WikiBuildBody | None = None, user: dict = Depends(require_admin)):
+    # body 可省：老调用方不带请求体时仍是 full，默认行为不变。
+    mode = body.mode if body else "full"
+    if mode not in ("full", "incremental"):
+        raise HTTPException(status_code=400, detail="mode 只能是 full 或 incremental")
+    job = _start(lambda: kb_routes.wiki_build_async(mode))
     db.log_action(user["username"], user["role"], "wiki", "build",
-                  f"scenario={settings.get('wiki_scenario')}")
+                  f"scenario={settings.get('wiki_scenario')} mode={mode}")
     return job

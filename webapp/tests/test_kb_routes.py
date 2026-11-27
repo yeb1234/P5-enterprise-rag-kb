@@ -33,6 +33,10 @@ T_MID = f"{NONCE}配网失败重试"                      # 命中 2
 T_OFFTOPIC = f"{NONCE}账号绑定说明"                 # 只命中锚词；问「设备配网」时命中 1
 T_WIKI = f"{NONCE}长按复位键3秒进入配网模式"
 QUESTION = f"{NONCE}设备配网怎么做"
+# 增量重建专用：两篇文档各带一个独有锚词，便于让假模型按文档分别产页
+T_INC_A = f"{NONCE}阿尔法设备配网：长按电源键开机"
+T_INC_B = f"{NONCE}贝塔账号绑定：扫码登录成功"
+INC_SCENARIO = f"{NONCE}阿尔法贝塔"
 
 
 @pytest.fixture(autouse=True)
@@ -420,3 +424,171 @@ def test_routes_status_requires_auth_and_hides_infra_detail(client):
     # 普通用户不能触发构建
     assert client.post("/api/kb/graph/sync", headers=uh).status_code == 403
     assert client.post("/api/kb/wiki/build", headers=uh).status_code == 403
+
+
+# ---------------------------------------------------------------- 任务落库与增量重建
+def test_job_state_reads_from_db_and_restart_marks_interrupted(monkeypatch):
+    """状态从 PG 读回；把 worker_id 改成别人的再读，running 收敛成 interrupted。"""
+    ids = _seed({"说明书": [T_WIKI]})
+    text = json.dumps(PAGE, ensure_ascii=False).replace("__A__", ids[T_WIKI])
+    monkeypatch.setattr(kb_routes, "_llm_or_none", lambda cfg: FakeLLM(text))
+    settings.set_many({"wiki_scenario": "演示场景"})
+
+    job = kb_routes.wiki_build_async()
+    assert job["status"] == "running" and job["result"] is None
+    assert _wait_job("wiki_build")["status"] == "done"
+
+    with db.get_conn() as conn:
+        row = conn.execute("SELECT status, worker_id FROM kb_jobs WHERE id=?",
+                           (job["id"],)).fetchone()
+    assert row["status"] == "done" and row["worker_id"] == kb_routes.WORKER_ID
+
+    # 直接改库：读接口跟着变，证明不是进程内存里的副本
+    with db.get_conn() as conn:
+        conn.execute("UPDATE kb_jobs SET result_json=? WHERE id=?",
+                     (json.dumps({"pages": 99}), job["id"]))
+        conn.commit()
+    assert kb_routes.job_state("wiki_build")["result"]["pages"] == 99
+
+    # 模拟进程重启 / 换了副本：同一行重新 running 且 worker_id 不是本进程
+    with db.get_conn() as conn:
+        conn.execute("UPDATE kb_jobs SET status='running', worker_id='other-replica', "
+                     "finished_at=NULL WHERE id=?", (job["id"],))
+        conn.commit()
+    st = kb_routes.job_state("wiki_build")
+    assert st["status"] == "interrupted" and "进程重启" in st["error"] and st["finished_at"]
+    assert kb_routes.job_state("wiki_build")["status"] == "interrupted"   # 幂等
+    assert kb_routes.status()["jobs"]["wiki_build"]["status"] == "interrupted"
+
+
+def test_same_name_job_rejected_when_db_already_running(monkeypatch):
+    """并发拦截靠 PG 部分唯一索引：别的进程插了 running 行，本进程也要当场被拒。"""
+    _seed({"说明书": [T_WIKI]})
+    settings.set_many({"wiki_scenario": "演示场景"})
+    monkeypatch.setattr(kb_routes, "_llm_or_none", lambda cfg: FakeLLM("unused"))
+    now = "2026-11-27T00:00:00Z"
+    with db.get_conn() as conn:
+        conn.execute(
+            "INSERT INTO kb_jobs(id,name,worker_id,status,started_at,updated_at) "
+            "VALUES (?,?,?,?,?,?)",
+            (uuid.uuid4().hex, "wiki_build", "other-replica", "running", now, now))
+        conn.commit()
+
+    with pytest.raises(kb_routes.RouteNotReady, match="正在进行中"):
+        kb_routes.wiki_build_async()
+    with db.get_conn() as conn:
+        n = conn.execute("SELECT COUNT(*) AS c FROM kb_jobs WHERE worker_id=?",
+                         (kb_routes.WORKER_ID,)).fetchone()["c"]
+    assert n == 0                                   # 被拒时不能留下本进程的 running 行
+
+
+def test_reset_jobs_clears_db():
+    now = "2026-11-27T00:00:00Z"
+    with db.get_conn() as conn:
+        conn.execute(
+            "INSERT INTO kb_jobs(id,name,worker_id,status,started_at,updated_at) "
+            "VALUES (?,?,?,?,?,?)",
+            (uuid.uuid4().hex, "wiki_build", kb_routes.WORKER_ID, "running", now, now))
+        conn.commit()
+    assert kb_routes.job_state("wiki_build")["status"] == "running"
+    kb_routes.reset_jobs()
+    with db.get_conn() as conn:
+        assert conn.execute("SELECT COUNT(*) AS c FROM kb_jobs").fetchone()["c"] == 0
+    assert kb_routes.job_state("wiki_build") == {"name": "wiki_build", "status": "idle"}
+
+
+def test_incremental_skips_llm_when_sources_unchanged(monkeypatch):
+    """信源无变化时一次模型调用都不发——即使 _llm_or_none 会抛异常也要成功 skip。"""
+    ids = _seed({"说明书": [T_WIKI]})
+    text = json.dumps(PAGE, ensure_ascii=False).replace("__A__", ids[T_WIKI])
+    monkeypatch.setattr(kb_routes, "_llm_or_none", lambda cfg: FakeLLM(text))
+    settings.set_many({"wiki_scenario": f"{NONCE}配网故障排查"})
+    kb_routes.wiki_build()                          # 先建一次，写下 source_doc_hashes
+
+    def boom(cfg):
+        raise AssertionError("信源无变化时不许触碰模型")
+
+    monkeypatch.setattr(kb_routes, "_llm_or_none", boom)
+    out = kb_routes.wiki_build(mode="incremental")
+    assert out["incremental_skipped"] is True and out["reason"] == "信源无变化"
+    assert out["pages"] == 1 and out["claims"] == 1
+    assert out["gate"]["allowed"] is True
+
+
+class IncrementalLLM:
+    """按分块正文里出现哪篇文档决定产哪一页；记录 prompt 供断言。"""
+
+    def __init__(self, chunk_a: str, chunk_b: str):
+        self.chunk_a, self.chunk_b = chunk_a, chunk_b
+        self.prompts: list[str] = []
+
+    def complete(self, prompt, **kw):
+        self.prompts.append(prompt)
+        pages = []
+        if T_INC_A in prompt:                       # 场景文本不会含整句，只有分块清单会
+            pages.append({
+                "title": "阿尔法配网", "section": "业务流程",
+                "markdown": "## 阿尔法配网\n长按电源键开机。",
+                "claims": [{"statement": "阿尔法设备长按电源键开机",
+                            "evidence": [{"chunk_id": self.chunk_a, "quote": "长按电源键开机"}]}],
+            })
+        if T_INC_B in prompt:
+            pages.append({
+                "title": "贝塔绑定", "section": "业务流程",
+                "markdown": "## 贝塔绑定\n扫码登录成功。",
+                "claims": [{"statement": "贝塔账号扫码登录成功",
+                            "evidence": [{"chunk_id": self.chunk_b, "quote": "扫码登录成功"}]}],
+            })
+        return json.dumps({"pages": pages}, ensure_ascii=False)
+
+
+def test_incremental_rebuilds_only_changed_doc_pages(monkeypatch):
+    ids = _seed({"阿尔法说明": [T_INC_A], "贝塔说明": [T_INC_B]})
+    a, b = ids[T_INC_A], ids[T_INC_B]
+    with db.get_conn() as conn:
+        doc_a = conn.execute("SELECT doc_id FROM chunks WHERE id=?", (a,)).fetchone()["doc_id"]
+
+    def _snapshot():
+        with db.get_conn() as conn:
+            rows = conn.execute(
+                "SELECT p.title, c.source_hash FROM wiki_pages p "
+                "JOIN wiki_claims c ON c.page_id=p.id WHERE p.scenario=?", (INC_SCENARIO,)).fetchall()
+        return {r["title"]: r["source_hash"] for r in rows}
+
+    llm = IncrementalLLM(a, b)
+    monkeypatch.setattr(kb_routes, "_llm_or_none", lambda cfg: llm)
+    settings.set_many({"wiki_scenario": INC_SCENARIO})
+
+    built = kb_routes.wiki_build()
+    assert built["pages"] == 2 and built["claims"] == 2
+    before = _snapshot()
+    assert set(before) == {"阿尔法配网", "贝塔绑定"}
+
+    # 只改阿尔法那篇；贝塔那篇的 content_hash 不变
+    with db.get_conn() as conn:
+        conn.execute("UPDATE chunks SET text=? WHERE id=?", (T_INC_A + "（已修订）", a))
+        conn.commit()
+
+    llm.prompts.clear()
+    out = kb_routes.wiki_build(mode="incremental")
+    assert out["incremental"] is True and out["changed_doc_ids"] == [doc_a]
+    # 只把变化文档的分块送给模型，没把没变的贝塔再送一遍（场景名里有锚词，按整句判）
+    assert llm.prompts and all(T_INC_A in p and T_INC_B not in p for p in llm.prompts)
+    after = _snapshot()
+    assert set(after) == {"阿尔法配网", "贝塔绑定"}
+    assert after["阿尔法配网"] != before["阿尔法配网"]      # 变化的页重建了
+    assert after["贝塔绑定"] == before["贝塔绑定"]          # 没变的页原样保留
+    assert out["pages"] == 2 and out["claims"] == 2 and out["gate"]["allowed"] is True
+
+
+def test_wiki_build_rejects_invalid_mode(client):
+    h = _login(client, ADMIN)
+    r = client.post("/api/kb/wiki/build", headers=h, json={"mode": "bogus"})
+    assert r.status_code == 400 and "mode" in r.text
+
+
+def test_kb_jobs_table_matches_ddl():
+    from webapp.tests._dbutil import columns
+    with db.get_conn() as conn:
+        assert {"id", "name", "worker_id", "status", "started_at", "finished_at",
+                "error", "result_json", "progress", "updated_at"} <= columns(conn, "kb_jobs")

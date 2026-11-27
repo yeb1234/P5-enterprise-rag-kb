@@ -20,9 +20,9 @@ from __future__ import annotations
 
 import json
 import logging
-import threading
 import time
 import uuid
+from threading import Thread
 
 from kgraph import builder as graph_builder
 from kgraph import extract_llm
@@ -64,58 +64,152 @@ def _precheck_wiki_build() -> None:
 # ---------------------------------------------------------------- 后台任务
 # 构建类动作要跑几分钟（Wiki 构建是十几批模型调用），不能让一个 HTTP 请求干等。
 # 做法是「先同步做前置检查 → 立刻返回 → 后台线程执行 → 状态接口轮询」。
-# 状态只存在进程内存里：单进程演示够用；多副本时要落到 PG，否则另一副本看不到进度，
-# 进程重启也会让「进行中」的任务无声消失。这两点是已知边界，不是疏漏。
-_jobs: dict[str, dict] = {}
-_job_locks: dict[str, threading.Lock] = {}
+# 状态落在 PG 的 kb_jobs（DDL 唯一事实源是 scripts/pg_init.sql）：进程重启、多副本都能
+# 读到同一份状态；同名并发交给部分唯一索引 ux_kb_jobs_running 拦，不靠进程内的 Lock。
+WORKER_ID = uuid.uuid4().hex       # 模块导入时生成一次，代表当前进程/副本
+
+
+def _mark_interrupted() -> None:
+    """把别的进程遗留的 running 标成 interrupted。
+
+    每次读取任务状态前幂等执行一次，不需要 startup hook。边界要说清：这是「按 worker_id
+    盲判」，一个副本读状态时，另一个副本**正在跑**的同名任务也会被标记。演示切片接受这个
+    限制——没有做分布式任务协调（租约 / 心跳 / 抢锁），不要把它当成真的分布式队列。
+    """
+    now = _now()
+    conn = db.get_conn()
+    try:
+        conn.execute(
+            "UPDATE kb_jobs SET status='interrupted', "
+            "error='进程重启或换了副本，任务未完成', finished_at=?, updated_at=? "
+            "WHERE status='running' AND worker_id<>?",
+            (now, now, WORKER_ID))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _is_unique_violation(exc: BaseException) -> bool:
+    """沿异常链找 UniqueViolation：驱动可能被 SQLAlchemy 再包一层。"""
+    seen: set[int] = set()
+    while exc is not None and id(exc) not in seen:
+        seen.add(id(exc))
+        if type(exc).__name__ == "UniqueViolation":
+            return True
+        exc = exc.__cause__ or exc.__context__  # type: ignore[assignment]
+    return False
 
 
 def start_job(name: str, fn, precheck) -> dict:
-    """启动一个后台构建任务。同名任务正在跑时拒绝（防重复点击把活干两遍）。"""
-    with threading.Lock():                       # 只保护锁表的创建，不跨越任务执行期
-        lock = _job_locks.setdefault(name, threading.Lock())
-    if not lock.acquire(blocking=False):
-        raise RouteNotReady(f"{name} 正在进行中，请等它完成后再试")
+    """启动一个后台构建任务。同名任务正在跑时拒绝（防重复点击把活干两遍）。
+
+    `fn` 收到本次任务的 job_id，用来回写 progress；前置检查失败则不落任何行。
+    """
+    precheck()                                   # 前置检查同步做：缺什么当场说
+    job_id = uuid.uuid4().hex
+    now = _now()
+    conn = db.get_conn()
     try:
-        precheck()                               # 前置检查同步做：缺什么当场说
-    except Exception:
-        lock.release()
-        raise
-    job = {"name": name, "status": "running", "started_at": _now(), "finished_at": None,
-           "error": None, "result": None, "progress": None}
-    _jobs[name] = job
+        try:
+            conn.execute(
+                "INSERT INTO kb_jobs(id,name,worker_id,status,started_at,updated_at) "
+                "VALUES (?,?,?,?,?,?)",
+                (job_id, name, WORKER_ID, "running", now, now))
+            conn.commit()
+        except Exception as exc:  # noqa: BLE001 - 唯一冲突要转成「正在进行中」
+            conn.rollback()
+            # psycopg3 的具体异常类型是 UniqueViolation；沿异常链识别，避免把驱动版本
+            # 绑死在 import 上（外层再包一层也照样拦得住）。
+            if _is_unique_violation(exc):
+                raise RouteNotReady(f"{name} 正在进行中，请等它完成后再试") from exc
+            raise
+    finally:
+        conn.close()
 
     def run() -> None:
+        status, result, error = "done", None, None
         try:
-            result = fn()
-            job.update(status="done", finished_at=_now(), result=result)
+            result = fn(job_id)
         except Exception as exc:  # noqa: BLE001 - 后台线程里的异常只能记在任务状态里
-            job.update(status="failed", finished_at=_now(),
-                        error=f"{type(exc).__name__}: {str(exc)[:300]}")
+            status = "failed"
+            error = f"{type(exc).__name__}: {str(exc)[:300]}"
+        # 结果落库失败不能吞掉线程异常，但要留痕：状态页会一直显示 running，
+        # 这比假报 done 更诚实（日志里能查到原因）。
+        conn = db.get_conn()
+        try:
+            payload = json.dumps(result, ensure_ascii=False) if result is not None else None
+            conn.execute(
+                "UPDATE kb_jobs SET status=?, finished_at=?, error=?, result_json=?, updated_at=? "
+                "WHERE id=?",
+                (status, _now(), error, payload, _now(), job_id))
+            conn.commit()
+        except Exception:  # noqa: BLE001
+            log.exception("更新 kb_jobs 状态失败 job=%s", job_id)
         finally:
-            lock.release()
+            conn.close()
 
-    threading.Thread(target=run, name=f"kb-{name}", daemon=True).start()
-    return dict(job)
+    Thread(target=run, name=f"kb-{name}", daemon=True).start()
+    return {"id": job_id, "name": name, "worker_id": WORKER_ID, "status": "running",
+            "started_at": now, "finished_at": None, "error": None, "result": None,
+            "progress": None, "updated_at": now}
+
+
+def _job_progress(job_id: str, text: str) -> None:
+    """后台线程回调：只更新这一行的 progress，不动别人的状态。"""
+    conn = db.get_conn()
+    try:
+        conn.execute("UPDATE kb_jobs SET progress=?, updated_at=? WHERE id=?",
+                     (text, _now(), job_id))
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def job_state(name: str) -> dict:
-    return dict(_jobs.get(name, {"name": name, "status": "idle"}))
+    _mark_interrupted()
+    conn = db.get_conn()
+    try:
+        r = conn.execute(
+            "SELECT id,name,worker_id,status,started_at,finished_at,error,result_json,progress,updated_at "
+            "FROM kb_jobs WHERE name=? ORDER BY started_at DESC LIMIT 1", (name,)).fetchone()
+    finally:
+        conn.close()
+    if not r:
+        return {"name": name, "status": "idle"}
+    row = dict(r)
+    # jsonb 经 pgkit 读出来通常是 dict，也兼容字符串（旧库 / 其它驱动形态）；
+    # 对外仍暴露旧字段名 result，调用方（状态页、测试）不用改。
+    payload = row.pop("result_json", None)
+    if isinstance(payload, str):
+        try:
+            payload = json.loads(payload)
+        except ValueError:
+            payload = None
+    row["result"] = payload
+    return row
 
 
 def reset_jobs() -> None:
-    """测试用。"""
-    _jobs.clear()
-    _job_locks.clear()
+    """测试用：连库里的任务行一起清，否则测试之间会串。"""
+    conn = db.get_conn()
+    try:
+        conn.execute("DELETE FROM kb_jobs")
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def graph_sync_async(doc_ids: list[str] | None = None) -> dict:
-    return start_job("graph_sync", lambda: graph_sync(doc_ids), _precheck_graph_sync)
+    return start_job("graph_sync", lambda job_id: graph_sync(doc_ids), _precheck_graph_sync)
 
 
-def wiki_build_async() -> dict:
-    def run() -> dict:
-        return wiki_build(on_batch=lambda i, n: _jobs["wiki_build"].update(progress=f"{i}/{n}"))
+def wiki_build_async(mode: str = "full") -> dict:
+    if mode not in ("full", "incremental"):
+        raise ValueError(f"mode 只能是 full 或 incremental，收到 {mode!r}")
+
+    def run(job_id: str) -> dict:
+        return wiki_build(mode=mode,
+                          on_batch=lambda i, n: _job_progress(job_id, f"{i}/{n}"))
 
     return start_job("wiki_build", run, _precheck_wiki_build)
 
@@ -212,23 +306,68 @@ def _redact(text: str, source: str) -> tuple[str, int]:
     return result.text, int(result.hit_count or 0)
 
 
-def wiki_build(on_batch=None) -> dict:
-    """把 ready 文档的分块交给模型整理成 Wiki，校验证据链后全量替换旧页面。"""
-    _precheck_wiki_build()
+def wiki_build(mode: str = "full", on_batch=None) -> dict:
+    """把 ready 文档的分块交给模型整理成 Wiki，校验证据链后落库。
+
+    - `full`：全删全建（原有行为）。
+    - `incremental`：按信源文档的 `content_hash` 逐 doc 比对，只重建变化文档相关的页面；
+      无变化时**直接返回，一次模型调用都不发**（省钱的关键，所以判定必须发生在前置检查
+      和 `_llm_or_none` 之前）。
+    """
+    if mode not in ("full", "incremental"):
+        raise ValueError(f"mode 只能是 full 或 incremental，收到 {mode!r}")
     cfg = settings.get_all()
     scenario = str(cfg.get("wiki_scenario") or "").strip()
+    # 场景是整理口径；增量判定依赖「同一口径下的信源集合」，所以先于任何模型调用检查。
+    if not scenario:
+        raise RouteNotReady("请先填写业务场景：没有确定的整理口径，Wiki 无从构建")
 
     chunks = _ready_chunks()
     # 先按场景筛信源：场景决定哪些资料算信源，不能把全库都送去整理
     picked = relevancy.select_by_scenario(scenario, chunks)
     source_doc_ids = sorted({c["doc_id"] for c in picked["chunks"]})
     source_ids = set(source_doc_ids)
+    ready_docs = _ready_docs()
+    doc_hash = {d["doc_id"]: d.get("content_hash") for d in ready_docs}
+    # 只记录本次**实际入选信源**的文档；库外文档增删改不该逼着已有页面重建。
+    source_doc_hashes = {did: doc_hash[did] for did in source_doc_ids if did in doc_hash}
+    # 信源指纹仍按原来口径算（id + 版本 + 更新时间 + 正文哈希），门禁要复用它。
     fingerprint = wiki_gate_mod.source_fingerprint(
-        [d for d in _ready_docs() if d["doc_id"] in source_ids])
+        [d for d in ready_docs if d["doc_id"] in source_ids])
+
+    old_meta = _meta_get(WIKI_META_KEY) or {}
+    old_hashes = old_meta.get("source_doc_hashes") or {}
+    # 场景变了等于换了一套整理口径，旧页面不能「原样保留」——退回全量重建。
+    force_full = mode == "full" or (bool(old_meta) and old_meta.get("scenario") != scenario)
+    if force_full:
+        changed: list[str] = source_doc_ids
+    else:
+        # 新增 / 内容变了 / 从信源里消失，三种都算变化（缺失侧 .get() 为 None）。
+        changed = sorted(did for did in set(old_hashes) | set(source_doc_hashes)
+                         if old_hashes.get(did) != source_doc_hashes.get(did))
+        if not changed:
+            pages_now, claims_now = _wiki_rows()
+            return {"ok": True, "incremental_skipped": True, "reason": "信源无变化",
+                    "pages": len(pages_now), "claims": len(claims_now), "gate": wiki_gate(cfg)}
+
+    # 到这里才需要模型：无变化的增量分支已在上面返回，不会触碰 _llm_or_none。
+    _precheck_wiki_build()
+    if force_full:
+        build_picked = picked
+    else:
+        # 只把属于变化文档的 ready 分块送进去，仍然先过一遍场景筛选。
+        subset = [c for c in picked["chunks"] if c["doc_id"] in set(changed)]
+        build_picked = relevancy.select_by_scenario(scenario, subset)
+
     started = time.perf_counter()
-    result = wiki_builder.build(scenario, picked["chunks"], _llm_or_none(cfg), on_batch=on_batch)
+    result = wiki_builder.build(scenario, build_picked["chunks"], _llm_or_none(cfg),
+                                on_batch=on_batch)
     if not result["available"]:
-        raise RouteNotReady("模型没有返回可用结果，本次未落库")
+        if not build_picked["chunks"]:
+            # 变化的文档整篇消失了：没有分块可送，不需要模型产出，只删旧页面。
+            result["available"] = True
+        else:
+            raise RouteNotReady("模型没有返回可用结果，本次未落库")
     redaction_hits = 0
     try:
         pages = []
@@ -246,12 +385,29 @@ def wiki_build(on_batch=None) -> dict:
         # fail-closed：脱敏不可用时宁可整次不落库，也不能把可能的原文写进知识库
         raise RouteNotReady(f"内容安全脱敏不可用，已阻断本次构建（fail-closed）：{type(exc).__name__}") from exc
 
+    if not force_full:
+        # 复用 _wiki_rows() 的证据解析：jsonb 出来可能是 dict/list 也可能是字符串。
+        # evidence 里记着 doc_id（builder 写入的），据此判断旧页面是否建立在变化文档上。
+        changed_set = set(changed)
+        _, old_claims = _wiki_rows()
+        affected = {c["page_id"] for c in old_claims
+                    if any(isinstance(e, dict) and e.get("doc_id") in changed_set
+                           for e in c["evidence"])}
+
     conn = db.get_conn()
     try:
-        conn.execute("DELETE FROM wiki_claims")        # 先删证据链再删页面（无外键，顺序靠代码）
-        conn.execute("DELETE FROM wiki_pages")
+        if force_full:
+            conn.execute("DELETE FROM wiki_claims")     # 先删证据链再删页面（无外键，顺序靠代码）
+            conn.execute("DELETE FROM wiki_pages")
+        else:
+            for pid in affected:
+                conn.execute("DELETE FROM wiki_claims WHERE page_id=?", (pid,))
+                conn.execute("DELETE FROM wiki_pages WHERE id=?", (pid,))
         built_at = _now()
         for p in pages:
+            # 增量时可能生成与保留页面相同的 page_id；先清后插，避免主键冲突。
+            conn.execute("DELETE FROM wiki_claims WHERE page_id=?", (p["page_id"],))
+            conn.execute("DELETE FROM wiki_pages WHERE id=?", (p["page_id"],))
             conn.execute(
                 "INSERT INTO wiki_pages(id,title,section,body_md,summary,scenario,built_at) "
                 "VALUES (?,?,?,?,?,?,?)",
@@ -269,20 +425,26 @@ def wiki_build(on_batch=None) -> dict:
 
     # 信源指纹只算「这次构建实际用到的那批文档」（见函数开头 fingerprint 的计算处）。
     # 不要在这里再按全库算一遍覆盖它——两处算法不一致时，构建完门禁立刻报「信源已变化」。
+    pages_now, claims_now = _wiki_rows()
     meta = {
         "scenario": scenario, "built_at": built_at,
         "source_fingerprint": fingerprint,
         "source_doc_ids": source_doc_ids,
-        "scenario_filter": {k: picked[k] for k in ("mode", "terms", "kept", "total", "reason")},
-        "pages": len(pages), "claims": sum(len(p["claims"]) for p in pages),
+        "source_doc_hashes": source_doc_hashes,
+        "scenario_filter": {k: build_picked[k] for k in ("mode", "terms", "kept", "total", "reason")},
+        "pages": len(pages_now), "claims": len(claims_now),
         "stats": result["stats"], "model": providers.get_model_label(cfg),
         "redaction_hits": redaction_hits,
         "elapsed_ms": round((time.perf_counter() - started) * 1000),
+        "build_mode": mode, "changed_doc_ids": changed,
     }
     _meta_set(WIKI_META_KEY, meta)
     # 门禁必须在元信息落库**之后**再算：门禁要拿「构建时的指纹」与当前信源比对，
     # 元信息没写就等于「尚未构建」。返回给调用方的应该是构建完成后的真实门禁状态。
-    return {"ok": True, **meta, "gate": wiki_gate(cfg)}
+    out = {"ok": True, **meta, "gate": wiki_gate(cfg)}
+    if not force_full:
+        out["incremental"] = True
+    return out
 
 
 def _wiki_rows() -> tuple[list[dict], list[dict]]:
@@ -398,6 +560,7 @@ def _finish(report: dict, started: float) -> dict:
 # ---------------------------------------------------------------- 状态（给设置页与调试页）
 def status(*, detail: bool = False) -> dict:
     """`detail=False` 给普通用户：只看「通不通」，不看连接串等基础设施细节。"""
+    _mark_interrupted()                      # 读之前先把别的副本遗留的 running 收敛掉
     cfg = settings.get_all()
     on = settings.routes_on(cfg)
     probe = graph_store.probe_cached()

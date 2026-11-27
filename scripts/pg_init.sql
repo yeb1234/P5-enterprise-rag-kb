@@ -282,6 +282,26 @@ CREATE TABLE IF NOT EXISTS runtime_state (
     updated_at timestamptz NOT NULL
 );
 
+-- ---------- 后台任务状态（kb_routes 的 start_job） ----------
+-- 原来任务只在进程内存里：进程重启就没了，多副本之间也互相看不见。
+-- 落库后状态可被任意副本读回；worker_id 区分「哪个进程建的这道题」，
+-- 读接口据此把别的进程遗留的 running 标成 interrupted（见 kb_routes._mark_interrupted）。
+-- 同名任务同时只能有一个 running：部分唯一索引跨进程生效，不靠进程内的 Lock。
+CREATE TABLE IF NOT EXISTS kb_jobs (
+    id          text PRIMARY KEY,
+    name        text NOT NULL,
+    worker_id   text NOT NULL,
+    status      text NOT NULL,
+    started_at  timestamptz NOT NULL,
+    finished_at timestamptz,
+    error       text,
+    result_json jsonb,
+    progress    text,
+    updated_at  timestamptz NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_kb_jobs_name_started ON kb_jobs(name, started_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_kb_jobs_running ON kb_jobs(name) WHERE status = 'running';
+
 -- ---------- LLM Wiki（三路取证之一） ----------
 -- wiki_pages：模型把分块整理出来的业务知识（Markdown），按「概念 / 流程 / 规则 / 台账」分目录。
 -- wiki_claims：页面里每条结论的证据链。evidence_json 指向 chunks.id 与原话；
