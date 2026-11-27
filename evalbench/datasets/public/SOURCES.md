@@ -120,7 +120,7 @@ CMRC 字段（`context` / `question` / `answers.text`）与 SQuAD 完全同构�
 
 ## 5. 许可合规
 
-- SQuAD 2.0 / CMRC 2018 均为 CC BY-SA 4.0：本用途为学习/求职演示，非商业；引用需署名（见报告数据来源段）。
+- SQuAD 2.0 / CMRC 2018 均为 CC BY-SA 4.0：本用途为内部演示，非商业；引用需署名（见报告数据来源段）。
 - RAGTruth MIT：允许使用与修改，需保留许可声明。
 - **若项目转为商业用途**，需重新核对三个数据集许可义务；旧 SOURCES.md 对 RGB 的非商用提醒仍有效。
 

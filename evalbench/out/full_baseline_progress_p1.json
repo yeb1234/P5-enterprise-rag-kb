@@ -4,7 +4,14 @@
   "done_offsets": [
     0,
     400,
-    800
+    800,
+    1200,
+    1600,
+    2000,
+    2400,
+    2800,
+    3200,
+    3600
   ],
   "batch_runs": {
     "0": {
@@ -240,7 +247,7 @@
       }
     },
     "800": {
-      "run_id": "RUN-b2ade8559a78",
+      "run_id": "RUN-5908b71f83a2",
       "n_ok": 400,
       "summary": {
         "groups": [
@@ -338,8 +345,8 @@
         },
         "scored_records": 400,
         "skipped_records": 0,
-        "run_id": "RUN-b2ade8559a78",
-        "label": "squad-p1-A-o800-r1",
+        "run_id": "RUN-5908b71f83a2",
+        "label": "squad-p1-A-o800-r2",
         "mode": "live",
         "comparable": true,
         "git": {
@@ -347,7 +354,819 @@
           "commit": "f777c21",
           "commit_full": "f777c213459d36216506ce542cb1bee1adbc9fab",
           "dirty": true,
-          "captured_at": "2026-11-18T07:16:46Z"
+          "captured_at": "2026-11-18T07:16:25Z"
+        },
+        "n_records": 400,
+        "status_counts": {
+          "ok": 400
+        }
+      }
+    },
+    "1200": {
+      "run_id": "RUN-32c162fc093d",
+      "n_ok": 400,
+      "summary": {
+        "groups": [
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "grounded_extraction",
+            "dimension": "answer_accuracy",
+            "mean": 0.9505,
+            "n": 202
+          },
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "grounded_extraction",
+            "dimension": "answer_economy",
+            "mean": 0.9802,
+            "n": 202
+          },
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "grounded_extraction",
+            "dimension": "faithfulness",
+            "mean": 1.0,
+            "n": 202
+          },
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "grounded_extraction",
+            "dimension": "format_compliance",
+            "mean": 0.9851,
+            "n": 202
+          },
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "grounded_extraction",
+            "dimension": "rejection_correctness",
+            "mean": 0.9802,
+            "n": 202
+          },
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "negative_rejection",
+            "dimension": "answer_economy",
+            "mean": 1.0,
+            "n": 198
+          },
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "negative_rejection",
+            "dimension": "faithfulness",
+            "mean": 1.0,
+            "n": 198
+          },
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "negative_rejection",
+            "dimension": "format_compliance",
+            "mean": 1.0,
+            "n": 198
+          },
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "negative_rejection",
+            "dimension": "rejection_correctness",
+            "mean": 1.0,
+            "n": 198
+          }
+        ],
+        "by_model": {
+          "deepseek-v4.1-flash-1017": {
+            "per_category": {
+              "grounded_extraction": 0.9505,
+              "negative_rejection": 1.0
+            },
+            "overall": 0.9752,
+            "avg_latency_ms": 2003.7
+          }
+        },
+        "scored_records": 400,
+        "skipped_records": 0,
+        "run_id": "RUN-32c162fc093d",
+        "label": "squad-p1-A-o1200-r2",
+        "mode": "live",
+        "comparable": true,
+        "git": {
+          "branch": "eval/public-benchmarks",
+          "commit": "96ee225",
+          "commit_full": "96ee225665eef0ac33f2d02680117671f0f6635b",
+          "dirty": true,
+          "captured_at": "2026-11-18T07:48:35Z"
+        },
+        "n_records": 400,
+        "status_counts": {
+          "ok": 400
+        }
+      }
+    },
+    "1600": {
+      "run_id": "RUN-2911d1e0544e",
+      "n_ok": 400,
+      "summary": {
+        "groups": [
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "grounded_extraction",
+            "dimension": "answer_accuracy",
+            "mean": 0.9548,
+            "n": 199
+          },
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "grounded_extraction",
+            "dimension": "answer_economy",
+            "mean": 0.9899,
+            "n": 199
+          },
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "grounded_extraction",
+            "dimension": "faithfulness",
+            "mean": 1.0,
+            "n": 199
+          },
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "grounded_extraction",
+            "dimension": "format_compliance",
+            "mean": 0.9899,
+            "n": 199
+          },
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "grounded_extraction",
+            "dimension": "rejection_correctness",
+            "mean": 0.9799,
+            "n": 199
+          },
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "negative_rejection",
+            "dimension": "answer_economy",
+            "mean": 1.0,
+            "n": 201
+          },
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "negative_rejection",
+            "dimension": "faithfulness",
+            "mean": 1.0,
+            "n": 201
+          },
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "negative_rejection",
+            "dimension": "format_compliance",
+            "mean": 1.0,
+            "n": 201
+          },
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "negative_rejection",
+            "dimension": "rejection_correctness",
+            "mean": 1.0,
+            "n": 201
+          }
+        ],
+        "by_model": {
+          "deepseek-v4.1-flash-1017": {
+            "per_category": {
+              "grounded_extraction": 0.9548,
+              "negative_rejection": 1.0
+            },
+            "overall": 0.9774,
+            "avg_latency_ms": 1823.4
+          }
+        },
+        "scored_records": 400,
+        "skipped_records": 0,
+        "run_id": "RUN-2911d1e0544e",
+        "label": "squad-p1-A-o1600-r2",
+        "mode": "live",
+        "comparable": true,
+        "git": {
+          "branch": "eval/public-benchmarks",
+          "commit": "96ee225",
+          "commit_full": "96ee225665eef0ac33f2d02680117671f0f6635b",
+          "dirty": true,
+          "captured_at": "2026-11-18T09:15:33Z"
+        },
+        "n_records": 400,
+        "status_counts": {
+          "ok": 400
+        }
+      }
+    },
+    "2000": {
+      "run_id": "RUN-0a934337f5cb",
+      "n_ok": 400,
+      "summary": {
+        "groups": [
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "grounded_extraction",
+            "dimension": "answer_accuracy",
+            "mean": 0.977,
+            "n": 217
+          },
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "grounded_extraction",
+            "dimension": "answer_economy",
+            "mean": 0.9908,
+            "n": 217
+          },
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "grounded_extraction",
+            "dimension": "faithfulness",
+            "mean": 1.0,
+            "n": 217
+          },
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "grounded_extraction",
+            "dimension": "format_compliance",
+            "mean": 0.9908,
+            "n": 217
+          },
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "grounded_extraction",
+            "dimension": "rejection_correctness",
+            "mean": 0.9816,
+            "n": 217
+          },
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "negative_rejection",
+            "dimension": "answer_economy",
+            "mean": 1.0,
+            "n": 183
+          },
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "negative_rejection",
+            "dimension": "faithfulness",
+            "mean": 1.0,
+            "n": 183
+          },
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "negative_rejection",
+            "dimension": "format_compliance",
+            "mean": 1.0,
+            "n": 183
+          },
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "negative_rejection",
+            "dimension": "rejection_correctness",
+            "mean": 1.0,
+            "n": 183
+          }
+        ],
+        "by_model": {
+          "deepseek-v4.1-flash-1017": {
+            "per_category": {
+              "grounded_extraction": 0.977,
+              "negative_rejection": 1.0
+            },
+            "overall": 0.9885,
+            "avg_latency_ms": 1690.7
+          }
+        },
+        "scored_records": 400,
+        "skipped_records": 0,
+        "run_id": "RUN-0a934337f5cb",
+        "label": "squad-p1-A-o2000-r3",
+        "mode": "live",
+        "comparable": true,
+        "git": {
+          "branch": "eval/public-benchmarks",
+          "commit": "96ee225",
+          "commit_full": "96ee225665eef0ac33f2d02680117671f0f6635b",
+          "dirty": true,
+          "captured_at": "2026-11-18T09:38:57Z"
+        },
+        "n_records": 400,
+        "status_counts": {
+          "ok": 400
+        }
+      }
+    },
+    "2400": {
+      "run_id": "RUN-1571d4daef6c",
+      "n_ok": 400,
+      "summary": {
+        "groups": [
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "grounded_extraction",
+            "dimension": "answer_accuracy",
+            "mean": 0.9246,
+            "n": 199
+          },
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "grounded_extraction",
+            "dimension": "answer_economy",
+            "mean": 1.0,
+            "n": 199
+          },
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "grounded_extraction",
+            "dimension": "faithfulness",
+            "mean": 1.0,
+            "n": 199
+          },
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "grounded_extraction",
+            "dimension": "format_compliance",
+            "mean": 1.0,
+            "n": 199
+          },
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "grounded_extraction",
+            "dimension": "rejection_correctness",
+            "mean": 0.9698,
+            "n": 199
+          },
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "negative_rejection",
+            "dimension": "answer_economy",
+            "mean": 1.0,
+            "n": 201
+          },
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "negative_rejection",
+            "dimension": "faithfulness",
+            "mean": 1.0,
+            "n": 201
+          },
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "negative_rejection",
+            "dimension": "format_compliance",
+            "mean": 1.0,
+            "n": 201
+          },
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "negative_rejection",
+            "dimension": "rejection_correctness",
+            "mean": 1.0,
+            "n": 201
+          }
+        ],
+        "by_model": {
+          "deepseek-v4.1-flash-1017": {
+            "per_category": {
+              "grounded_extraction": 0.9246,
+              "negative_rejection": 1.0
+            },
+            "overall": 0.9623,
+            "avg_latency_ms": 1564.3
+          }
+        },
+        "scored_records": 400,
+        "skipped_records": 0,
+        "run_id": "RUN-1571d4daef6c",
+        "label": "squad-p1-A-o2400-r2",
+        "mode": "live",
+        "comparable": true,
+        "git": {
+          "branch": "eval/public-benchmarks",
+          "commit": "96ee225",
+          "commit_full": "96ee225665eef0ac33f2d02680117671f0f6635b",
+          "dirty": true,
+          "captured_at": "2026-11-18T12:18:50Z"
+        },
+        "n_records": 400,
+        "status_counts": {
+          "ok": 400
+        }
+      }
+    },
+    "2800": {
+      "run_id": "RUN-64bbb8ea9643",
+      "n_ok": 400,
+      "summary": {
+        "groups": [
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "grounded_extraction",
+            "dimension": "answer_accuracy",
+            "mean": 0.8657,
+            "n": 216
+          },
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "grounded_extraction",
+            "dimension": "answer_economy",
+            "mean": 1.0,
+            "n": 216
+          },
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "grounded_extraction",
+            "dimension": "faithfulness",
+            "mean": 1.0,
+            "n": 216
+          },
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "grounded_extraction",
+            "dimension": "format_compliance",
+            "mean": 1.0,
+            "n": 216
+          },
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "grounded_extraction",
+            "dimension": "rejection_correctness",
+            "mean": 0.9769,
+            "n": 216
+          },
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "negative_rejection",
+            "dimension": "answer_economy",
+            "mean": 1.0,
+            "n": 184
+          },
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "negative_rejection",
+            "dimension": "faithfulness",
+            "mean": 1.0,
+            "n": 184
+          },
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "negative_rejection",
+            "dimension": "format_compliance",
+            "mean": 1.0,
+            "n": 184
+          },
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "negative_rejection",
+            "dimension": "rejection_correctness",
+            "mean": 1.0,
+            "n": 184
+          }
+        ],
+        "by_model": {
+          "deepseek-v4.1-flash-1017": {
+            "per_category": {
+              "grounded_extraction": 0.8657,
+              "negative_rejection": 1.0
+            },
+            "overall": 0.9328,
+            "avg_latency_ms": 1734.4
+          }
+        },
+        "scored_records": 400,
+        "skipped_records": 0,
+        "run_id": "RUN-64bbb8ea9643",
+        "label": "squad-p1-A-o2800-r1",
+        "mode": "live",
+        "comparable": true,
+        "git": {
+          "branch": "eval/public-benchmarks",
+          "commit": "96ee225",
+          "commit_full": "96ee225665eef0ac33f2d02680117671f0f6635b",
+          "dirty": true,
+          "captured_at": "2026-11-18T12:34:15Z"
+        },
+        "n_records": 400,
+        "status_counts": {
+          "ok": 400
+        }
+      }
+    },
+    "3200": {
+      "run_id": "RUN-538f0cda982c",
+      "n_ok": 400,
+      "summary": {
+        "groups": [
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "grounded_extraction",
+            "dimension": "answer_accuracy",
+            "mean": 0.8992,
+            "n": 238
+          },
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "grounded_extraction",
+            "dimension": "answer_economy",
+            "mean": 0.979,
+            "n": 238
+          },
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "grounded_extraction",
+            "dimension": "faithfulness",
+            "mean": 1.0,
+            "n": 238
+          },
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "grounded_extraction",
+            "dimension": "format_compliance",
+            "mean": 0.9874,
+            "n": 238
+          },
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "grounded_extraction",
+            "dimension": "rejection_correctness",
+            "mean": 0.9916,
+            "n": 238
+          },
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "negative_rejection",
+            "dimension": "answer_economy",
+            "mean": 1.0,
+            "n": 162
+          },
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "negative_rejection",
+            "dimension": "faithfulness",
+            "mean": 1.0,
+            "n": 162
+          },
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "negative_rejection",
+            "dimension": "format_compliance",
+            "mean": 1.0,
+            "n": 162
+          },
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "negative_rejection",
+            "dimension": "rejection_correctness",
+            "mean": 1.0,
+            "n": 162
+          }
+        ],
+        "by_model": {
+          "deepseek-v4.1-flash-1017": {
+            "per_category": {
+              "grounded_extraction": 0.8992,
+              "negative_rejection": 1.0
+            },
+            "overall": 0.9496,
+            "avg_latency_ms": 1658.3
+          }
+        },
+        "scored_records": 400,
+        "skipped_records": 0,
+        "run_id": "RUN-538f0cda982c",
+        "label": "squad-p1-A-o3200-r0",
+        "mode": "live",
+        "comparable": true,
+        "git": {
+          "branch": "eval/public-benchmarks",
+          "commit": "96ee225",
+          "commit_full": "96ee225665eef0ac33f2d02680117671f0f6635b",
+          "dirty": true,
+          "captured_at": "2026-11-18T12:34:50Z"
+        },
+        "n_records": 400,
+        "status_counts": {
+          "ok": 400
+        }
+      }
+    },
+    "3600": {
+      "run_id": "RUN-2602337ebed8",
+      "n_ok": 400,
+      "summary": {
+        "groups": [
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "grounded_extraction",
+            "dimension": "answer_accuracy",
+            "mean": 0.8714,
+            "n": 210
+          },
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "grounded_extraction",
+            "dimension": "answer_economy",
+            "mean": 0.9952,
+            "n": 210
+          },
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "grounded_extraction",
+            "dimension": "faithfulness",
+            "mean": 1.0,
+            "n": 210
+          },
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "grounded_extraction",
+            "dimension": "format_compliance",
+            "mean": 0.9952,
+            "n": 210
+          },
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "grounded_extraction",
+            "dimension": "rejection_correctness",
+            "mean": 0.9857,
+            "n": 210
+          },
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "negative_rejection",
+            "dimension": "answer_economy",
+            "mean": 1.0,
+            "n": 190
+          },
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "negative_rejection",
+            "dimension": "faithfulness",
+            "mean": 1.0,
+            "n": 190
+          },
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "negative_rejection",
+            "dimension": "format_compliance",
+            "mean": 1.0,
+            "n": 190
+          },
+          {
+            "model": "deepseek-v4.1-flash-1017",
+            "prompt_version": "v4_en_grounded",
+            "params_id": "A",
+            "task_category": "negative_rejection",
+            "dimension": "rejection_correctness",
+            "mean": 1.0,
+            "n": 190
+          }
+        ],
+        "by_model": {
+          "deepseek-v4.1-flash-1017": {
+            "per_category": {
+              "grounded_extraction": 0.8714,
+              "negative_rejection": 1.0
+            },
+            "overall": 0.9357,
+            "avg_latency_ms": 1511.6
+          }
+        },
+        "scored_records": 400,
+        "skipped_records": 0,
+        "run_id": "RUN-2602337ebed8",
+        "label": "squad-p1-A-o3600-r0",
+        "mode": "live",
+        "comparable": true,
+        "git": {
+          "branch": "eval/public-benchmarks",
+          "commit": "96ee225",
+          "commit_full": "96ee225665eef0ac33f2d02680117671f0f6635b",
+          "dirty": true,
+          "captured_at": "2026-11-18T12:45:55Z"
         },
         "n_records": 400,
         "status_counts": {

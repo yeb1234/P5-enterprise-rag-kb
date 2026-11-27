@@ -1,0 +1,55 @@
+{
+  "run_id": "RUN-fc9b636a2ca6",
+  "label": "squad-p1-A-o1200-r2",
+  "mode": "live",
+  "comparable": true,
+  "git": {
+    "branch": "eval/public-benchmarks",
+    "commit": "96ee225",
+    "commit_full": "96ee225665eef0ac33f2d02680117671f0f6635b",
+    "dirty": true,
+    "captured_at": "2026-11-18T07:48:22Z"
+  },
+  "dataset": {
+    "file": "public/squad_v2_full.jsonl",
+    "hash": "58149be5626d43fa",
+    "n_samples": 400,
+    "origin": "public_dataset (见 datasets/public/SOURCES.md): public/squad_v2_full.jsonl"
+  },
+  "metrics_version": "METRICS@1.2.0",
+  "models": {
+    "deepseek-v4.1-flash-1017": {
+      "id": "deepseek-v4.1-flash-1017",
+      "role": "reasoning",
+      "timeout_s": 180,
+      "adaptations": [
+        "require_min_max_tokens_512",
+        "strip_reasoning_content",
+        "tolerate_empty_content"
+      ],
+      "reason": "推理模型，冷启动与 reasoning 阶段显著影响延迟/空正文，必须单独验证兼容性"
+    }
+  },
+  "prompts": {
+    "v4_en_grounded": {
+      "sha256_16": "ece3c80139138f45"
+    }
+  },
+  "params": {
+    "A": {
+      "sha256_16": "1d93be89064be4f8",
+      "id": "A",
+      "label": "RGB 官方推荐基线",
+      "source": "https://github.com/chen700564/RGB/blob/master/readme.md (--temp 0.2 --noise_rate 0.6 --passage_num 5)",
+      "temperature": 0.2,
+      "top_p": 1.0,
+      "max_tokens": 512,
+      "passage_num": 5,
+      "noise_rate": 0.6,
+      "repeats": 1,
+      "note": "官方评测脚本默认设定，作为对比起点"
+    }
+  },
+  "repeats": 1,
+  "created_at": "2026-11-18T07:48:22Z"
+}
