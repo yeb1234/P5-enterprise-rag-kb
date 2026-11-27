@@ -1,0 +1,25 @@
+{
+  "iteration": "params_short_grid_v2",
+  "date": "2026-11-18",
+  "branch": "eval/public-benchmarks",
+  "goal": "Step1 短集细网格收敛：在 60 条 SQuAD v2 样本上细扫 temperature，为大数据集 pass1 选参数",
+  "fixed": {"model": "deepseek-v4.1-flash-1017", "prompt": "v4_en_grounded", "dataset": "public/squad_v2_sample_60.jsonl", "scoring": "METRICS@1.2.0 (不动)"},
+  "grid": {
+    "D_temp0.1": {"single_acc": 0.9333, "run_id": "RUN-c25404fd9100",
+                  "repeats_3": [0.9333, 0.8667, 0.9], "mean": 0.9, "range": 0.0666,
+                  "per_item_score_flips": "4/60", "final_run_id": "RUN-0e0a27577575"},
+    "A_temp0.2": {"single_acc": 0.9, "run_id": "RUN-0faa2c3f0724",
+                  "repeats_3": [0.9, 0.9, 0.9], "mean": 0.9, "range": 0.0,
+                  "per_item_score_flips": "0/60 (见 params_public_v1.json)", "final_run_id": "RUN-8d5a21c39fc8"},
+    "E_temp0.3": {"single_acc": 0.9, "run_id": "RUN-14f6db701630",
+                  "per_item_vs_A": "30/30 完全一致", "latency_ms": 1462}
+  },
+  "pairwise_vs_A": {"D>A": 2, "D<A": 1, "D=A": 27, "E>A": 0, "E<A": 0, "E=A": 30},
+  "decision": {
+    "adopt": "A (temperature=0.2, top_p=1.0, max_tokens=512)",
+    "reason": "D 单次 0.933 经 3 次重复证伪——均值回落到 0.900 且有 4 题翻转；A 三次全 0.900、0 翻转，稳定性最好；E 与 A 逐题 30/30 完全一致。三温度无真实差异，维持已验证最稳的 A。",
+    "lesson": "再次印证短集单次高分不可信（与上轮 temp=0 教训一致）：任何采纳必须经重复验证。",
+    "caveats": ["短集 60 条分辨率有限，0.033 差异 = 2 题，属噪声范围", "字符串口径假阴性未消除"]
+  },
+  "next": "用 A 参数跑全量 SQuAD 11873 条 (pass1)，大样本下再做第二次收敛"
+}

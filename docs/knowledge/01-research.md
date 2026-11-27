@@ -1,9 +1,9 @@
 # 01 · 入库新鲜度与事实冲突检测 · 调研报告
 
 > 定位：P5 企业级知识库「知识治理专题」调研第 1 篇。**只做调研，不代表已落地。**
-> 本项目是**开发框架骨架 + 可运行演示切片**，用于学习与面试讲解，**不是上线交付版**（与 `README.md` §0、`docs/parsing/01-overview.md` 一致）。
+> 本项目是**开发框架骨架 + 可运行演示切片**，用于工程演示，**不是上线交付版**（与 `README.md` §0、`docs/parsing/01-overview.md` 一致）。
 > 编制日期：**2026-11-14** ｜ 检索方式：`WebSearch` 定向检索 **5 次** ｜ 外部来源 **20 条**（见 §7）。
-> 主题来源：用户提出「加入入库新鲜度与事实冲突检测，都是面试以前遇到的」，要求研究类似的好功能。
+> 主题来源：用户提出「加入入库新鲜度与事实冲突检测，都是评审以前遇到的」，要求研究类似的好功能。
 
 ## 0. 阅读约定与纪律
 
@@ -13,7 +13,7 @@
 |---|---|
 | `【已具备基础】` | 仓库里已有字段、表结构、代码落点或可复用机制，补少量逻辑即可演示 |
 | `【需补齐】` | 有落点但逻辑未接通；或需新增字段/阶段/评测数据，属可独立实现范围 |
-| `【本期不建议做】` | 在「骨架 + 面试讲解版」范围内性价比低、易把「只设计」说成「已落地」，讲清边界即可 |
+| `【本期不建议做】` | 在「骨架 + 工程实现版」范围内性价比低、易把「只设计」说成「已落地」，讲清边界即可 |
 
 > **口径隔离**：上面三档是**本报告专用的落地判断**，不改写、不覆盖其它文档的状态列。
 > `docs/parsing/01–07` 用「已实现 / 只设计 / 未做」；`docs/kb-capability-checklist.md` 用「已实现 / 演示级 / 架构预留 / 未做」四档。
@@ -71,11 +71,11 @@
 |---|---|---|
 | 1 | `RAG knowledge base freshness time decay retrieval stale document detection 2026` | 自动更新管线、幽灵向量、删除一等事件、金标 / 金丝雀集 |
 | 2 | `RAG contradiction detection conflicting documents multi-source fact conflict resolution` | claim 级检测、证据记录、位置偏差、冲突图分簇 |
-| 3 | 中文「知识库两份文档互相打架 RAG 信谁 面试 时效性 冲突检测 版本」 | **面试原题**及中文详解、裁决顺序、灰度回滚、专项评测 |
+| 3 | 中文「知识库两份文档互相打架 RAG 信谁 评审 时效性 冲突检测 版本」 | **典型问题**及中文详解、裁决顺序、灰度回滚、专项评测 |
 | 4 | `valid_from expire_at document version authority registry RAG exponential time decay half-life` | 双时态元数据、半衰期公式、按内容类型的半衰期分档 |
 | 5 | `CONFLICTS benchmark RAG contradiction detection RAGAS faithfulness gold set canary regression` | CONFLICTS 冲突分类基准、RAGAS 指标、golden set + CI gate |
 
-> 命中材料按「工程博客 / 行业综述 / 中文面试解析 / 论文解读页 / 规范与 Skill 文档」分组列于 §7。
+> 命中材料按「工程博客 / 行业综述 / 中文评审解析 / 论文解读页 / 规范与 Skill 文档」分组列于 §7。
 > **核实状态**：本次为 `WebSearch` 检索命中（可读标题与摘要片段），**未逐页 `WebFetch` 抓取全文**；故凡涉及具体数字均按 §0.3 标注为公开经验值，不升级为「已核实原文」。
 
 ## 2. 入库新鲜度（Ingestion Freshness）
@@ -144,7 +144,7 @@
 
 ### 2.3 为什么不能只按最新时间戳推断适用性
 
-这是面试最容易被追问、也最能体现判断力的地方（S3、S14、S15、S16）：
+这是评审最容易被追问、也最能体现判断力的地方（S3、S14、S15、S16）：
 
 | 反例 | 为什么「最新的赢」是错的 |
 |---|---|
@@ -197,7 +197,7 @@
 | 词法重合（lexical alignment） | 与 query 用词更贴近的答案得分更高，与权威度 / 时效无关 |
 | 来源信号不可见 | **来源日期、权威等级、审计状态、废止关系对向量与生成模型都不可见** |
 
-更根本的是：向量相似度回答「像不像」，不回答「该不该信」；词嵌入甚至会把「五」和「十」判为高度相似，而关键词检索能区分（Akamai 技术文，见 §7 备注）。中文面试原题的反驳最直白：「群聊截图可能和问题一字不差，正式制度只用了另一种表达，难道要让群聊覆盖公司制度？」（S14、S15、S16）。结论：RAG 缺的不是更好的相似度，而是**检索与生成之间一个专门的冲突检测 / 治理阶段**。
+更根本的是：向量相似度回答「像不像」，不回答「该不该信」；词嵌入甚至会把「五」和「十」判为高度相似，而关键词检索能区分（Akamai 技术文，见 §7 备注）。中文典型问题的反驳最直白：「群聊截图可能和问题一字不差，正式制度只用了另一种表达，难道要让群聊覆盖公司制度？」（S14、S15、S16）。结论：RAG 缺的不是更好的相似度，而是**检索与生成之间一个专门的冲突检测 / 治理阶段**。
 
 ### 3.2 两阶段架构与 claim 级检测
 
@@ -266,9 +266,9 @@ CONFLICTS 基准（arXiv 2506.08500，Google Research 等；本次经二手解�
 
 > 评测框架参照：RAGAS 四指标（faithfulness / answer_relevancy / context_precision / context_recall）与「golden set 含语料外问题以测拒答路径」「CI 质量闸门」（S20）。公开阈值（如 faithfulness ≥ 0.90、context_recall ≥ 0.85）**是公开经验值，非本项目实测，需用本项目真实语料校准**；且本项目 `docs/kb-capability-checklist.md` 已明确 `eval/` 占位结果 `comparable=false` / `NOT_COMPARABLE` 不参与闸门，本报告不改动该口径。
 
-## 4. 面试考点小节
+## 4. 工程要点小节
 
-> 以下 8 题均可在面试现场按「先纠问题 → 给裁决顺序 → 补工程闭环 → 收在诚实边界」的节奏作答。数字与阈值一律不报实测。
+> 以下 8 题均可在演示现场按「先纠问题 → 给裁决顺序 → 补工程闭环 → 收在诚实边界」的节奏作答。数字与阈值一律不报实测。
 
 **Q1（中文原题）「知识库两份文档互相打架，RAG 信谁？」**
 
@@ -365,11 +365,11 @@ CONFLICTS 基准（arXiv 2506.08500，Google Research 等；本次经二手解�
 | S12 | The Hidden Failure Mode of RAG Systems: Right Data, Wrong Answer（Agentic Ops，冲突类型与检测阶段） | https://idir-mellaz.fr/the-hidden-failure-mode-of-rag-systems-right-data-wrong-answer |
 | S13 | 如何构建始终准确的 AI 知识库：更新、版本管理、权限与来源质量（NexusAi） | https://www.nexusai-tech.com/zh/ai-insights/build-ai-knowledge-base-accurate-updates-versioning-permissions |
 
-**D 组 · 面试原题与中文详解（4 条）**
+**D 组 · 典型问题与中文详解（4 条）**
 
 | # | 标题 | URL |
 |---|---|---|
-| S14 | 面试官:「知识库两份文档互相打架，RAG 信谁？」…（CIOAge） | https://www.cioage.com/article/857805.html |
+| S14 | 评审方:「知识库两份文档互相打架，RAG 信谁？」…（CIOAge） | https://www.cioage.com/article/857805.html |
 | S15 | 同题详解：灰度索引、回滚、专项评测（CSDN 博客） | https://blog.csdn.net/m0_59163425/article/details/167492954 |
 | S16 | 同题详解：元数据是知识的身份证 / 裁决顺序 / 蓝绿发布（微信公众号「小林面试笔记」） | http://mp.weixin.qq.com/s?__biz=MzY4NTE2NjU5MQ==&mid=2247486360&idx=1&sn=a97a4c62c0386a1ccac9ecf22896c41e |
 | S17 | 大模型 RAG 面试题：检索到的文档相互矛盾时生成阶段如何处理（AI 简历姬） | http://www.resumemakeroffer.com/blog/post/107704 |

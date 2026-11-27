@@ -1,0 +1,25 @@
+{
+  "config": {
+    "limit": 15,
+    "model": "deepseek-v4.1-flash-1017",
+    "prompt": "v4_en_grounded",
+    "sleep": 0.5
+  },
+  "summary": {
+    "hallucinated(score0)": {
+      "n": 15,
+      "n_ok": 14,
+      "suspicion_rate": 0.5,
+      "avg_suspicious_entities": 1.429,
+      "avg_latency_ms": 3170.6
+    },
+    "faithful(score1)": {
+      "n": 15,
+      "n_ok": 14,
+      "suspicion_rate": 1.0,
+      "avg_suspicious_entities": 3.571,
+      "avg_latency_ms": 2988.1
+    }
+  },
+  "method": "mechanical entity/number check against passages (NOT LLM-as-judge, NOT paper's span labels)"
+}

@@ -1,4 +1,4 @@
-# 真实外部模型配置 · 评估测试报告（面试讲解版）
+# 真实外部模型配置 · 评估测试报告（工程实现版）
 
 日期：2026-11-11 ｜ 对象：`webapp/` 可运行演示切片 ｜ 档位：**真实外部 API 全链路**
 事实源：`webapp/out/eval_report.json`、`webapp/out/selftest_report.json`（密钥已脱敏，报告不含任何凭证）
@@ -9,7 +9,7 @@
 
 ---
 
-## 0. 先说清楚这份报告的边界（面试务必先讲这句）
+## 0. 先说清楚这份报告的边界（评审务必先讲这句）
 
 | 是什么 | 不是什么 |
 |---|---|
@@ -49,7 +49,7 @@ LLM 用外部 DeepSeek，走 discovery-api 网关。**
 - `test_llm` 给 256 token（不是 24）：`deepseek-v4.1-flash-1017` 是推理模型，
   token 给小了会只吐 reasoning 却把正文吃光，早期因此误判过「模型可用」。
 
-**面试可讲**：为什么生成 / 向量 / 重排是三个独立 Provider？
+**可讲要点**：为什么生成 / 向量 / 重排是三个独立 Provider？
 因为 DeepSeek 的 OpenAI 兼容接口只有 `chat/completions`，**不提供 `/embeddings`**；
 而 rerank 又是另一套 Cohere 风格 `/rerank` 协议。三者协议、鉴权、限流、失败语义都不同，
 硬塞进一个 client 会把「换模型」变成改代码。适配器 seam 让切换成本降到改配置。
@@ -174,7 +174,7 @@ python webapp/selftest.py        # → webapp/out/selftest_report.json
 | 流式已出正文后中断 | 不拼接兜底文案，避免重复内容 | `stream_interrupted` |
 | 零正文（推理模型吃光 token） | 不再出空白气泡，用检索片段兜底 | `empty_model_output` |
 
-**面试可讲**：429 必须分两类 —— `rate_limit_exceeded` 是**等一等就好**，`quota_exceeded` 是**等也没用**。
+**可讲要点**：429 必须分两类 —— `rate_limit_exceeded` 是**等一等就好**，`quota_exceeded` 是**等也没用**。
 把两者都当「重试三次」会白烧时间、把额度耗尽伪装成网络抖动。
 另外**流式一旦开始吐字就不再重试**，否则会在客户端拼出重复答案。
 上游网关还会在流末尾发 `choices: []` 的纯 usage 块，解析器必须跳过空 choices，
@@ -197,7 +197,7 @@ python webapp/selftest.py        # → webapp/out/selftest_report.json
 
 ---
 
-## 8. 本轮踩到并修掉的真问题（很好的面试谈资）
+## 8. 本轮踩到并修掉的真问题（很好的复盘素材）
 
 1. **配置命名空间污染**（最值得讲）。`webapp/` 与 `backend/` 共用根目录 `.env`，
    但两边对 `EMBEDDING_PROVIDER` 的枚举定义**互斥**：webapp 是 `offline|local|external`，
@@ -220,7 +220,7 @@ python webapp/selftest.py        # → webapp/out/selftest_report.json
 
 ---
 
-## 9. 面试 Q&A 卡片
+## 9. 评审 Q&A 卡片
 
 | 可能被问 | 怎么答 |
 |---|---|

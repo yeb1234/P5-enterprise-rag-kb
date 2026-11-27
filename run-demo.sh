@@ -27,11 +27,14 @@ docker rm -f kb-webapp kb-showcase >/dev/null 2>&1 || true
 # compose 项目名是 p5-kb-infra，网络名随之为 p5-kb-infra_default；
 # 用 KB_NETWORK 覆盖，别把前缀写死（换项目名时这里最容易漏改，现象是 pgkit 解析不到 kb-pg）。
 DB_URL="${WEBAPP_DATABASE_URL:-postgresql://kb:kb_demo_only@kb-pg:5432/kb}"
-NETWORK="${KB_NETWORK:-p5-kb-infra_default}"
+NETWORK="${KB_NETWORK:-${KB_INFRA_NETWORK:-p5-kb-infra_default}}"
 # 日志上限必须写在 `docker run` 上：`docker-compose.yml` 里的 x-logging 锚点
 # 只对 compose 起的服务生效，这两个容器是 `docker run` 起的，实测
 # `docker inspect` 的 LogConfig 是空的（json-file 默认**无上限**，会一直长到磁盘满）。
 LOG_OPTS="--log-opt max-size=10m --log-opt max-file=3"
+# 网络名跟 infra 项目名走：compose name 已从 kb-infra 改为 p5-kb-infra，
+# 默认网络随之变成 p5-kb-infra_default（旧的 kb-infra_default 已不存在）。
+# 容器名 kb-pg / kb-redis 是靠 alias 保留的，连接串不用改。
 docker run -d --name kb-webapp \
   -p 127.0.0.1:8765:8765 \
   --network "$NETWORK" \

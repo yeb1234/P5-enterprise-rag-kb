@@ -7,7 +7,7 @@
 > **行号口径**：以下行号是 2026-11-14 实读快照 —— `webapp/static/index.html` 648 行、`app.js` 1314 行、`i18n.js` 951 行、`style.css` 522 行、`theme.js` 66 行；`frontend/src/` 各文件行数见 §1.2。
 > 检查期间有其它成员在并发提交（观测到 `app.js` 由 1300 → 1314 行、`index.html` 由 642 → 648 行，且「推理强度」控件与维度 `tenant→department_id` 改名已落地）。**因此每条同时给出函数名与可 grep 的锚点**；若后续文件继续变动，以函数名／锚点复核，不要死认行号。
 >
-> **口径**：定位是「开发框架骨架 + 可运行演示切片 + 面试讲解版」，A/B 档，不是上线交付版。报告按「已确认缺陷 / 改进建议 / 演示切片可接受的取舍」三类判定，第四类单独在 §5 列出。
+> **口径**：定位是「开发框架骨架 + 可运行演示切片 + 工程实现版」，A/B 档，不是上线交付版。报告按「已确认缺陷 / 改进建议 / 演示切片可接受的取舍」三类判定，第四类单独在 §5 列出。
 
 ---
 
@@ -130,7 +130,7 @@ grep 计数：
 
 - **位置**：`webapp/static/app.js:117-124` `forceLogout()`；`app.js:145` `bootApp()` 的 `if (!S.conversationId) newConversation();`；`app.js:390-391` `newConversation()`；`app.js:5-20` `S` 全局状态。
 - **现象与证据**：`forceLogout()` 只清 `S.token` / `S.user` / `kb_token` / `S._timer`，**没有清** `S.conversationId`、`S.msgCount`、`S.badcaseCount`、`S.settings`、`S._modalData`，也**没有清空** `#chat-log` 的 DOM。`bootApp()` 仅当 `!S.conversationId` 才调 `newConversation()`。用户 A 产生过会话后登出，用户 B 登录 → `S.conversationId` 仍是 A 的 → 不走 `newConversation()` → 聊天区仍显示 A 的问答气泡；B 下一次 `sendChat()`（`app.js:441` 把 `conversation_id: convId` 发往后端）会继续追加到 A 的会话上。
-- **影响**：在「多用户多部门」定位下属于跨用户数据串号，面试演示切换账号即可复现，直接击穿「权限分离」的说服力。
+- **影响**：在「多用户多部门」定位下属于跨用户数据串号，评审演示切换账号即可复现，直接击穿「权限分离」的说服力。
 - **改进建议**：`forceLogout()` 内显式重置 `S.conversationId = ''` / `S.msgCount = 0` / `S.badcaseCount = 0` / `S.settings = null` / `S._modalData = {}`，清空 `$('chat-log').innerHTML` 与 `#modal-root`；`bootApp()` 无条件调 `newConversation()`（或按 `S.user.id` 比对，用户变化时强制开新会话）。后端 `/api/chat/conversations` 与 `/api/chat/history` 应继续按登录态 principal 过滤，不信任前端传入的 `conversation_id`。
 - **复核**：见 §6 手工步骤 M1。
 
@@ -214,7 +214,7 @@ grep 计数：
 
 - **位置**：`frontend/src/App.tsx:1-11` 一次性 `import` 7 个页面 + `AppLayout`；`frontend/src/main.tsx:5` `import 'antd/dist/reset.css'`；`frontend/src/pages/DashboardPage.tsx:4-7` 全量引入 `recharts`；`frontend/vite.config.ts:19-26` `manualChunks` 只做分包未做懒加载。
 - **现象**：`manualChunks` 把 `antd / charts / vendor` 拆成独立 chunk，但 7 个页面都是**静态 import**，因此这些 chunk 全在首屏依赖图内，登录页也要下载图表库。`package.json` 无 `build` 之外的产物体积检查。
-- **影响**：首屏 JS 体积与解析时间无谓增大；`manualChunks` 只改善了缓存命中，没改善首屏载荷，容易在面试讲解时被问倒。
+- **影响**：首屏 JS 体积与解析时间无谓增大；`manualChunks` 只改善了缓存命中，没改善首屏载荷，容易在工程说明时被问倒。
 - **建议**：路由级 `React.lazy` + `<Suspense fallback>`，把 `DashboardPage`（recharts）与 `VersionDiffPage` 等低频页拆出去；`npm run build` 后记录各 chunk 体积并设阈值；`index.html` 加 `preconnect` / `modulepreload` 提示。
 
 ### S-11 【严重｜④③｜已确认缺陷】React 侧零媒体查询 + 侧栏折叠后无触发按钮
@@ -352,7 +352,7 @@ grep 计数：
 
 ## 7. 演示切片可接受的取舍（明确列出，不是缺陷）
 
-以下均已实查，**在「离线可跑、A/B 档、面试讲解」定位下可接受**，报告不要求现在改；但每条给出「何时不再可接受」的触发条件。
+以下均已实查，**在「离线可跑、A/B 档、工程说明」定位下可接受**，报告不要求现在改；但每条给出「何时不再可接受」的触发条件。
 
 | # | 取舍 | 证据 | 可接受理由 | 何时必须改 |
 |---|---|---|---|---|

@@ -161,7 +161,7 @@ authz_snapshot = hash(role, department_id, department_path,
 2. **授权变更 → `authz_snapshot` 变化**：转岗、部门移动、ACLGrant（显式授权）变更 → `grant_version` 自增 → 旧授权快照 key 不命中；命中后仍要复核 `decide()`。公开资料（Truto、CloudsPress、TianPan）一致强调：**「稍旧的内容可以接受，稍旧的授权绝不可接受」**，因此授权决策要么每次实时重算，要么把权限变更当作一等 CDC 事件驱动失效，绝不缓存一个「已放行」的断言。
 3. **模型切换 → 命名空间变化**：换 embedding 模型/版本、换生成模型/版本、换 rerank 档，用 `CACHE_VERSION`（缓存版本前缀）或命名空间切换，旧向量/旧答案「不可达」、自然过期；**旧向量与新向量不可比较**，必须全量重算，不能混用（ExplainX、Adarsh M、BitTide 均指出此点）。
 
-**为什么只靠 TTL 不够**（DEV Community、CloudsPress、面试大师、吴师兄文均反复强调）：文档删除十秒后，十分钟 TTL 的检索缓存仍会把已删片段喂进上下文；权限 revoked（撤销）后，TTL 窗口内用户仍能看到无权限资料；且「检索缓存更新了、答案缓存没更新」会更隐蔽地继续返回旧答案。TTL 只能作为**陈旧度上限兜底**，正确性边界必须由版本 + 显式失效 + 命中后复核共同承担。
+**为什么只靠 TTL 不够**（DEV Community、CloudsPress、评审大师、吴师兄文均反复强调）：文档删除十秒后，十分钟 TTL 的检索缓存仍会把已删片段喂进上下文；权限 revoked（撤销）后，TTL 窗口内用户仍能看到无权限资料；且「检索缓存更新了、答案缓存没更新」会更隐蔽地继续返回旧答案。TTL 只能作为**陈旧度上限兜底**，正确性边界必须由版本 + 显式失效 + 命中后复核共同承担。
 
 ### A4. 分层缓存与三大经典故障
 
@@ -171,7 +171,7 @@ authz_snapshot = hash(role, department_id, department_path,
 - **L2 Redis / 持久化缓存**：跨进程共享、可设 TTL；本项目 `REDIS_CACHE_DB=0`（`config.py:45`）为缓存库，compose 配 `noeviction`（`docker-compose.yml:43`）→ **内存满时写入失败而非静默淘汰**，因此容量上限与淘汰策略要落在应用侧，不能指望 Redis 自动腾挪。
 - **真值层 PG**：文档、分块、任务、审计、用量的唯一权威；缓存永远不写真值，只写派生；「PG 真值、Redis 实时通道、进度可从 PG 重建」口径不变。
 
-三大故障与手段（中文面试高频三件套，来源见 D 节）：
+三大故障与手段（中文高频场景三件套，来源见 D 节）：
 
 | 故障 | 定义 | 手段 |
 |---|---|---|
@@ -277,7 +277,7 @@ authz_snapshot = hash(role, department_id, department_path,
 3. **故障演练**：上传中途 `SIGKILL`，重启后进度从 PG 快照恢复不归零、任务最终 `ready`、无幽灵向量；`docker compose stop redis` 时进度降级轮询 PG、入库不受影响（`async-upload.md:222-223`）。
 4. **策略不回退**：改新鲜度策略/解析策略后重启，值保持（当前未满足，见 B1/C）。
 
-### B7. 面试考点（≥6 条，含四条指定题）
+### B7. 工程要点（≥6 条，含四条指定题）
 
 1. **「重启后限流窗口清零会不会被打爆？」**——会，但要分层答：`_WINDOWS`（`observability.py:180`）是进程内滑动窗口，重启清零意味着短时间内计数从头开始，理论上存在突发流量穿透窗口的风险；但本项目 `rate_rules`（`db.py:201`）规则落库、且这是**演示替身**，生产应换 Redis 令牌桶/滑动窗口 + 网关层限流，使计数跨重启连续。要点是承认风险、给出「规则持久化 + 计数外置」的方向，而不是说「没事」。
 2. **「缓存 key 为什么要带模型名？」**——不同 embedding/生成模型对应不同向量空间与输出口径，旧向量与新向量**不可比较**；不带模型名会在模型升级后复用旧向量/旧答案，产生「串模型」与静默质量下降。换模型要走命名空间切换 + 全量重算，不能混用（A2/A3）。
@@ -304,7 +304,7 @@ authz_snapshot = hash(role, department_id, department_path,
 针对 `documents.status IN ('queued','analyzing')`（`db.py:55`）永久卡住：启动时扫描 + 幂等键重投（复用 `async-upload.md:194-195` 的 `uuid5` / `idempotency_key` 口径），产出 B6 字段的恢复报告。这是「重启后状态正常」最该先做的一条。
 
 **C4【已具备基础】限流窗口：保留演示替身，明确生产替换路径。**
-`_WINDOWS`（`observability.py:180`）属「可安全丢弃」；`RATE_DIMENSIONS = ("user","endpoint","model")`（`observability.py:40`）与 `rate_rules`（`db.py:201`）已落库。本期**只补文档说明与面试话术**（B7-1），不改限流维度、不引 Redis 令牌桶；生产替换方向写入注释即可。
+`_WINDOWS`（`observability.py:180`）属「可安全丢弃」；`RATE_DIMENSIONS = ("user","endpoint","model")`（`observability.py:40`）与 `rate_rules`（`db.py:201`）已落库。本期**只补文档说明与评审话术**（B7-1），不改限流维度、不引 Redis 令牌桶；生产替换方向写入注释即可。
 
 **C5【本期不建议做 → 口径已按实现细化，见 §0.0.1】检索结果缓存 / 答案缓存 / 语义缓存。**
 调研时理由：依赖 `grant_version`（`org-model-change-plan.md:347` 全仓零命中）与「先过滤后写 + 命中复核」尚未就位；在授权快照能力确认前切换缓存 key 是明确禁区（`:512`）。同日主理人补齐了授权快照、版本递增与命中复核三件前置能力，因此最终裁决改为：**通用双层缓存与演示级检索结果缓存已实现（主链路默认不接）；答案缓存 / 语义缓存仍不做**。语义缓存误命中风险更高的判断始终成立。
@@ -331,7 +331,7 @@ authz_snapshot = hash(role, department_id, department_path,
 
 ## D. 来源清单
 
-**检索说明**：2026-11-14 通过 WebSearch 做 6 次定向检索（3 英 + 3 中），查询词覆盖「RAG retrieval cache version-aware invalidation authorization snapshot」「LLM semantic cache key design embedding model version TTL negative caching」「service restart state recovery idempotent orphan task reconciliation graceful shutdown」「RAG 缓存 失效 版本 权限过滤 面试」「服务重启 状态恢复 幂等 孤儿任务 对账 心跳」「缓存击穿 穿透 雪崩 面试」。以下 URL 与标题均取自当日检索结果，未改写、未编造；每条标注关联章节。
+**检索说明**：2026-11-14 通过 WebSearch 做 6 次定向检索（3 英 + 3 中），查询词覆盖「RAG retrieval cache version-aware invalidation authorization snapshot」「LLM semantic cache key design embedding model version TTL negative caching」「service restart state recovery idempotent orphan task reconciliation graceful shutdown」「RAG 缓存 失效 版本 权限过滤 评审」「服务重启 状态恢复 幂等 孤儿任务 对账 心跳」「缓存击穿 穿透 雪崩 评审」。以下 URL 与标题均取自当日检索结果，未改写、未编造；每条标注关联章节。
 
 ### D.1 英文来源（检索日 2026-11-14）
 
@@ -354,13 +354,13 @@ authz_snapshot = hash(role, department_id, department_path,
 14. TechDataFuture — *RAG 知识库更新后为什么会变差：切分、版本和缓存的连锁反应* — https://techdatafuture.com/interview/article/rag-knowledge-update-versioning — 关联 A3（文档/段落/索引带版本、权限规则变化旧缓存未过滤、回答缓存没跟着更新）
 15. 面试大师 — *RAG 知识库如何做不停服更新，并保证检索结果一致性？* — https://mianshidashi.cn/interview-questions/tencent/backend-development/tencent-backend-rag-hot-update-consistency — 关联 A3（缓存 key 带知识库版本和权限上下文、索引 alias 切换、删除/降权优先传播）
 16. BitTide — *Agent 高频题 01. 讲讲你的 RAG 链路* — http://bittide.aicompass.dev/article/e596247e-3c19-44b9-983e-f85862d19d56 — 关联 A3（块记文档 id/版本号/内容哈希、换 embedding 全量重算、删后缓存一起失效、权限在检索阶段带上）
-17. 吴师兄（微信公众号）— *面试官：RAG 首字响应慢，应该先优化哪一段？* — http://mp.weixin.qq.com/s?__biz=MzkzMDIwMzg1Mw==&mid=2247490943&idx=1&sn=45a08184f35884cc07aaa9986e79f843 — 关联 A1/A4/A5（三层缓存位置与失效边界、生产缓存键至少区分模型版本与租户、Trace 分段计时、P95/P99）
+17. 吴师兄（微信公众号）— *评审方：RAG 首字响应慢，应该先优化哪一段？* — http://mp.weixin.qq.com/s?__biz=MzkzMDIwMzg1Mw==&mid=2247490943&idx=1&sn=45a08184f35884cc07aaa9986e79f843 — 关联 A1/A4/A5（三层缓存位置与失效边界、生产缓存键至少区分模型版本与租户、Trace 分段计时、P95/P99）
 18. TianPan — *你的向量索引是一个没有失效策略的缓存* — https://tianpan.co/zh/blog/2026/05/17/vector-index-cache-no-invalidation-strategy — 关联 A3/A6（缓存昂贵且缓变的嵌入、绝不缓存廉价但关乎安全的授权决策、CDC 驱动、集合对账 diff、内容哈希+源版本）
 19. 孟斌的小站 — *大模型缓存完全指南：从 KV Cache 到语义缓存* — https://mengbin.top/2026-08-26-大模型缓存完全指南从-kv-cache-到语义缓存 — 关联 A2/A5（精确缓存 key = hash(model+system+messages+temperature...)、隐私泄漏、命中率/节省 token/误命中投诉率）
 20. 好代码 — *Redis面试题：Redis缓存如何回收？击穿、穿透、雪崩、预热解决方案？* — https://m.haodaima.com/question/content-262-132339-1.htm — 关联 A4（穿透/击穿/雪崩定义、空结果短 TTL、随机过期、互斥锁、逻辑过期、预热）
 21. 中培伟业 — *Redis缓存架构设计：穿透、击穿与雪崩的解决方案* — https://m.zpedu.com/it/ityw/38690.html — 关联 A4（布隆过滤器、SETNX 互斥锁、随机偏移、多级缓存、Cache Aside 先更库再删缓存）
 22. 人人代码 — *接口一到高峰就打崩数据库？缓存穿透、击穿、雪崩的分场景解法* — https://www.renrendaima.com/article/3316.html — 关联 A4（三者诊断区分、互斥锁必须带超时、空值 TTL 要短、布隆过滤器误判率）
-23. CSDN — *面试官问我缓存击穿是啥，我反手就是一个比喻把他整笑了* — https://blog.csdn.net/2402_86612729/article/details/161500249 — 关联 A4/B7（三者对比表、双重检查、锁超时、别全设永不过期）
+23. CSDN — *评审方问我缓存击穿是啥，我反手就是一个比喻把他整笑了* — https://blog.csdn.net/2402_86612729/article/details/161500249 — 关联 A4/B7（三者对比表、双重检查、锁超时、别全设永不过期）
 24. 人人代码 — *Linux 某服务老是意外退出、业务空窗？systemd Restart 与看门狗* — https://www.renrendaima.com/article/7202.html — 关联 B5（`Restart=on-failure`、`WatchdogSec` + `sd_notify` 心跳、治本查日志）
 25. CSDN DevPress — *看门狗架构演进与设计实战：从硬件到云原生的系统守护哲学* — https://devpress.csdn.net/v1/article/detail/163868929 — 关联 B5（systemd 看门狗、K8s Liveness/Readiness 探针、应用内线程级看门狗）
 26. Inferensys — *Watchdog Timer* — https://inferensys.com/glossary/recursive-error-correction/fault-tolerant-agent-design/watchdog-timer — 关联 B5（心跳/喂狗、超时过短误重启、心跳任务不可被饿死、重启后从 checkpoint 恢复）

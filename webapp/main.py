@@ -118,7 +118,9 @@ def _gateway_error(status: int, code: str, kind: str, message: str, detail: str,
 _METRICS_LOCK = threading.Lock()
 _DURATION_BUCKETS = (0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0)
 _METRIC_REQUESTS: dict[tuple[str, int], int] = defaultdict(int)
-_METRIC_DURATION: dict[float, int] = {b: 0 for b in _DURATION_BUCKETS}
+# +Inf 桶必须预置：耗时超过最大桶（5s）的请求会落进 inf，
+# 缺这个键会直接 KeyError，把「慢请求」变成「500」。分流上传、冷启动检索都会踩到。
+_METRIC_DURATION: dict[float, int] = {b: 0 for b in (*_DURATION_BUCKETS, math.inf)}
 _METRIC_DURATION_SUM = 0.0
 _METRIC_DURATION_COUNT = 0
 _METRIC_RL_HITS: dict[str, int] = defaultdict(int)

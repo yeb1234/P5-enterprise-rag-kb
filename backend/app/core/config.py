@@ -97,6 +97,24 @@ class Settings(BaseSettings):
     CHUNK_SIZE_CHARS: int = 1200
     CHUNK_OVERLAP_CHARS: int = 150
 
+    # 检索上下文预算：召回可以宽，送进 LLM 的上下文要窄。
+    # 中文单篇 MRC 题 3 篇足够；英文 RAGTruth 常一道题跨 2~4 个段落，单独放宽。
+    SEARCH_CONTEXT_DOCS: int = 3
+    SEARCH_CONTEXT_DOCS_EN: int = 4
+    SEARCH_CONTEXT_CITATIONS_PER_DOC: int = 2
+    SEARCH_CONTEXT_MAX_CITATIONS: int = 6
+
+    # P5 Knowledge MCP（只读网关；P10 通过 HTTP JSON-RPC 消费）
+    MCP_ENABLED: bool = True
+    MCP_SERVICE_KEY: str = ""
+    MCP_TENANT_ID: str = ""
+    MCP_USER_ID: str = ""
+
+    # 返回给前端的证据窗口。中文段落通常较短，400 字足够；
+    # 英文 RAGTruth 的操作步骤/命令名常出现在 400 字之后，单独放宽到 600。
+    SEARCH_SNIPPET_CHARS: int = 400
+    SEARCH_SNIPPET_CHARS_EN: int = 600
+
     # ---------- 派生配置 ----------
     @property
     def database_url(self) -> str:

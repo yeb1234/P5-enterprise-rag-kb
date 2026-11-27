@@ -11,14 +11,14 @@
 > - 评估工作台：`METRICS@1.0.0 → 1.1.0 → 1.2.0`、`self_built_v1`、分支 `eval/v1…v4` / `demo/v1` 与 commit。
 > - **事实源**：`git log`、`.workbuddy/memory/2026-11-11.md`、`2026-11-12.md`、`MEMORY.md`、`README.md`、`webapp/README.md`、`docs/` 全部文档及各配置文件版本字段。
 >
-> **定位**：开发框架骨架 + 面试讲解版（A/B 档），非上线交付版。
+> **定位**：开发框架骨架 + 工程实现版（A/B 档），非上线交付版。
 > **统一列**：版本或日期 ｜ 改进项名称 ｜ 改动说明 ｜ 影响范围 ｜ 备注。
 
 ---
 
 ## v1.0.0 · 2026-11-16 · 真基础设施全链路跑通与定版
 
-> **1.0 的含义**：**「开发框架骨架 + 面试讲解版」的 1.0**，不是「可上线产品 1.0」。
+> **1.0 的含义**：**「开发框架骨架 + 工程实现版」的 1.0**，不是「可上线产品 1.0」。
 > 判据是「真 PG + 真 Redis + 真 Milvus + 真外部模型四件都实跑过、数字可复现、未做的部分明确标注」，
 > 而不是「功能齐全」。未做清单见 `docs/production/07-remaining-work.md`（20 项，逐项三态）。
 
@@ -26,7 +26,7 @@
 |---|---|---|---|---|
 | 2026-11-16 | **版本号定版 `1.0.0`** | `webapp/main.py` 的 FastAPI `version` 由 `0.2.0-demo` → `1.0.0`；`frontend/package.json` 由 `0.1.0` → `1.0.0`；打 annotated tag `v1.0.0` | `webapp/main.py`、`frontend/package.json` | 无测试断言该字符串；`/api-docs` 显示版本随之更新 |
 | 2026-11-16 | **部署文档去 SQLite 残留** | `docs/deployment-guide.md` 三处仍写「`webapp` 用 SQLite、无 Dockerfile、容器内多副本状态冲突」——均已过期。改为「有 `webapp/Dockerfile`、跑真 PG、走 `run-demo.sh` 的 build+run 路线」，并把多副本冲突点更正为**进程内队列与进程内限流闸** | `docs/deployment-guide.md` §2 项①、§2.1 说明、§5 解析服务边界 | 这三处会直接误导腾讯云上线步骤，不是文风问题 |
-| 2026-11-16 | **新增剩余工作清单** | `docs/production/07-remaining-work.md`：20 项缺口逐项标「未做 / 只设计 / 半成品」，附阻塞原因、做完的判断标准、建议顺序（本周 / 面试前 / 生产前）与新环境启动陷阱 | `docs/production/`、`00-overview.md` §3/§8 | 逐项回代码核过（如 `rag.py:154` 仍读 PG 文本列），非凭印象 |
+| 2026-11-16 | **新增剩余工作清单** | `docs/production/07-remaining-work.md`：20 项缺口逐项标「未做 / 只设计 / 半成品」，附阻塞原因、做完的判断标准、建议顺序（本周 / 演示前 / 生产前）与新环境启动陷阱 | `docs/production/`、`00-overview.md` §3/§8 | 逐项回代码核过（如 `rag.py:154` 仍读 PG 文本列），非凭印象 |
 
 **1.0 定版的实测证据（2026-11-16 本机全量重跑，无任何预设环境变量，全部走 `.env` + `docker-compose.infra.yml`）**
 
@@ -176,7 +176,7 @@
 | 日期 | 改进项 | 改动说明 | 影响范围 | 备注 |
 |---|---|---|---|---|
 | 2026-11-16 | **`pgkit` 换成 SQLAlchemy Engine + 连接池** | `connect()` 改为 `engine.raw_connection()` 取池化连接；`PgConn.close()` 从「断 TCP」改为 `fairy.close()`（**还池**）。全仓 **138 处** `finally: conn.close()` 零改动就从「每次重连」变成「归还」 | `pgkit.py`、`webapp/Dockerfile`（新增 `SQLAlchemy>=2.0,<2.1`） | 池按 `(DSN, schema)` 分池，测试 schema 不与生产 public 共用 |
-| 2026-11-16 | **为什么不上 ORM** | 138 处调用点是按 **SQL 文本**写的（`conn.execute("SELECT ...")` + 手写占位符），改 ORM 是**重写**而不是接入。这一层只用 Engine / 连接池 / `pool_pre_ping` / `pool_recycle`，SQL 全部保持原样 | `pgkit.py` docstring | 面试口径：说的是「接管连接生命周期」，不是「上了 ORM」 |
+| 2026-11-16 | **为什么不上 ORM** | 138 处调用点是按 **SQL 文本**写的（`conn.execute("SELECT ...")` + 手写占位符），改 ORM 是**重写**而不是接入。这一层只用 Engine / 连接池 / `pool_pre_ping` / `pool_recycle`，SQL 全部保持原样 | `pgkit.py` docstring | 对外口径：说的是「接管连接生命周期」，不是「上了 ORM」 |
 | 2026-11-16 | **方言坑：必须 `postgresql+psycopg://`** | SQLAlchemy 的 `postgresql://` 默认解析成 psycopg2，本项目装的是 psycopg3 → `ModuleNotFoundError: psycopg2`。`_sqlalchemy_url()` 做前缀改写 | `pgkit.py` | 已用纯函数单测钉住 |
 | 2026-11-16 | **新增 5 项池化行为单测** | 池化是**不可见行为**：SQL 一样、功能测试全绿也证明不了池在复用。直接查 `pg_backend_pid()`：借还 20 次看到的**不同后端数 ≤ 池上限**；`autocommit` 每次 checkout 被重置；方言改写；search_path 在池复用后仍正确；**会话级 `SET` 无法污染池** | `webapp/tests/test_pgkit_pool.py` | 单测总数 259 → **264** |
 
@@ -262,7 +262,7 @@ $ docker logs kb-webapp | grep e3c0cb9a
 
 | 日期 | 改进项 | 改动说明 | 影响范围 | 备注 |
 |---|---|---|---|---|
-| 2026-11-16 | **新增向量存储选型文档** | 现状路径剖析 + 三个实测常数 + 四候选对比 + 三个判据（过滤与排序能否一次完成 / 事务边界 / 运维成本）+ 规模算术 + pgvector 迁移步骤与回滚 + A13 对拍方案 + 面试口径（能说与不能说） | `production/08-vector-store-decision.md`、`00-overview.md` §3/§8、`07-remaining-work.md` #1 | **纯文档，一行代码未改**；推荐路线未拍板 |
+| 2026-11-16 | **新增向量存储选型文档** | 现状路径剖析 + 三个实测常数 + 四候选对比 + 三个判据（过滤与排序能否一次完成 / 事务边界 / 运维成本）+ 规模算术 + pgvector 迁移步骤与回滚 + A13 对拍方案 + 对外口径（能说与不能说） | `production/08-vector-store-decision.md`、`00-overview.md` §3/§8、`07-remaining-work.md` #1 | **纯文档，一行代码未改**；推荐路线未拍板 |
 | 2026-11-16 | **现状实测（写进文档，避免再凭感觉）** | 单条向量文本 **22,739 字符 ≈ 22.2 KB**（二进制 `vector(1024)` 是 4 KB，胖 5.5×）；`json.loads` **0.19 ms**/条；纯 Python cosine(1024) **0.071 ms**/对 → 外推 10 万候选 **25.6 s**，而同一份数据 numpy 批量 GEMM 是 **2.57 ms**，差 1 万倍 | `production/08` §1.2 | 差的是「JSON 文本 + Python 循环」，不是算法 |
 | 2026-11-16 | **`07` #1 的目标改为待定** | 原写「主链路走 Milvus」；`08` 论证改走 pgvector 更合适（一条 SQL 完成过滤+排序、同事务消掉幽灵向量、零新增有状态组件、半天 vs 2–3 天）。表内标注「目标待定」，拍板后同步 | `07-remaining-work.md` #1、§2.1、§11.2/§11.3 | 没拍板就不改路线，只把论证摆出来 |
 
@@ -332,7 +332,7 @@ $ docker logs kb-webapp | grep e3c0cb9a
 | 版本或日期 | 改进项名称 | 改动说明 | 影响范围 | 备注 |
 |---|---|---|---|---|
 | 2026-11-11 · `v0.1 骨架` | 全栈开发骨架首次搭建 | 按指定技术栈构建 React 18 + FastAPI + PostgreSQL + Milvus + Redis/Celery + MinIO 骨架；分片 8MiB 断点续传、批量聚合、Celery 多阶段流水线、SSE 层级进度；确立四条核心约束（tenant 注入、权限纯函数、先过滤再重排、PG 为真值） | `backend/`、`frontend/`、`nginx/`、`docker-compose.yml`、`README.md` | 后端 16/16、前端 build 成功、47 条 OpenAPI 路径、13 个 Celery 任务、4 个 beat；参考《全景设计、本周排期与交付档次》 |
-| 2026-11-11 · `v0.1 骨架` | 首日设计文档组 | 产出异步上传、权限模型、Agent 扩展、运维边界、学习路线 5 份文档，统一「已实现 / 只设计 / 未做」三态口径 | `docs/async-upload.md`、`permission-model.md`、`agent-extension.md`、`operations.md`、`learning-roadmap.md` | `docs/operations.md` 逐条标注端口与安全清单状态；权限文档预留逐段落 ACL 三步走 |
+| 2026-11-11 · `v0.1 骨架` | 首日设计文档组 | 产出异步上传、权限模型、Agent 扩展、运维边界、实施路线 5 份文档，统一「已实现 / 只设计 / 未做」三态口径 | `docs/async-upload.md`、`permission-model.md`、`agent-extension.md`、`operations.md`、`learning-roadmap.md` | `docs/operations.md` 逐条标注端口与安全清单状态；权限文档预留逐段落 ACL 三步走 |
 | 2026-11-11 · `EVAL-PLAN@0.1.0` | 离线占位评测体系 | 14 个版本化对象（各带 8 字段变更记录、DAG 无环校验）+ 26 条用例 + 6 份 fixtures + 六链路确定性占位 harness；35 个接入契约槽位全部 `__TBC__`（26 blocking / 9 optional） | `eval/`、`docs/evaluation-plan.md` | 14 项 unittest；`comparable=false`、`composite_score=null`、阈值全 null；复现主键含 `code_hash` |
 | 2026-11-11 · `DEMO-KBQA-EVAL-001` `1.0.0` | 演示物料包 | 单一事实源 `scenario.json`（8 术语 / 9 步 / 9 句话术 / 5 边界用例）+ 四部分文档 + 一键演示、记录查看、16 项自测工具；12 分钟 9 步、零网络零密钥 | `demo/`、`docs/demo/` | 16/16 `DEMO_READY`、9/9 步对齐、42/42 逐项；7 字段与 `RUN-095a2a4a40c6` 全一致 |
 | 2026-11-11 · `方案 v0.2` | 消息层职责重划与插件清单 | 按「数据能不能丢」重划 RabbitMQ / Redis / Celery / PG 职责；9 项插件按 P0–P2 排序；同步修正 3 处「换 RabbitMQ 只改一处配置」过时结论 | `docs/next-version-messaging-and-plugins.md`、`README.md` §1.2、`backend/app/tasks/celery_app.py` 注释、`docs/operations.md` | 仅文档/注释改动；demo 16/16 复跑通过，`run_id` 不变 |
@@ -346,7 +346,7 @@ $ docker logs kb-webapp | grep e3c0cb9a
 | 2026-11-11 · `0.2.0-demo` | Intern-AI Discovery 网关 | 新增第四档 LLM（14 个模型可切），与 Sensenova 互为备份；同上下文横向延迟基准 | `webapp/settings.py`、`providers.py`、`routers_settings.py`、`static/` | pytest 31/31；网关延迟抖动大，演示建议 `minimax-m3` |
 | 2026-11-11 · `0.2.0-demo` | 429 分类与退避改造 | 区分 `rate_limit_exceeded`（1/2/4s + 抖动退避、尊重 `Retry-After`、上限 30s）与 `quota_exceeded`（不重试）；流式吐字后不再重试 | `webapp/providers.py`、`rag.py`、`static/app.js`、`webapp/README.md` | pytest 36/36；明确未做全局并发闸/令牌桶 |
 | 2026-11-11 · 静态资源 `v=9` | 智能问答来源追溯 | 新增 `chat_sources` 表；SSE `meta`/`done` 携来源；三个回放接口；前端来源卡片、原文弹窗、历史会话回放 | `webapp/db.py`、`routers_chat.py`、`static/` | pytest 37/37；API 19→24；逐句 grounding 高亮仍属设计 |
-| 2026-11-11 · 静态资源 `v=10` | 三组件全切外部 API + 评估报告 | 嵌入与重排切硅基流动、LLM 切 Discovery DeepSeek；新增 `effective_embedding()` 唯一事实源与缓存命名空间隔离；`WEBAPP_` 前缀隔离配置；产出面试向评估报告 | `webapp/settings.py`、`providers.py`、`rag.py`、`eval_report.py`、`.env`、`docs/evaluation-report.md` | pytest 41/41、e2e 33/33、backend 16/16；报告日期 2026-11-11，明确「非质量基线」 |
+| 2026-11-11 · 静态资源 `v=10` | 三组件全切外部 API + 评估报告 | 嵌入与重排切硅基流动、LLM 切 Discovery DeepSeek；新增 `effective_embedding()` 唯一事实源与缓存命名空间隔离；`WEBAPP_` 前缀隔离配置；产出评审向评估报告 | `webapp/settings.py`、`providers.py`、`rag.py`、`eval_report.py`、`.env`、`docs/evaluation-report.md` | pytest 41/41、e2e 33/33、backend 16/16；报告日期 2026-11-11，明确「非质量基线」 |
 
 ---
 

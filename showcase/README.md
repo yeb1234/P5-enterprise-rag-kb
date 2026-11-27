@@ -1,6 +1,6 @@
 # showcase · 离线可跑的「解析 → 入库预览」演示站点
 
-> **A/B 档骨架 + 面试讲解用，不是上线交付版。**
+> **A/B 档骨架 + 工程说明用，不是上线交付版。**
 > 唯一事实源：`docs/showcase/03-phase2-spec.md`（默认值与模块接口）、
 > `docs/showcase/02-architecture.md §3/§4/§7`、`docs/showcase/01-scope.md §4/§7`。
 

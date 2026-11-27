@@ -1,0 +1,30 @@
+{
+  "run_id": "RUN-25ae65460cae",
+  "dataset": "cmrc2018_sample_60.jsonl",
+  "reviewer_note": "人工逐条复核字符串口径判 0 的 14 条。分类基于『语义是否回答了问题且忠于片段』，不修改冻结的 METRICS@1.2.0 评分。此文件是可追溯的人工判断，不是自动评分。",
+  "string_metric_accuracy": 0.7667,
+  "n_scored": 60,
+  "n_zero": 14,
+  "categories": {
+    "semantically_correct_string_mismatch": 13,
+    "false_refusal_insufficient": 1,
+    "genuinely_wrong": 0
+  },
+  "manual_accuracy_upper_bound": 0.9833,
+  "items": [
+    {"q": "上海轨道交通17号线在2010年改名为什么？", "gold": ["上海轨道交通20号线"], "answer": "INSUFFICIENT", "classification": "false_refusal_insufficient", "note": "片段有答案但模型拒答，唯一真问题"},
+    {"q": "玛丽·安宁在莱姆里杰斯发现了哪些重大的遗迹？", "gold": ["许多恐龙和其他史前爬行动物的遗迹"], "answer": "发现了鱼龙目、蛇颈龙亚目、双型齿翼龙等重大遗迹", "classification": "semantically_correct_string_mismatch", "note": "列举具体物种，与金标概括同义且更具体"},
+    {"q": "在元朗千色汇之前，该地是什么建筑？", "gold": ["校舍"], "answer": "原为侨港东莞同乡会元朗分会开设的学校", "classification": "semantically_correct_string_mismatch", "note": "学校=校舍"},
+    {"q": "为什么说《一年之初》是郑有杰的成名之作？", "gold": ["获得八百万元国片辅导金补助，剧本亦入选…且得最佳剧本奖，并因此片得以…参展"], "answer": "因获八百万元国片辅导金补助，剧本入选优良电影剧本并获最佳剧本奖，且得以赴各国影展参展", "classification": "semantically_correct_string_mismatch", "note": "几乎逐字同义，仅删『民国92年度』等细节"},
+    {"q": "大雷克雅维克位于什么地方？", "gold": ["冰岛西南部法赫萨湾（Faxaflói）东南岸"], "answer": "冰岛西南部法赫萨湾东南岸", "classification": "semantically_correct_string_mismatch", "note": "仅缺括号里的原文转写"},
+    {"q": "现在的从四位主要是哪些人？", "gold": ["有所功劳的公务员、在艺术、文化、学术研究拥有功绩的大学教授"], "answer": "主要是有所功劳的公务员，以及在艺术、文化、学术研究拥有功绩的大学教授", "classification": "semantically_correct_string_mismatch", "note": "仅多『主要是』连接词"},
+    {"q": "Adobe OnLocation除了传统的录音功能之外还能录制什么？", "gold": ["静帧或是延时场景片断，甚至能够对buffer进行录制"], "answer": "还能录制静帧、延时场景片断，并可对buffer进行录制，时长可达30秒", "classification": "semantically_correct_string_mismatch", "note": "同义改写且补充细节"},
+    {"q": "硕塞是如何被提升为亲王的？", "gold": ["姜瓖反叛期间，硕塞移师代州，解围有功"], "answer": "因在姜瓖反叛期间移师代州解围有功而晋升亲王", "classification": "semantically_correct_string_mismatch", "note": "同义改写"},
+    {"q": "皱眉肌的位置是哪里？", "gold": ["眉毛中间末端，在额肌与眼轮匝肌的下面位置。"], "answer": "位于眉毛中间末端，在额肌与眼轮匝肌下方，处于眼睑及眼窝部分的中间", "classification": "semantically_correct_string_mismatch", "note": "『下面』=『下方』，且补充位置"},
+    {"q": "三氯化氮对哪些物质比较敏感？", "gold": ["对光、热和有机化合物都非常敏感"], "answer": "对光、热和有机化合物非常敏感", "classification": "semantically_correct_string_mismatch", "note": "仅缺『都』字"},
+    {"q": "纽康的太阳表包括哪些年限的星历表？", "gold": ["从1900年至1983年间"], "answer": "1900年至1983年间所有出版的星历表", "classification": "semantically_correct_string_mismatch", "note": "核心数字完全一致"},
+    {"q": "司马伦倒台后，索靖为什么被加授散骑常侍？", "gold": ["以讨伐孙秀之功获加授散骑常侍"], "answer": "因讨伐孙秀有功而被加授散骑常侍", "classification": "semantically_correct_string_mismatch", "note": "同义改写"},
+    {"q": "白尾雀鲷的生活习性是什么样的？", "gold": ["栖息于低潮线下有碎礁或圆石之海底，以港湾内居多，喜欢独居，领域性强"], "answer": "多栖息于低潮线下有碎礁或圆石的海底，港湾内居多，喜欢独居且领域性强，以藻类为食", "classification": "semantically_correct_string_mismatch", "note": "核心描述全覆盖，补充食性"},
+    {"q": "红钻鱼的明显特征是什么？", "gold": ["沿著侧线有条黄色纵带自鳃盖后方延伸到尾鳍基部。"], "answer": "沿侧线有一条黄色纵带，自鳃盖后方延伸到尾鳍基部", "classification": "semantically_correct_string_mismatch", "note": "『沿著』=『沿』，仅标点差异"}
+  ]
+}

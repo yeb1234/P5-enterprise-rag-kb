@@ -1,15 +1,14 @@
-# webapp · 可运行演示切片（拿来即可演示）
+# webapp · 单进程完整切片
 
-**定位**：一个零依赖、可直接打开界面的完整功能切片——离线档可跑，默认已接真实外部模型
+**定位**：一个零构建、可直接打开界面的完整功能切片——离线档可跑，默认已接真实外部模型
 （生成走 Intern-AI Discovery 网关的 DeepSeek，嵌入与重排走硅基流动 BGE 系列），
-限流/故障时自动降级并留痕。它是生产架构的「可演示替身」，
-**不是上线版，也不替代 `backend/` 骨架**。契约与
-`docs/next-version-messaging-and-plugins.md` 一致，便于面试时讲清「哪一层做了、哪一层只设计」。
+限流/故障时自动降级并留痕。它承担「单机可演示 + 端到端可回归」的角色，
+契约与 `docs/next-version-messaging-and-plugins.md` 一致；与 `backend/` 服务端共用数据库与接口语义。
 
-> 真实外部模型下的完整评估实测见 **`docs/evaluation-report.md`**（面试讲解版；
-> 事实源 `webapp/out/eval_report.json`，五套回归全绿）。
+> 真实外部模型下的完整评估实测见 **`docs/evaluation-report.md`**
+> （事实源 `webapp/out/eval_report.json`，五套回归全绿）。
 
-| 演示切片 | 生产架构（v0.1 骨架 / v0.2 方案） |
+| 演示切片 | 生产架构（backend 服务端 / v0.2 方案） |
 |---|---|
 | **PostgreSQL（唯一真值）** | PostgreSQL（`ingest_jobs` / 审计台账） |
 | 进程内信号量队列 | Celery + Redis broker → v0.2 RabbitMQ |
@@ -78,13 +77,13 @@ API 文档：`http://127.0.0.1:8765/api-docs`（共 36 条 API，含 12 条 `/ap
 
 ---
 
-## 2.1 侧栏导航：11 项 / 3 组（对照生产骨架 README §4）
+## 2.1 侧栏导航：11 项 / 3 组（对照服务端路由）
 
 原先只有 3 个入口；补齐的依据不是「看起来像企业级」，而是**项目文档里已经写好的模块**
 （`README.md` §4 的看板 / 任务 / 审计 / 组织 / 检索 / 版本，`docs/` 的上传状态机、
 评测对象、权限、运维、Agent 扩展）。每个入口要么读真实数据，要么明确标注「只设计」。
 
-| 分组 | 入口 | 数据来源 | 状态 | 面试讲解要点 |
+| 分组 | 入口 | 数据来源 | 状态 | 说明 |
 |---|---|---|---|---|
 | 工作台 | 工作台概览 | `GET /api/overview` | 已实现 | 按角色聚合：普通用户统计强制带 `owner_id/user_id/created_by`，**不是把全局数字藏起来而是根本不查** |
 | 工作台 | 智能问答 | SSE 流式 | 已实现 | 断线续传、检索为空拒答、占位生成明确标注；**来源可追溯**：回答下方展示引用来源卡片（文档/分块/得分/方式），点开看原文，历史会话可回放来源 |
@@ -96,7 +95,7 @@ API 文档：`http://127.0.0.1:8765/api-docs`（共 36 条 API，含 12 条 `/ap
 | 质量与治理 | 管理后台 | badcase + 完成度 | 已实现（仅 admin） | 采集与查看权限分离，导出与列表共用筛选 |
 | 质量与治理 | 审计日志 | `GET /api/admin/audit` | 已实现（演示级） | 只追加台账，可按动作/人回放「谁在什么时候做了什么」；**未接** `trace_id`、留存策略与脱敏 |
 | 系统 | 模型设置（仅 admin） | `GET/PUT /api/settings` + `/api/settings/test` | 已实现 | LLM 本地/外部/离线可切、Bge M3 向量、Rerank 可配（不可用优雅跳过）；配置落 PostgreSQL 的 `app_settings`、**即时生效** |
-| 系统 | 系统设置与边界 | `/api/system/busy` + `/api/admin/users` + 静态映射 | 混合 | 组件替身映射表、A/B/C 档、**明确不做**清单——面试时别把 A 档说成 C 档 |
+| 系统 | 系统设置与边界 | `/api/system/busy` + `/api/admin/users` + 静态映射 | 混合 | 组件替身映射表、A/B/C 档、**明确不做**清单——讲解时别把 A 档说成 C 档 |
 
 **权限**：`管理后台`、`审计日志`、`模型设置` 仅 admin 可见，接口同样 403；`系统设置与边界` 普通用户可见，
 但成员列表只显示「仅管理员可见」。**普通用户 8 项、admin 11 项**（较上版新增「评估测试」，只读对所有登录用户开放，写接口仍仅 admin）。
@@ -136,7 +135,7 @@ PostgreSQL 的 `app_settings`，即时生效、无需重启**，不动检索 / �
 
 嵌入与重排共用同一账号同一把 key。**配置命名空间已隔离**：provider 开关一律用
 `WEBAPP_` 前缀（`WEBAPP_LLM_PROVIDER` / `WEBAPP_EMBEDDING_PROVIDER` / `WEBAPP_RERANK_PROVIDER`）——
-因为 `backend/` 骨架对 `EMBEDDING_PROVIDER` 的枚举是 `stub|openai_compatible`，
+因为 `backend/` 服务端对 `EMBEDDING_PROVIDER` 的枚举是 `stub|openai_compatible`，
 与切片的 `offline|local|external` 互斥，共用扁平命名会让 backend 启动校验失败。
 `settings.effective_embedding()` 是「端点 / 模型 / key / **缓存命名空间**」唯一事实源：
 `cache_key` 带 provider + 模型名，切模型不会复用旧向量（否则维度不一致时余弦会静默归零）。
@@ -254,20 +253,7 @@ PostgreSQL 的 `app_settings`，即时生效、无需重启**，不动检索 / �
 
 ---
 
-## 5. 面试 30 秒讲法
-
-> 「我另外做了一个能直接打开跑的切片，把注册登录、上传排队、流式问答、badcase 采集
-> 到管理员导出串成一条闭环。它用真 PostgreSQL 当真值、进程内队列替身 Celery，并已接真实 DeepSeek——
-> 但**契约和生产架构一致**：LLM 走适配器 seam，检索/权限/评测逻辑一处没动，换掉替身就是真链路。
-> 最想讲的是降级：检索为空会明确拒答不编造，模型限流会回退本地拼接而不崩，流断了带 resume_from 续传，
-> 后端挂了前端自动重连并刷新，上传繁忙会显示排队位置。所有降级都可见、都留痕。
-> 还能在设置页一键切 LLM（外部 DeepSeek / 本地 / 离线）、嵌入（硅基流动 / 本地 / 词法）、
-> 重排（真 cross-encoder / LLM 打分 / 关），不支持的能力会明确跳过而不是假装用了。
-> badcase 和完成度共用同一张关联表，创建时校验任务存在，所以不会出现进度和数据对不上。」
-
----
-
-## 6. 自测结论
+## 5. 自测结论
 
 `python webapp/selftest.py` → **33 / 33 通过，`DEMO_READY`**（真实模型下运行，限流时走
 降级仍全绿；覆盖登录鉴权、admin 门禁 403、繁忙排队、格式降级、流式与续传索引连续、

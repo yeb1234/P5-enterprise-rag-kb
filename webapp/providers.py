@@ -10,12 +10,15 @@
 """
 from __future__ import annotations
 
+import hashlib
 import http.client
 import json
 import os
 import random
 import re
+import threading
 import time
+from collections import OrderedDict
 from typing import Iterator
 from urllib.parse import urlparse
 
@@ -487,6 +490,105 @@ def get_embedding(cfg: dict | None = None) -> EmbeddingProvider:
 
 def get_embedding_label(cfg: dict | None = None) -> str:
     return settings.effective_embedding(cfg)["name"]
+
+
+# --------------------------------------------------------------------------
+# Query 向量缓存
+# --------------------------------------------------------------------------
+# 为什么单独做一层：一次问答里 query 只 embed 一次，但它是整条链路上**唯一一次同步
+# 模型调用**（外部硅基流动 bge-m3 实测 300~600ms，本地 LM Studio 同量级），占端到端
+# 时延的大头；而这个调用的产出对同一句话是纯函数。命中后这一段直接归零。
+#
+# 边界（别扩它的用途，扩了就变成权限漏洞）：
+# - **只缓存 query 向量，不缓存检索结果**。权限过滤、词法门禁、data_version 每次都照跑，
+#   命中的只是「这句话的向量」——所以不存在「拿 TTL 当权限控制」的问题。
+# - key 必带 cache_key（含 local:/external: 前缀）：同名 bge-m3 跨实现余弦只有 0.977，
+#   共用缓存等于换了模型还用旧向量（见 settings.effective_embedding 的论证）。
+# - TTL 只用于内存回收，**不是新鲜度语义**；超 maxsize 按 LRU 淘汰。
+_CACHE_MAX = max(1, int(os.environ.get("WEBAPP_QUERY_EMBED_CACHE_SIZE", "512")))
+_CACHE_TTL = float(os.environ.get("WEBAPP_QUERY_EMBED_CACHE_TTL", "1800"))
+
+
+class _QueryVecCache:
+    """(cache_key, sha1(原文)) → (向量, 写入时刻) 的 LRU + TTL。
+
+    用 sha1 而不是原文做键：原文可能几千字，留着当键等于把整个问题库钉在内存里。
+    """
+
+    def __init__(self, maxsize: int, ttl: float):
+        self.maxsize = maxsize
+        self.ttl = ttl
+        self._d: OrderedDict[tuple[str, str], tuple[list[float], float]] = OrderedDict()
+        self._lock = threading.Lock()
+        self.hits = 0
+        self.misses = 0
+        self.expired = 0
+        self.evicted = 0
+
+    def get(self, key: tuple[str, str]) -> list[float] | None:
+        now = time.time()
+        with self._lock:
+            item = self._d.get(key)
+            if item is None:
+                self.misses += 1
+                return None
+            vec, ts = item
+            if now - ts > self.ttl:
+                # 过期不是「错」，只是回收；单独计数，别混进 miss 让命中率失真
+                del self._d[key]
+                self.expired += 1
+                self.misses += 1
+                return None
+            self._d.move_to_end(key)
+            self.hits += 1
+            return vec
+
+    def put(self, key: tuple[str, str], vec: list[float]) -> None:
+        with self._lock:
+            self._d[key] = (vec, time.time())
+            self._d.move_to_end(key)
+            while len(self._d) > self.maxsize:
+                self._d.popitem(last=False)
+                self.evicted += 1
+
+    def clear(self) -> None:
+        with self._lock:
+            self._d.clear()
+
+    def stats(self) -> dict:
+        with self._lock:
+            total = self.hits + self.misses
+            return {
+                "size": len(self._d), "maxsize": self.maxsize, "ttl": self.ttl,
+                "hits": self.hits, "misses": self.misses,
+                "expired": self.expired, "evicted": self.evicted,
+                "hit_rate": round(self.hits / total, 4) if total else 0.0,
+            }
+
+
+QUERY_VEC_CACHE = _QueryVecCache(_CACHE_MAX, _CACHE_TTL)
+
+# 进程内「本次命中还是回源」的上下文标记：延迟拆解要用，别靠猜。
+_last_hit = threading.local()
+
+
+def last_query_embedding_cached() -> bool:
+    """最近一次 embed_query 是否命中缓存（同线程有效，供延迟归因使用）。"""
+    return bool(getattr(_last_hit, "value", False))
+
+
+def embed_query(text: str, cfg: dict | None = None) -> list[float]:
+    """取 query 向量（带缓存）。返回副本，避免调用方原地改坏缓存里的那份。"""
+    eff = settings.effective_embedding(cfg)
+    key = (eff["cache_key"], hashlib.sha1(text.encode("utf-8")).hexdigest())
+    hit = QUERY_VEC_CACHE.get(key)
+    if hit is not None:
+        _last_hit.value = True
+        return list(hit)
+    _last_hit.value = False
+    vec = get_embedding(cfg).embed([text])[0]
+    QUERY_VEC_CACHE.put(key, vec)
+    return list(vec)
 
 
 # --------------------------------------------------------------------------

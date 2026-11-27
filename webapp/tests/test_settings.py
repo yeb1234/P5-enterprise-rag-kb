@@ -39,17 +39,22 @@ def test_get_llm_selection(monkeypatch):
     assert isinstance(p, providers.OpenAILikeLLMProvider) and p.model == "deepseek-flash"
 
 
-def _cands():
+def _cands(*_a, **_k):
+    # 词法分数由 SQL 门禁产出（`_load_ready_chunks(terms)`），假候选必须自带 `_lex_score`；
+    # 这里是「c1 命中、c2 未命中」，用来验证门禁命中后候选放宽与空召回边界。
     return [
-        {"chunk_id": "c1", "doc_id": "d1", "idx": 0, "text": "设备配网步骤：长按复位键", "title": "配网"},
-        {"chunk_id": "c2", "doc_id": "d2", "idx": 0, "text": "账号绑定流程", "title": "账号"},
+        {"chunk_id": "c1", "doc_id": "d1", "idx": 0, "text": "设备配网步骤：长按复位键",
+         "title": "配网", "_lex_score": 2},
+        {"chunk_id": "c2", "doc_id": "d2", "idx": 0, "text": "账号绑定流程",
+         "title": "账号", "_lex_score": 0},
     ]
 
 
 def test_embedding_fallback_to_lexical(monkeypatch):
     monkeypatch.setattr(settings, "get_all",
                         lambda: {**settings.DEFAULTS, "embedding_provider": "local"})
-    monkeypatch.setattr(rag, "_load_ready_chunks", _cands)
+    monkeypatch.setattr(rag, "_gate_hit", lambda terms: True)
+    monkeypatch.setattr(rag, "_load_light_chunks", _cands)
     monkeypatch.setattr(rag, "_semantic_rank",
                         lambda q, c, cfg: (_ for _ in ()).throw(RuntimeError("down")))
     hits, meta = rag.retrieve("如何配网", with_meta=True)
@@ -59,18 +64,23 @@ def test_embedding_fallback_to_lexical(monkeypatch):
 
 
 def test_rerank_unavailable_skipped(monkeypatch):
+    # 用 _cands2（两条都过门禁）：本条测的是「provider 不可用时优雅跳过」，
+    # 而单条候选现在会先被自适应重排判成 skipped:single，走不到这条路。
     monkeypatch.setattr(settings, "get_all",
                         lambda: {**settings.DEFAULTS, "embedding_provider": "offline", "rerank_provider": "external"})
-    monkeypatch.setattr(rag, "_load_ready_chunks", _cands)
+    monkeypatch.setattr(rag, "_load_ready_chunks", _cands2)
     monkeypatch.setattr(providers, "rerank", lambda *a, **k: None)
     hits, meta = rag.retrieve("如何配网", with_meta=True)
     assert hits and meta["rerank"] == "external_unavailable(skipped)"
 
 
-def _cands2():
+def _cands2(*_a, **_k):
+    # 两条都命中：rerank 重排用例要求门禁后仍有 2 条候选可选
     return [
-        {"chunk_id": "c1", "doc_id": "d1", "idx": 0, "text": "设备配网步骤：长按复位键", "title": "配网"},
-        {"chunk_id": "c2", "doc_id": "d2", "idx": 0, "text": "配网失败请检查 Wi-Fi 频段", "title": "配网2"},
+        {"chunk_id": "c1", "doc_id": "d1", "idx": 0, "text": "设备配网步骤：长按复位键",
+         "title": "配网", "_lex_score": 2},
+        {"chunk_id": "c2", "doc_id": "d2", "idx": 0, "text": "配网失败请检查 Wi-Fi 频段",
+         "title": "配网2", "_lex_score": 1},
     ]
 
 
@@ -169,7 +179,8 @@ def test_get_embedding_external_uses_openai_like_with_key(monkeypatch):
 def test_retrieve_external_embedding_uses_semantic_rank(monkeypatch):
     """external 档也要走向量排序（旧代码只认 local，会静默退化成词法）。"""
     monkeypatch.setattr(settings, "get_all", lambda: _EXT)
-    monkeypatch.setattr(rag, "_load_ready_chunks", _cands)
+    monkeypatch.setattr(rag, "_gate_hit", lambda terms: True)
+    monkeypatch.setattr(rag, "_load_light_chunks", _cands)
     calls = {}
 
     def fake_rank(q, c, cfg):

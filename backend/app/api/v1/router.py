@@ -7,6 +7,7 @@ from app.api.v1 import (
     categories,
     documents,
     knowledge_bases,
+    mcp,
     search,
     stats,
     tasks,
@@ -25,6 +26,7 @@ api_router.include_router(categories.router)
 api_router.include_router(documents.router)
 api_router.include_router(versions.router)
 api_router.include_router(search.router)
+api_router.include_router(mcp.router)
 api_router.include_router(uploads.router)
 api_router.include_router(tasks.router)
 api_router.include_router(stats.router)

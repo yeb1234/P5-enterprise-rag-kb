@@ -26,6 +26,13 @@ evalfmt/.cache/
 # showcase 运行产物（manifest / ingest JSON）不入库，保留目录占位
 showcase/out/*
 !showcase/out/.gitkeep
+# 个人求职材料（不随项目发布）
+career/
+# 本地工作记录（过程记忆，不入库）
+.workbuddy/
+# 运行产物与备份
+backend/celerybeat-schedule
+*.bak
 
 
 # 共享基础设施演示的运行产物（每次跑数字会变，不进版本库）

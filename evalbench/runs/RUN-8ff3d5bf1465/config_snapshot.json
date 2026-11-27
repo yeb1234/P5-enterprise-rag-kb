@@ -1,0 +1,55 @@
+{
+  "run_id": "RUN-8ff3d5bf1465",
+  "label": "conv-squad-C-r1",
+  "mode": "live",
+  "comparable": true,
+  "git": {
+    "branch": "eval/public-benchmarks",
+    "commit": "917ab05",
+    "commit_full": "917ab05e35200bb8e30d891c367f56311165fdce",
+    "dirty": true,
+    "captured_at": "2026-11-18T04:36:59Z"
+  },
+  "dataset": {
+    "file": "public/squad_v2_sample_60.jsonl",
+    "hash": "4320919957be2536",
+    "n_samples": 60,
+    "origin": "public_dataset (见 datasets/public/SOURCES.md): public/squad_v2_sample_60.jsonl"
+  },
+  "metrics_version": "METRICS@1.2.0",
+  "models": {
+    "deepseek-v4.1-flash-1017": {
+      "id": "deepseek-v4.1-flash-1017",
+      "role": "reasoning",
+      "timeout_s": 180,
+      "adaptations": [
+        "require_min_max_tokens_512",
+        "strip_reasoning_content",
+        "tolerate_empty_content"
+      ],
+      "reason": "推理模型，冷启动与 reasoning 阶段显著影响延迟/空正文，必须单独验证兼容性"
+    }
+  },
+  "prompts": {
+    "v4_en_grounded": {
+      "sha256_16": "ece3c80139138f45"
+    }
+  },
+  "params": {
+    "C": {
+      "sha256_16": "6518fcf19f863197",
+      "id": "C",
+      "label": "收敛后配置（由 v2/v3 迭代得出，初始仅为候选）",
+      "source": "在 B 基础上减少注入文档数、提高推理模型 token 预算；采纳前须有前后对照数据",
+      "temperature": 0.0,
+      "top_p": 1.0,
+      "max_tokens": 768,
+      "passage_num": 3,
+      "noise_rate": 0.6,
+      "repeats": 1,
+      "note": "候选配置，是否采纳由 iterations/comparisons 的实测对照决定"
+    }
+  },
+  "repeats": 1,
+  "created_at": "2026-11-18T04:36:59Z"
+}

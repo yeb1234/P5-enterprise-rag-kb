@@ -16,7 +16,7 @@ fix(security): 修 P0 密钥漏检与 QA 5 条缺陷；补项目演进讲解页�
 - P0：API_KEY 正则纳入 -/_，覆盖 sk-proj-*/sk-or-v1-*/租户分段形态；A9 不再回显输入；A5 落盘前兜底扫描，命中即 422 且不写文件
 - 框架级 422 统一为 {code,message,trace_id(+errors)} 并剔除 input/ctx；A8 校验失败改 404 并带 checks 全 false；405/静态 404 语义修正
 - manifest 补 params_hash/config_snapshot 真实值；V5 验收口径改为入库内容规范化投影
-- 新增 interview/journey.html 项目演进讲解（5 段演进/8 亮点/8 真实坑点/15 面试问答）；主解释页加入口并重录同步 standalone
+- 新增 interview/journey.html 项目演进讲解（5 段演进/8 亮点/8 真实坑点/15 常见问题）；主解释页加入口并重录同步 standalone
 - Dockerfile 支持 BASE_IMAGE/PIP_INDEX_URL 覆盖，容器实测 healthy、两档与滞回升 Pro 正常、外部请求 0
 - 新增 docs/showcase/04-acceptance.md 与修复回填；全量 266 单测 + 33/33 e2e
 

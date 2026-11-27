@@ -26,7 +26,24 @@ ANALYZE_SIM_SECONDS = 1.8
 
 CHUNK_SIZE = 800
 CHUNK_OVERLAP = 80
-TOP_K = 4
+# 检索默认参数：CmedqaRetrieval（200 题）收敛结果，明细见 docs/retrieval-param-convergence.md
+# TOP_K=5：hit@k 曲线的拐点（hit@4 0.810 → hit@5 0.830 → hit@10 0.875），
+#          后 5 条只多 4.5pt 命中，却让进 prompt 的上下文翻倍。
+#           生成侧实测 top5 与 top10 正确率同为 1.000，说明多给没有收益。
+TOP_K = 5
+# RERANK_DEPTH：送进 rerank 的候选数，与 TOP_K 解耦。默认「先截断再重排」时，
+# rerank 只能在最终几条里换顺序，第 11 名再好也进不来；解耦后实测
+# 3000 池 R@10 +4.6pt / 12000 池 +5.2pt，代价是延迟 +14%。
+RERANK_DEPTH = 20
+# ADAPTIVE_RERANK_MARGIN：向量第一名「领先第二名多少」就跳过 rerank（0 = 关闭，永不跳过）。
+# rerank 是检索链路上最贵的一步（外部端点，20 条约 440ms，实测占暖相 83%），但它的价值
+# 不均匀：向量排序已经分得很开时，重排只能在候选内微调，几乎改不动结果；挤成一团时才值钱。
+# 0.05 来自 200 题实测（3000 与 12000 池各一轮，明细见 docs/retrieval-param-convergence.md §2.5）：
+#   3000 池 跳过 29% → nDCG −0.12pt、R@5 −0.62pt、R@1 +0.75pt、均值 821→616ms
+#   12000 池 跳过 24% → nDCG −0.16pt、R@5 −0.42pt、R@1 +0.25pt
+# 选「相对间距」而不是「绝对相似度」（如 s1≥0.72）：后者在小池上省得更多（−44%），
+# 但换到 12000 池 ΔR@5 从 +0.15pt 翻成 −0.60pt——绝对分值的尺度绑定模型与语料，会漂。
+ADAPTIVE_RERANK_MARGIN = float(os.environ.get("WEBAPP_ADAPTIVE_RERANK_MARGIN", "0.05"))
 
 _TEXT_EXT = {".txt", ".md", ".csv", ".json", ".py", ".log", ".yaml", ".yml"}
 
@@ -71,13 +88,199 @@ def _pdf_text(path: Path) -> str | None:
     return text or None
 
 
+# 结构边界识别：Markdown 标题、表格行、代码围栏、句末标点。
+# 为什么不用 split("\n\n")：表格与代码块内部也可能出现空行，
+# 按空行切会把它们拦腰砍断，正是旧版分块最大的问题来源。
+_MD_HEADING = re.compile(r"^#{1,6}\s")
+_TABLE_ROW = re.compile(r"^\s*\|")
+_FENCE = re.compile(r"^\s*```")
+_SENT_BREAK = re.compile(r"(?<=[。！？；!?;])\s*")
+
+
+def _struct_segments(text: str) -> list[str]:
+    """按 Markdown 结构拆成不可再分的最小语义单元。
+
+    优先级：代码块 > 表格 > 标题 > 段落。表格与代码块整块保留——
+    表头和数据行、围栏和代码体一旦分离，后半段就失去自解释能力，
+    embedding 与生成都无从判断这段在讲什么。
+    """
+    lines = text.split("\n")
+    segs: list[str] = []
+    buf: list[str] = []
+    i, n = 0, len(lines)
+
+    def flush() -> None:
+        if buf:
+            seg = "\n".join(buf).strip("\n")
+            if seg.strip():
+                segs.append(seg)
+            buf.clear()
+
+    while i < n:
+        line = lines[i]
+        stripped = line.strip()
+
+        if _FENCE.match(line):
+            flush()
+            j = i + 1
+            while j < n and not _FENCE.match(lines[j]):
+                j += 1
+            segs.append("\n".join(lines[i : min(j + 1, n)]))
+            i = j + 1
+            continue
+
+        if _TABLE_ROW.match(line):
+            flush()
+            j = i
+            while j < n and _TABLE_ROW.match(lines[j]):
+                j += 1
+            segs.append("\n".join(lines[i:j]))
+            i = j
+            continue
+
+        if _MD_HEADING.match(stripped):
+            flush()
+            segs.append(stripped)
+            i += 1
+            continue
+
+        if not stripped:
+            flush()
+            i += 1
+            continue
+
+        buf.append(line)
+        i += 1
+
+    flush()
+
+    # 标题必须与其后内容同块：Markdown 里「## 标题 + 正文」才是一个语义单元。
+    # 若把标题单独切成一段，正文会失去它讲的是什么，chunk 也会以标题结尾而无法
+    # 判断内容——这是把「断词」换成「断标题」，同样不可接受。
+    merged: list[str] = []
+    pending: list[str] = []
+    for seg in segs:
+        if _MD_HEADING.match(seg.strip()) and "\n" not in seg.strip():
+            pending.append(seg)
+            continue
+        if pending:
+            merged.append("\n".join(pending + [seg]))
+            pending = []
+        else:
+            merged.append(seg)
+    if pending:
+        merged.append("\n".join(pending))
+    return merged
+
+
+def _hard_split(text: str, size: int, overlap: int) -> list[str]:
+    """无结构长文本的最后手段：字符滑窗，保留 overlap，与旧实现行为一致。"""
+    step = max(1, size - overlap)
+    return [p for p in (text[i : i + size] for i in range(0, len(text), step)) if p.strip()]
+
+
+def _split_oversize(seg: str, size: int, overlap: int) -> list[str]:
+    """单个语义单元超过 size 时的降级切分。
+
+    表格：按行切，但每片都复制表头（前两行）——否则第二片起不自解释。
+    其余：按句末标点回退；句子本身仍超长，才退到字符滑窗。
+    """
+    lines = seg.split("\n")
+    tbl_at = next((i for i, ln in enumerate(lines) if _TABLE_ROW.match(ln)), -1)
+    tbl_rows = sum(1 for ln in lines if _TABLE_ROW.match(ln))
+    if tbl_at >= 0 and tbl_rows >= 2:
+        # 表头 = 表格的第 1、2 行（列名行 + 分隔行）。表格之前的标题只跟第一片，
+        # 否则每片都带同一个标题，top-k 会出现多个几乎相同的块互相挤占名额。
+        prefix = "\n".join(lines[:tbl_at])
+        tbl = lines[tbl_at:]
+        header = "\n".join(tbl[:2])
+        body = tbl[2:]
+        if not body:
+            return [(prefix + "\n" + header) if prefix else header]
+        out: list[str] = []
+        cur: list[str] = []
+        cur_len = 0
+        first = True
+        for ln in body:
+            head = (prefix + "\n" + header) if (first and prefix) else header
+            room = max(1, size - len(head) - 1)
+            if cur and cur_len + len(ln) + 1 > room:
+                out.append(head + "\n" + "\n".join(cur))
+                first = False
+                cur, cur_len = [], 0
+            cur.append(ln)
+            cur_len += len(ln) + 1
+        if cur:
+            head = (prefix + "\n" + header) if (first and prefix) else header
+            out.append(head + "\n" + "\n".join(cur))
+        return out
+
+    sents = [s for s in _SENT_BREAK.split(seg) if s]
+    if len(sents) > 1:
+        out2: list[str] = []
+        cur_s = ""
+        for s in sents:
+            if len(s) > size:
+                if cur_s:
+                    out2.append(cur_s)
+                    cur_s = ""
+                out2.extend(_hard_split(s, size, overlap))
+                continue
+            if cur_s and len(cur_s) + len(s) > size:
+                out2.append(cur_s)
+                cur_s = s
+            else:
+                cur_s += s
+        if cur_s:
+            out2.append(cur_s)
+        return out2
+
+    return _hard_split(seg, size, overlap)
+
+
 def chunk_text(text: str, size: int = CHUNK_SIZE, overlap: int = CHUNK_OVERLAP) -> list[str]:
-    text = text.strip()
+    """结构感知分块：优先在语义边界切，字符数只作上限。
+
+    与旧版（text[i:i+size] 纯滑窗）的差别只在切点选择：
+    - 旧版 89.6% 的切点落在句子中间、58% 的 chunk 含被砍断的表格；
+    - 新版按 标题/段落/表格/代码块 边界组装，表格整块不拆。
+    无结构文本（如无标点的长串）仍退化为字符滑窗，保证行为可预期，
+    也保证与 showcase 契约（overlap<size、末尾重叠）一致。
+    """
+    if size <= 0:
+        raise ValueError("size must be > 0")
+    if overlap < 0 or overlap >= size:
+        raise ValueError("overlap must satisfy 0 <= overlap < size")
+    text = (text or "").strip()
     if not text:
         return []
-    step = max(1, size - overlap)
-    chunks = [text[i : i + size] for i in range(0, len(text), step)]
-    return [c for c in chunks if c.strip()]
+
+    # 段落级不重叠：段落本身就是语义单元，强行重叠只会让 top-k 出现近重复块，
+    # 白占名额。overlap 只在「超长块硬切」这一种降级路径里生效。
+    out: list[str] = []
+    cur = ""
+    for seg in _struct_segments(text):
+        if not seg.strip():
+            continue
+        # 表格是原子单元，放宽到 4×size：表头与数据行一旦分家，
+        # 后半段就不再自解释，而 bge-m3 的输入窗口远大于 800 字符，
+        # 整块保留不会溢出。只有表格本身超过 4×size 才降级按行切。
+        is_table = sum(1 for ln in seg.split("\n") if _TABLE_ROW.match(ln)) >= 2
+        limit = size * 4 if is_table else size
+        if len(seg) > limit:
+            if cur:
+                out.append(cur)
+                cur = ""
+            out.extend(_split_oversize(seg, size, overlap))
+            continue
+        if cur and len(cur) + 1 + len(seg) > size:
+            out.append(cur)
+            cur = seg
+        else:
+            cur = seg if not cur else cur + "\n" + seg
+    if cur:
+        out.append(cur)
+    return out
 
 
 def analyze_document(doc_id: str) -> None:
@@ -141,20 +344,120 @@ def _set_error(conn, doc_id: str, msg: str) -> None:
     conn.commit()
 
 
-def _load_ready_chunks() -> list[dict]:
+def _load_ready_chunks(terms: set[str] | None = None) -> list[dict]:
+    """加载可检索 chunk，**含正文**。
+
+    `terms` 为空 → 全池，供 nogate / 调试路径使用，行为与历史一致。
+    `terms` 非空 → 顺带算出每条的词法命中数（`_lex_score`），供**没有向量时**的降级排序用。
+
+    分工很重要：走 pgvector 时**不要**调这个函数，改用 `_gate_hit` + `_load_light_chunks`。
+    向量路径只需要「有没有命中」这一个布尔，既不需要分数，也不需要把全池正文搬进进程。
+    实测 3221 条：本函数约 106ms；布尔判定 0.9ms + 轻量候选 8.2ms。
+    """
+    if not terms:
+        conn = db.get_conn()
+        try:
+            rows = conn.execute(
+                "SELECT c.id, c.doc_id, c.idx, c.text, d.title, d.filename FROM chunks c "
+                "JOIN documents d ON d.id=c.doc_id WHERE d.status='ready'"
+            ).fetchall()
+        finally:
+            conn.close()
+        return [
+            {"chunk_id": r["id"], "doc_id": r["doc_id"], "idx": r["idx"],
+             "text": r["text"], "title": r["title"] or r["filename"]}
+            for r in rows
+        ]
+
+    ordered = sorted(terms)  # set 迭代顺序不可依赖，排序后 SQL 与参数一一对应且稳定
+    # strpos(haystack, needle)>0 与 Python 的 `t in text.lower()` 逐字等价（子串存在，不是相似度）。
+    # 不用 position()：它只接受 `position(x in y)` 专用语法，`position(a, b)` 直接语法错。
+    sum_expr = " + ".join(
+        "CASE WHEN strpos(lower(c.text), ?) > 0 THEN 1 ELSE 0 END" for _ in ordered
+    )
+    sql = ("SELECT c.id, c.doc_id, c.idx, d.title, d.filename, (" + sum_expr + ") AS lex_score "
+           "FROM chunks c JOIN documents d ON d.id=c.doc_id WHERE d.status='ready' "
+           "ORDER BY c.id")
+    conn = db.get_conn()
+    try:
+        rows = conn.execute(sql, ordered).fetchall()
+    finally:
+        conn.close()
+    return [
+        {"chunk_id": r["id"], "doc_id": r["doc_id"], "idx": r["idx"],
+         "title": r["title"] or r["filename"], "_lex_score": int(r["lex_score"] or 0)}
+        for r in rows
+    ]
+
+
+def _gate_hit(terms: set[str]) -> bool:
+    """词法门禁的布尔判定：池里**有没有**任何 chunk 命中任一词。
+
+    一条 `OR ... LIKE ... LIMIT 1`，命中即停。实测 3221 条 0.9ms；而要算出
+    「每条命中几个词」得把全表扫 12 遍，106ms——差两个数量级。
+    retrieve 在向量路径下只需要这个布尔：命中就把候选放宽到全池，之后排序完全交给向量，
+    命中几条、哪几条都不进入后续计算。
+
+    LIKE 里没有转义 `%` / `_` 是安全的：`_lexical_terms` 只产出 `[a-z0-9]+` 与中文二元组，
+    不含通配符字符。
+    """
+    if not terms:
+        return False
+    ordered = sorted(terms)
+    like = " OR ".join(["lower(c.text) LIKE ?"] * len(ordered))
+    sql = ("SELECT 1 FROM chunks c JOIN documents d ON d.id=c.doc_id "
+           "WHERE d.status='ready' AND (" + like + ") LIMIT 1")
+    conn = db.get_conn()
+    try:
+        return conn.execute(sql, ["%" + t + "%" for t in ordered]).fetchone() is not None
+    finally:
+        conn.close()
+
+
+def _load_light_chunks() -> list[dict]:
+    """全池候选，**不含正文、不算分数**：实测 3221 条 8.2ms（含正文要 28ms）。
+
+    向量排序只吃 chunk_id；正文在最终候选落定时按 id 回捞（`_attach_texts`）。
+    `ORDER BY c.id` 保证同分块的相对顺序稳定——原来依赖物理顺序，同一批数据两次导入
+    uuid 不同就会让同分块换位，同参数跑出两个 nDCG（实测差 0.0015~0.0026）。
+    """
     conn = db.get_conn()
     try:
         rows = conn.execute(
-            "SELECT c.id, c.doc_id, c.idx, c.text, d.title, d.filename FROM chunks c "
-            "JOIN documents d ON d.id=c.doc_id WHERE d.status='ready'"
+            "SELECT c.id, c.doc_id, c.idx, d.title, d.filename FROM chunks c "
+            "JOIN documents d ON d.id=c.doc_id WHERE d.status='ready' ORDER BY c.id"
         ).fetchall()
     finally:
         conn.close()
     return [
         {"chunk_id": r["id"], "doc_id": r["doc_id"], "idx": r["idx"],
-         "text": r["text"], "title": r["title"] or r["filename"]}
+         "title": r["title"] or r["filename"]}
         for r in rows
     ]
+
+
+def _attach_texts(hits: list[dict]) -> None:
+    """按 id 回捞正文，只给最终候选付这份成本。
+
+    轻量候选（SQL 门禁路径）不带 `text`；rerank 与最终输出都需要正文，
+    所以在候选落定时补一次。已经是全量候选（自带 text）时是空操作。
+    """
+    need = [h["chunk_id"] for h in hits if not h.get("text")]
+    if not need:
+        return
+    conn = db.get_conn()
+    try:
+        got: dict[str, str] = {}
+        for i in range(0, len(need), 500):
+            grp = need[i:i + 500]
+            q = "SELECT id, text FROM chunks WHERE id IN (" + ",".join("?" * len(grp)) + ")"
+            for r in conn.execute(q, grp):
+                got[r["id"]] = r["text"]
+    finally:
+        conn.close()
+    for h in hits:
+        if not h.get("text"):
+            h["text"] = got.get(h["chunk_id"], "")
 
 
 def _cosine(a: list[float], b: list[float]) -> float:
@@ -188,6 +491,8 @@ def _get_or_compute_embeddings(candidates: list[dict], cfg: dict) -> dict[str, l
         conn.close()
     missing = [c for c in candidates if c["chunk_id"] not in cached]
     if missing:
+        # 轻量候选（SQL 门禁路径）不带正文，补算是要正文的：先回捞，否则 embed 的是空串
+        _attach_texts(missing)
         emb = providers.get_embedding(cfg)
         vecs = emb.embed([c["text"] for c in missing])
         now = _now()
@@ -210,6 +515,53 @@ def _get_or_compute_embeddings(candidates: list[dict], cfg: dict) -> dict[str, l
         finally:
             conn.close()
     return cached
+
+
+def _ensure_embeddings(candidates: list[dict], cfg: dict) -> None:
+    """保证候选都有向量，但**不把已有向量拉回 Python**。
+
+    pgvector 排序在 SQL 里做，Python 侧根本不需要这些浮点数。历史实现调
+    `_get_or_compute_embeddings` 只为「检查有没有缺」，代价却是把每个候选的
+    1024 维 JSON 逐条 `json.loads` 回来——实测 3221 条 **1081ms**，占检索总耗时 75%，
+    12840 条时约 4 秒。这才是深池变慢的真因，不是词法门禁。
+
+    这里只查「哪些 id 已有向量」（同样 3221 条约 8ms），缺的才补算并双写。
+    """
+    model = settings.effective_embedding(cfg)["cache_key"]
+    ids = [c["chunk_id"] for c in candidates]
+    if not ids:
+        return
+    conn = db.get_conn()
+    try:
+        have: set[str] = set()
+        for i in range(0, len(ids), 1000):
+            grp = ids[i:i + 1000]
+            q = ("SELECT chunk_id FROM chunk_embeddings WHERE model=? AND embedding IS NOT NULL "
+                 "AND chunk_id IN (" + ",".join("?" * len(grp)) + ")")
+            for r in conn.execute(q, [model] + grp):
+                have.add(r["chunk_id"])
+    finally:
+        conn.close()
+
+    missing = [c for c in candidates if c["chunk_id"] not in have]
+    if not missing:
+        return
+    _attach_texts(missing)  # 轻量候选没带正文，补算要用
+    vecs = providers.get_embedding(cfg).embed([c["text"] for c in missing])
+    now = _now()
+    conn = db.get_conn()
+    try:
+        for c, v in zip(missing, vecs):
+            conn.execute(
+                "INSERT INTO chunk_embeddings(chunk_id, model, dim, vec, embedding, updated_at) "
+                "VALUES (?,?,?,?,?::vector,?) "
+                "ON CONFLICT(chunk_id, model) DO UPDATE SET dim=excluded.dim, vec=excluded.vec, "
+                "embedding=excluded.embedding, updated_at=excluded.updated_at",
+                (c["chunk_id"], model, len(v), json.dumps(v), json.dumps(v), now),
+            )
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def vector_backend() -> str:
@@ -240,8 +592,7 @@ def _semantic_rank(question: str, candidates: list[dict], cfg: dict) -> tuple[li
 def _semantic_rank_py(question: str, candidates: list[dict], cfg: dict) -> list[dict]:
     """历史实现：取回候选向量 → 纯 Python 逐条算余弦 → 排序。"""
     cache = _get_or_compute_embeddings(candidates, cfg)
-    emb = providers.get_embedding(cfg)
-    qv = emb.embed([question])[0]
+    qv = providers.embed_query(question, cfg)
     for c in candidates:
         c["_emb_score"] = _cosine(qv, cache.get(c["chunk_id"], []))
     candidates.sort(key=lambda x: (x.get("_emb_score", 0), x.get("_lex_score", 0)), reverse=True)
@@ -258,11 +609,13 @@ def _semantic_rank_pg(question: str, candidates: list[dict], cfg: dict) -> list[
     候选集到十万级时再改成有界窗口 + `hnsw.iterative_scan`，那时才需要用近似换吞吐。
     """
     model = settings.effective_embedding(cfg)["cache_key"]
-    _get_or_compute_embeddings(candidates, cfg)  # 保证候选都有向量（缺失的补算并双写）
+    # 只补缺、不加载：SQL 排序不需要 Python 侧持有向量（见 _ensure_embeddings）
+    _ensure_embeddings(candidates, cfg)
     ids = [c["chunk_id"] for c in candidates]
     if not ids:
         return candidates
-    qv = providers.get_embedding(cfg).embed([question])[0]
+    # query 向量走 providers.embed_query：同一句话第二次问直接命中，不再打模型端点
+    qv = providers.embed_query(question, cfg)
     qjson = json.dumps(qv)
     conn = db.get_conn()
     try:
@@ -270,7 +623,9 @@ def _semantic_rank_pg(question: str, candidates: list[dict], cfg: dict) -> list[
             "SELECT chunk_id, 1 - (embedding <=> ?::vector) AS score "
             "FROM chunk_embeddings "
             "WHERE model = ? AND chunk_id = ANY(?) AND embedding IS NOT NULL "
-            "ORDER BY embedding <=> ?::vector LIMIT ?",
+            # chunk_id 作次级键：同分时顺序固定，否则物理顺序变化会让同一 query
+            # 跑出不同的 nDCG（实测两次同参差异 0.0015~0.0026）
+            "ORDER BY embedding <=> ?::vector, chunk_id LIMIT ?",
             (qjson, model, ids, qjson, len(ids)),
         ).fetchall()
     finally:
@@ -285,6 +640,31 @@ def _semantic_rank_pg(question: str, candidates: list[dict], cfg: dict) -> list[
 
 
 FRESHNESS_NOTE_OFF = {"freshness": "off"}
+
+
+def _adaptive_skip_reason(hits: list[dict]) -> str | None:
+    """自适应重排的判定：返回跳过原因，返回 None 表示照旧重排。
+
+    规则只有一条：向量第一名领先第二名 ≥ `ADAPTIVE_RERANK_MARGIN` 就跳过。
+    为什么只看 top1-top2：
+    - rerank 的作用是把「向量排不进前几」的相关块捞上来，前提是候选分得很近；
+      top1 已经大幅领先时，重排改的是第 4/5 名的次序，对 R@1/R@5 影响极小（实测两端池都在噪声内）。
+    - 词法回退路径没有 `_emb_score`，此函数直接放弃判定（不猜）——宁可多花 440ms，
+      也不要在没有依据的情况下省。
+    """
+    if ADAPTIVE_RERANK_MARGIN <= 0 or not hits:
+        return None
+    if len(hits) == 1:
+        # 只有一条候选：重排无从改变顺序，这 440ms 纯浪费
+        return "single"
+    s1 = hits[0].get("_emb_score")
+    s2 = hits[1].get("_emb_score")
+    if s1 is None or s2 is None:
+        return None
+    margin = float(s1) - float(s2)
+    if margin >= ADAPTIVE_RERANK_MARGIN:
+        return f"margin={margin:.3f}"
+    return None
 
 
 def _freshness_enabled() -> bool:
@@ -328,7 +708,8 @@ def _apply_freshness(hits: list[dict]) -> tuple[list[dict], dict]:
         return hits, {"freshness": f"unavailable:{type(e).__name__}"}
 
 
-def retrieve(question: str, top_k: int = TOP_K, with_meta: bool = False):
+def retrieve(question: str, top_k: int = TOP_K, with_meta: bool = False,
+             rerank_depth: int | None = RERANK_DEPTH):
     """检索：**词法门禁（保证不相关不硬凑）→ 向量排序 → 可选 rerank**。
 
     - 无词法重叠 → 空列表（chat 触发 retrieval_empty 降级）；
@@ -338,21 +719,30 @@ def retrieve(question: str, top_k: int = TOP_K, with_meta: bool = False):
     """
     cfg = settings.get_all()
     terms = _lexical_terms(question)
-    pool = _load_ready_chunks() if terms else []
-    gated: list[dict] = []
-    if terms:
-        for c in pool:
-            tl = (c["text"] or "").lower()
-            c["_lex_score"] = sum(1 for t in terms if t in tl)
-        gated = [c for c in pool if c["_lex_score"] > 0]
-
     emb = settings.effective_embedding(cfg)
+    use_vector = emb["kind"] != "offline"
+
     # 词法门禁的职责是「判定这批文档里有没有可能相关的」，**不是挑候选**。
     # 一旦有词法信号且向量可用，候选集放宽到全量，排序交给向量——
     # 否则跨语言/改述场景会被门禁直接掐死：中文问英文 PDF 时零词法重叠，
     # 该文档连进入向量排序的机会都没有（2026-11-16 多格式评估实测 0 召回）。
     # 词法完全无命中时仍然返回空，保留 retrieval_empty 降级语义（不硬凑）。
-    candidates = pool if (gated and emb["kind"] != "offline") else gated
+    #
+    # 正因为只需「全放 / 全拦」这个二分，向量路径下门禁只要一个布尔：
+    # `_gate_hit` 0.9ms + `_load_light_chunks` 8.2ms，替代「逐条算分 + 拉全池正文」的 106ms。
+    pool: list[dict] = []
+    gated: list[dict] = []
+    if terms:
+        if use_vector:
+            if _gate_hit(terms):
+                pool = _load_light_chunks()
+                gated = pool
+        else:
+            # 没有向量时只能按词法排序，这时才需要逐条分数
+            pool = _load_ready_chunks(terms)
+            gated = [c for c in pool if c.get("_lex_score", 0) > 0]
+
+    candidates = pool if (gated and use_vector) else gated
 
     mode = "lexical"
     fallback_reason = None
@@ -371,11 +761,21 @@ def retrieve(question: str, top_k: int = TOP_K, with_meta: bool = False):
         for c in candidates:
             c["score"] = c.get("_lex_score", 0)
 
-    hits = candidates[:top_k]
+    # rerank_depth：送进 rerank 的候选数，默认等于 top_k。
+    # 默认行为是「先截断再重排」，重排只能在最终这几条里换顺序——第 11 名再好也进不来。
+    # 传 > top_k 才变成「先从 depth 条里挑，再取 top_k」，重排才真正影响入选。
+    depth = max(top_k, int(rerank_depth or top_k))
+    hits = candidates[:depth]
+    _attach_texts(hits)  # rerank 与输出都要正文，只对这几条回捞
 
     rerank_note = "off"
     rp = cfg.get("rerank_provider", "off")
     scores = None
+    # 自适应重排：判定在 rerank 之前做，命中则整段外部调用归零（见 _adaptive_skip_reason）
+    skip_why = _adaptive_skip_reason(hits) if rp != "off" else None
+    if skip_why:
+        rerank_note = "skipped:" + skip_why
+        rp = "off"
     if hits and rp != "off":
         docs = [h["text"] for h in hits]
         if rp == "llm":
@@ -398,6 +798,9 @@ def retrieve(question: str, top_k: int = TOP_K, with_meta: bool = False):
                 h["score"] = round(h.get("_rerank", 0), 4)
             rerank_note = "applied:" + rp
 
+    if len(hits) > top_k:
+        hits = hits[:top_k]
+
     hits, freshness_meta = _apply_freshness(hits)
     out = []
     for c in hits:
@@ -414,6 +817,7 @@ def retrieve(question: str, top_k: int = TOP_K, with_meta: bool = False):
         "retrieval_mode": mode,
         "fallback_reason": fallback_reason,
         "rerank": rerank_note,
+        "rerank_depth": depth,
         "embedding_model": emb["name"],
         "freshness": freshness_meta,
     }

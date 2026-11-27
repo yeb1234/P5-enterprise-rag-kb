@@ -27,8 +27,13 @@ def _sha(obj) -> str:
     return hashlib.sha256(json.dumps(obj, ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()[:16]
 
 
-def load_samples() -> list[dict]:
-    path = ROOT / "datasets" / "samples_v1.jsonl"
+def load_samples(dataset_file: str = "samples_v1.jsonl") -> list[dict]:
+    """加载样本集。默认仍用自建 samples_v1；公开集通过 dataset_file 显式指定。
+
+    路径相对 evalbench/datasets/，允许 public/ 子目录。不改默认行为，
+    避免既有 run 的复现语义漂移。
+    """
+    path = ROOT / "datasets" / dataset_file
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
@@ -80,9 +85,28 @@ def _parse_answer(data) -> tuple[str, bool, bool]:
     return (content or reasoning), reasoning_only, bool(choices)
 
 
-def call_live(model_cfg: dict, prompt: str, params: dict) -> dict:
-    base = os.environ.get("DISCOVERY_BASE_URL", "").rstrip("/")
-    key = os.environ.get("DISCOVERY_API_KEY", "")
+def endpoint_id() -> str:
+    """显式切换的端点标识，纳入缓存 key 防止跨端点混用结果。
+
+    默认走项目网关（DISCOVERY_*）时返回空串，保持历史缓存 key 不变；
+    设了 DEEPSEEK_BASE_URL（官方）或 EVAL_BASE_URL 才返回非空，隔离缓存。
+    """
+    return (os.environ.get("DEEPSEEK_BASE_URL") or os.environ.get("EVAL_BASE_URL") or "").rstrip("/")
+
+
+def active_endpoint() -> tuple[str, str]:
+    """评估端点：DEEPSEEK_*（官方，项目既有约定）> EVAL_* > DISCOVERY_*（网关默认）。"""
+    base = (os.environ.get("DEEPSEEK_BASE_URL", "").rstrip("/")
+            or os.environ.get("EVAL_BASE_URL", "").rstrip("/")
+            or os.environ.get("DISCOVERY_BASE_URL", "").rstrip("/"))
+    key = (os.environ.get("DEEPSEEK_API_KEY", "")
+           or os.environ.get("EVAL_API_KEY", "")
+           or os.environ.get("DISCOVERY_API_KEY", ""))
+    return base, key
+
+
+def call_live(model_cfg: dict, prompt: str, params: dict, extra_fields: dict | None = None) -> dict:
+    base, key = active_endpoint()
     adaptations = model_cfg.get("adaptations", [])
     max_tokens = int(params["max_tokens"])
     if "require_min_max_tokens_512" in adaptations:
@@ -96,6 +120,8 @@ def call_live(model_cfg: dict, prompt: str, params: dict) -> dict:
         "temperature": float(params["temperature"]),
         "top_p": float(params["top_p"]),
     }
+    if extra_fields:
+        payload.update(extra_fields)
     url = base + "/chat/completions"
     last_error = ""
     for attempt in range(4):
@@ -171,11 +197,15 @@ def append_cache(key: str, value: dict) -> None:
 
 def run_stage(*, label: str, models: list[str], prompts: list[str], params: list[str],
               sample_ids: list[str] | None = None, offline: bool = False,
-              repeats: int = 1, verbose: bool = True) -> tuple[str, dict]:
-    samples = load_samples()
+              repeats: int = 1, verbose: bool = True,
+              dataset_file: str = "samples_v1.jsonl") -> tuple[str, dict]:
+    samples = load_samples(dataset_file)
     if sample_ids:
         samples = [s for s in samples if s["id"] in sample_ids]
-    model_index = {m["id"]: m for m in load_models()["selected"]}
+    # 合并网关 selected + 官方 DeepSeek 段，让 --models deepseek-flash 可用
+    _mc = load_models()
+    model_index = {m["id"]: m for m in _mc["selected"]}
+    model_index.update({m["id"]: m for m in _mc.get("official_deepseek", {}).get("models", [])})
     prompt_assets = {v: load_prompt(v) for v in prompts}
     param_assets = {p: load_params(p) for p in params}
     cache = {} if offline else load_cache()
@@ -187,8 +217,11 @@ def run_stage(*, label: str, models: list[str], prompts: list[str], params: list
         "mode": "offline" if offline else "live",
         "comparable": not offline,
         "git": git,
-        "dataset": {"file": "samples_v1.jsonl", "hash": _sha([s["id"] for s in samples]),
-                    "n_samples": len(samples), "origin": "self_built_v1 (见 datasets/SOURCES.md)"},
+        "dataset": {"file": dataset_file, "hash": _sha([s["id"] for s in samples]),
+                    "n_samples": len(samples),
+                    "origin": ("self_built_v1 (见 datasets/SOURCES.md)"
+                               if dataset_file == "samples_v1.jsonl"
+                               else f"public_dataset (见 datasets/public/SOURCES.md): {dataset_file}")},
         "metrics_version": scoring.load_metrics()["version"],
         "models": {m: model_index[m] for m in models},
         "prompts": {v: {"sha256_16": prompt_assets[v][1]} for v in prompts},
@@ -206,7 +239,12 @@ def run_stage(*, label: str, models: list[str], prompts: list[str], params: list
         pcfg = param_assets[pid]
         context = build_context(sample, pcfg)
         prompt = render_prompt(tpl, sample, context)
-        key = _sha([model, phash, _sha(pcfg), sample["id"], _sha(context), rep, "live" if not offline else "offline"])
+        # 端点隔离：换官方 DeepSeek 后 key 变化，不命中旧网关缓存（否则等于没换）。
+        # 但默认网关必须保持原 key 形状，否则历史 2000+ 条缓存全部失效。
+        ep = endpoint_id()  # 只有显式切换（DEEPSEEK_*/EVAL_*）才非空
+        key_parts = ([ep] if ep else []) + [model, phash, _sha(pcfg), sample["id"], _sha(context),
+                                            rep, "live" if not offline else "offline"]
+        key = _sha(key_parts)
 
         if key in cache:
             call = dict(cache[key])

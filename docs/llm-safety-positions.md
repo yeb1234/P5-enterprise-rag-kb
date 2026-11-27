@@ -1,6 +1,6 @@
 # 安全前中后置 + DeepSeek V4.1 Flash 低思考快速档（技术分析与口径）
 
-编制：智能体应用工程师 安智体 ｜ 适用：企业内部知识库「开发框架骨架 + 可运行演示切片」（A/B 档，学习与面试用，**非上线交付版**）
+编制：智能体应用工程师 安智体 ｜ 适用：企业内部知识库「开发框架骨架 + 可运行演示切片」（A/B 档，演示用，**非上线交付版**）
 
 > **本文只做技术分析与口径约定，不含任何代码改动，也未执行任何真实外部 LLM 调用。**
 > 回答用户两问：**「安全前中后置？」**（第一部分）、**「DeepSeek V4.1 用低思考」**（第二部分）。
@@ -114,7 +114,7 @@
 
 **统计口径说明**：12 条 = 前置 5（G1–G5）+ 中置 4（G6–G9）+ 后置 3（G10–G12）。其中 **中置 4 条全部命中 `webapp/` 演示切片**（G6/G7 为「完全缺失」，G8/G9 为「两端均缺」），即主理人指出的「中段缺失」；`backend/` 七节点已覆盖前/中/后置的骨架级实现，其剩余项集中在**模型级检测与逐句 grounding**（G5/G8/G10 等「只设计」），属 honest boundary，不算骨架实现缺陷。
 
-## 1.6 面试怎么讲（三句话版本）
+## 1.6 评审怎么讲（三句话版本）
 
 > 1. **「三段是纵深防御，不是三选一」**：前置在调模型之前挡人和挡内容（鉴权、注入检测、检索前权限裁剪、限流预算），中置在生成过程里保证每个进上下文的片段都过了 `decide()` 逐条授权、流式输出有实时检查点，后置在落地时做引用校验、PII 扫描、降级留痕和审计记账。
 > 2. **「我这套骨架把三段放进了一条状态机链」**：`backend/app/agent/orchestrator.py` 的七节点 `guard → retrieve → permission_filter → assemble → generate → verify → persist` 就是前中后置的落点，`blocked` 立刻 `break`，全程不调模型也返回带标记结果；`webapp/` 演示切片刻意只做前置 admin 门禁和后置降级留痕，中段的候选逐条复核和流式检测是**明确没做**的，我不拿演示替身冒充生产实现。
@@ -144,7 +144,7 @@
 
 | 现象 | 项目内实测证据 | 对「快速档」的影响 |
 |---|---|---|
-| **冷启动 / reasoning 阶段延迟高且抖动大** | `docs/evaluation-report.md` §5：端到端问答 **59.7 s**；探活几次测到 **0.6 s / 9.6 s / 58 s**；`.env:24-25` 记「冷启动可达 13–58 s、热态约 0.5 s，测试脚本已放宽到 180 s」；`evalbench/probe_models.py::DIFFERENCES`：`deepseek-v4.1-flash-1017` 26.4 s，而 `minimax-m3` 0.8 s | 演示/面试要的是可预期的首字延迟，不是 60 秒空白 |
+| **冷启动 / reasoning 阶段延迟高且抖动大** | `docs/evaluation-report.md` §5：端到端问答 **59.7 s**；探活几次测到 **0.6 s / 9.6 s / 58 s**；`.env:24-25` 记「冷启动可达 13–58 s、热态约 0.5 s，测试脚本已放宽到 180 s」；`evalbench/probe_models.py::DIFFERENCES`：`deepseek-v4.1-flash-1017` 26.4 s，而 `minimax-m3` 0.8 s | 演示/评审要的是可预期的首字延迟，不是 60 秒空白 |
 | **reasoning token 占用预算** | `docs/evaluation-report.md` §1：`test_llm` 给 **256 token**（不是 24），原因是「token 给小了会只吐 reasoning 却把正文吃光，早期因此误判过『模型可用』」；`providers.py::test_llm()` docstring 同款 | 推理阶段消耗 `completion_tokens`，挤压正文预算；低思考档可把预算还给正文 |
 | **零正文 / 空白气泡** | `docs/CHANGELOG.md:88/90` 记录两个已修问题：`empty_model_output`（推理模型只吐 `reasoning_content`）+ 连接测试 `token 24→256` 并返回 `reasoning_only` 标记；`webapp/rag.py::stream_answer()` 有 `empty_model_output` 兜底 | 低思考档若配合过小的 `max_tokens` 仍会复发，见 2.8 |
 
@@ -200,7 +200,7 @@
    从 55 降到 0、正文不再夹带思考内容，耗时约减半；这也是当前默认档的依据。
 2. `/models` 元数据把 `reasoning` 列为 `supported_parameters` 的 boolean，
    **实测不生效**——「元数据声明支持」与「实际生效」不是一回事，这个反例本身就是
-   面试里能讲清楚的工程判断。
+   评审里能讲清楚的工程判断。
 3. 延迟只能作辅助证据：冷启动抖动大，单次对比无统计意义；主判据是
    `reasoning_tokens=0` 与 `reasoning_content` 消失。
 
@@ -271,7 +271,7 @@
 | 不做什么 | 为什么 |
 |---|---|
 | 不写「Discovery 网关支持 `reasoning_effort` / `enable_thinking`」 | 这两类参数从未在本网关实测；只有 `thinking` 对象字段经 §2.5 对照实测生效 |
-| 不写「元数据里列了布尔 `reasoning` 参数所以它可用」 | 实测 `reasoning=false/true` 都是 `reasoning_tokens=55`，不生效；这个反面例子本身就是面试可讲的点 |
+| 不写「元数据里列了布尔 `reasoning` 参数所以它可用」 | 实测 `reasoning=false/true` 都是 `reasoning_tokens=55`，不生效；这个反面例子本身就是可讲要点的点 |
 | 不把「零正文」断言为推理模型专属 | `evalbench/probe_models.py::DIFFERENCES` 明确修正为**网关侧 token 预算共性**（6 模型含非推理型全部空） |
 | 不把「代码里写了」写成「已启用」 | 配置/字段存在 ≠ 参数被接受 ≠ 观测到生效 |
 | 不编造价格、配额、模型能力或延迟数字 | 本文所有数字均引自 `docs/evaluation-report.md`、`.env`、`evalbench/probe_models.py` 的既有实测，未新增测量 |

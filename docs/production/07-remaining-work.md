@@ -116,13 +116,13 @@ q = ("SELECT chunk_id, vec FROM chunk_embeddings WHERE model=? AND chunk_id IN (
 两套向量并存但**永不混算**；`settings.effective_embedding()` 把缓存 key 定成 `external:{model}` / `local:{model}`，
 正是为了让这两种实现天然隔离。
 
-> 这条可以直接当面试答案：**「同名模型在不同推理实现下不是同一向量空间——我抽 20 条实测，同文本余弦只有 0.977，
+> 这条可以直接当评审答案：**「同名模型在不同推理实现下不是同一向量空间——我抽 20 条实测，同文本余弦只有 0.977，
 > 而同一端点重复调用是 0.99996，所以缓存 key 必须带实现前缀，不能按模型名认亲。」**
 > 比「我考虑过这个问题」硬得多，而且这个数字是自己跑出来的。
 
 ### 2.3 影子读双跑 —— **未做**
 
-两库并行查、比对 top-k 重合率。这是 2.1 上线前的安全网，也是面试里最好讲的一段
+两库并行查、比对 top-k 重合率。这是 2.1 上线前的安全网，也是评审里最好讲的一段
 （「我怎么知道换引擎没换坏」）。目标不一致率 < 0.1%，**这个数字目前不存在**。
 
 ### 2.4 连接池 —— **已完成（2026-11-16）**
@@ -154,7 +154,7 @@ SQLAlchemy，统一一套依赖比多引一个库更干净）。`connect()` 从 
 
 `webapp/main.py:67` 的 `MAX_INFLIGHT` 配的是 `asyncio.Semaphore`，只在本进程有效。
 **N 个副本 = 实际并发上限 ×N**，和限流器修好之前的毛病一模一样。
-限流已经用 Redis 共享窗口修了，并发闸没修——这是**已知的不一致**，别在面试里说「并发也控住了」。
+限流已经用 Redis 共享窗口修了，并发闸没修——这是**已知的不一致**，别在评审里说「并发也控住了」。
 
 ### 3.2 `/metrics` 是进程内计数 —— **半成品**
 
@@ -188,7 +188,7 @@ SQLAlchemy，统一一套依赖比多引一个库更干净）。`connect()` 从 
 | 阈值标定 | 所有阈值都是**演示经验起始值** | 没被压测校准过（10% 视觉升级、0.75 置信度、`floor=0.5` 衰减） |
 | 恢复演练 | `05-backup-dr.md` 有脚本 | **一次没跑过**，RTO / RPO 无数字 |
 
-面试口径：这三项要主动说「没做」，说成「做了」一问数字就露。
+对外口径：这三项要主动说「没做」，说成「做了」一问数字就露。
 
 ---
 
@@ -223,7 +223,7 @@ SQLAlchemy，统一一套依赖比多引一个库更干净）。`connect()` 从 
 2. §2.1 向量召回切 Milvus + §2.3 影子读 —— 见 §11，**降级为「只讲」**
 3. §3.1 并发闸改 Redis —— 单副本演示里验不出差别，**降级为「只讲」**
 
-**B. 面试前（不写代码，只补证据）**
+**B. 演示前（不写代码，只补证据）**
 4. `python scripts/verify_infra.py` 截图存档
 5. §5 三项明确标「未做」，准备好被问时的答法
 6. ~~§8 同步 `index-standalone.html`~~ —— 已完成
@@ -263,7 +263,7 @@ MILVUS_URI=http://127.0.0.1:19530
 ### 10.3 起服务 + 验证
 
 ```bash
-bash run-demo.sh                          # 内部 docker run --network kb-infra_default
+bash run-demo.sh                          # 内部 docker run --network p5-kb-infra_default
 python scripts/verify_infra.py            # 期望 INFRA_READY
 PARSING_OFFLINE=1 python -m pytest webapp/tests parsing/tests knowledge/tests cache/tests guardrails/tests showcase/tests evalfmt/tests -q   # 期望 255 passed
 python webapp/selftest.py                 # 期望 33/33 DEMO_READY（需真实外部模型）

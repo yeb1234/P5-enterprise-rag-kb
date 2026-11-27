@@ -1,0 +1,51 @@
+{
+  "iteration": "params_public_v1",
+  "date": "2026-11-18",
+  "branch": "eval/public-benchmarks",
+  "goal": "在真实公开集上收敛参数组，模型固定 deepseek-v4.1-flash-1017，评分器 METRICS@1.2.0 不动",
+  "method_note": "A vs B 只差 temperature(0.2/0)；B vs C 差 max_tokens(512/768) 与 passage_num(5/3)，但公开集每样本只有 1 段，passage_num 实测不生效（A/B/C 都注入 1 段），故 B vs C 的有效变量只有 max_tokens。",
+  "single_run": {
+    "EN": {
+      "A": {"run_id": "RUN-0faa2c3f0724", "acc": 0.9, "rejection": 1.0, "latency_ms": 1801},
+      "B": {"run_id": "RUN-c0331ba299ff", "acc": 0.8667, "rejection": 1.0, "latency_ms": 2240},
+      "C": {"run_id": "RUN-b82d225cff60", "acc": 0.8667, "rejection": 1.0, "latency_ms": 1402}
+    },
+    "ZH": {
+      "A": {"run_id": "RUN-37762c5e00ca", "acc": 0.7833, "rejection": 0.9833, "latency_ms": 1889},
+      "B": {"run_id": "RUN-a9f7a703871e", "acc": 0.7667, "rejection": 0.9833, "latency_ms": 2095},
+      "C": {"run_id": "RUN-0b4984dd3b0b", "acc": 0.7333, "rejection": 0.9833, "latency_ms": 1821}
+    }
+  },
+  "repeats_en_3x": {
+    "note": "每组合 60 样本 × 3 次独立调用；key 含 rep，非缓存复用。用于判定 temp=0 是否真的更可复现。",
+    "A_temp0.2": {
+      "final_run_id": "RUN-8d5a21c39fc8",
+      "per_repeat_acc": [0.9, 0.9, 0.9],
+      "mean": 0.9,
+      "range": 0.0,
+      "answer_identical_rate": 0.8167,
+      "per_item_score_unstable": "0/60"
+    },
+    "B_temp0": {
+      "final_run_id": "RUN-891fed8a84d6",
+      "per_repeat_acc": [0.8667, 0.9, 0.8333],
+      "mean": 0.8667,
+      "range": 0.0667,
+      "answer_identical_rate": 0.8167,
+      "per_item_score_unstable": "2/60 (同一题三次在 0/1 间跳)"
+    },
+    "finding": "temp=0 在这条网关上并不比 temp=0.2 更可复现：两组逐答案一致率同为 81.7%，但 B 有 2/60 题分数跨重复翻转、A 为 0。推翻自建样本轮「采纳 B 主要依据可复现性」的理由；与旧 SOURCES.md §4 的『贪心并非万能，共享 GPU 批处理仍漂移』一致。"
+  },
+  "decision": {
+    "adopt": "A (temperature=0.2, top_p=1.0, max_tokens=512)",
+    "reject": ["B (temp=0): 中英 acc 均低于 A，且重复稳定性未占优", "C: 中文 acc 进一步降到 0.7333，max_tokens 768 无质量收益；passage_num 变量在公开集无效，归因不纯"],
+    "reverses_prior": true,
+    "prior_decision": "自建 12 条样本轮采纳 B(temp=0)，理由是可复现性 + A/B/C 质量打平",
+    "why_reverse": "公开集 60 条 × 2 语言上 A 的 accuracy 更高（EN +0.033, ZH +0.017），且 3 次重复稳定性 A 不劣于 B；自建样本只有 12 条，分辨率不足。",
+    "caveats": [
+      "EN 差异 0.033 = 2/60 题，接近噪声；中文 0.017 = 1/60 题，更小。采纳 A 的主要依据是『不劣于 B 的重复性 + 不低的准确率』，不是大幅质量提升。",
+      "字符串口径假阴性仍存在（中文 13/14 失分为同义改写），A/B 的 acc 都是保守下界。",
+      "重复实验只做了英文集；中文 repeats 未做，稳定性结论限于英文集。"
+    ]
+  }
+}

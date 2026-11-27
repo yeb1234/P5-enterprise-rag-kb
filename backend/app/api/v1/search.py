@@ -20,7 +20,7 @@ def search(payload: SearchRequest, request: Request, db: DbSession, user: Curren
     response = hybrid_search(db, user, payload)
     response.trace_id = getattr(request.state, "trace_id", None)
     if payload.enable_answer:
-        state = build_state(user, payload.query, response.trace_id)
+        state = build_state(user, payload.query, payload.filters.model_dump(mode="json"), response.trace_id)
         orchestrator = get_orchestrator()
         state.candidates = [c.model_dump() for h in response.hits for c in h.citations]
         response.answer = orchestrator.run(state, db, user).answer

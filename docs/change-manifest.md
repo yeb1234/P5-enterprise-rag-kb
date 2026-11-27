@@ -158,7 +158,7 @@
 | DOC-09 | 能力优先级 | `docs/capability-priority.md` | 新增 | 能力清单与优先级排序 | 并行产出 | 已实现（已落盘） | 归属：scenario-product-manager；用途：范围纪律 |
 | DOC-10 | 安全前中后置 | `docs/llm-safety-positions.md` | 新增 | 模型调用前 / 中 / 后的安全位置 | 并行产出 | 已实现（已落盘） | 归属：agent-app-engineer；用途：安全口径 |
 | DOC-11 | 成本指标规范 | `docs/cost-metrics-spec.md` | 新增 | token / 成本 / 聚合维度口径 | 并行产出 | 已实现（已落盘） | 归属：data-engineer；用途：A 项维度口径固化 |
-| DOC-12 | 独立 HTML 面试演示页 | `interview/index.html` | 新增 | 独立可打开的面试讲解页 | 并行产出 | 未做（进行中） | 归属：frontend-engineer；用途：面试演示。**实查 `interview/` 目录尚不存在** |
+| DOC-12 | 独立 HTML 演示页 | `interview/index.html` | 新增 | 独立可打开的工程说明页 | 并行产出 | 未做（进行中） | 归属：frontend-engineer；用途：评审演示。**实查 `interview/` 目录尚不存在** |
 | DOC-13 | 上一轮完整改造方案 | `docs/org-model-change-plan.md` | 仅复核 | 601 行，C1–C35、13 步、0002、Milvus 蓝绿、A13 | 引用源 | 已实现（现状） | 归属：上一轮；用途：未来路线与 §8 门禁出处，**本轮不改写** |
 | DOC-14 | 企业级就绪改造 | `docs/enterprise-readiness.md` §8 | 仅复核 | V1–V14 验收标准表 | §10 索引指向 | 已实现（现状） | 归属：上一轮；用途：现状验收标准；本轮不改 |
 | DOC-15 | 整体改进日志 | `docs/CHANGELOG.md` | 明确不动 | 历史日志与 §7 修订记录 | 无 | 已实现（现状保留） | 纪律：历史条目不回改；本轮新计数冻结也不写入该文件（见 DEP-05） |

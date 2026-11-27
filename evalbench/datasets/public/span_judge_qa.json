@@ -1,0 +1,216 @@
+{
+  "summary": {
+    "split": "QA",
+    "n_selected": 8,
+    "n_judged_ok": 6,
+    "iou_threshold": 0.5,
+    "judge_model": "deepseek-v4.1-flash-1017",
+    "gold_spans": 8,
+    "pred_spans": 16,
+    "hits": 7,
+    "precision": 0.4375,
+    "recall": 0.875,
+    "f1": 0.5833,
+    "exception_note": "LLM-as-judge 破例，仅 span 专项；不进 evalbench 主口径、不参与收敛。裁判未见人工标签。",
+    "caveats": [
+      "句子级 span 与人工短语级 span 的 IOU 天然偏低",
+      "裁判模型自身可能漏判/误判",
+      "样本量小"
+    ]
+  },
+  "records": [
+    {
+      "id": "11908",
+      "task_type": "QA",
+      "status": "ok",
+      "from_cache": false,
+      "n_gold": 1,
+      "n_pred": 3,
+      "n_hit": 0,
+      "gold_labels": [
+        "Evident Baseless Info"
+      ],
+      "pred": [
+        {
+          "start": 130,
+          "end": 335,
+          "text": "The specific amount of pay varies by location, with the highest average pay in Alaska ($23.70 per ho",
+          "label": "baseless"
+        },
+        {
+          "start": 532,
+          "end": 656,
+          "text": "However, the passages do not provide specific information on how automotive technicians get paid or ",
+          "label": "conflict"
+        },
+        {
+          "start": 656,
+          "end": 730,
+          "text": "Therefore, I am unable to answer the question based on the given passages.",
+          "label": "conflict"
+        }
+      ]
+    },
+    {
+      "id": "12044",
+      "task_type": "QA",
+      "status": "ok",
+      "from_cache": false,
+      "n_gold": 4,
+      "n_pred": 5,
+      "n_hit": 4,
+      "gold_labels": [
+        "Evident Baseless Info",
+        "Evident Baseless Info",
+        "Evident Baseless Info",
+        "Evident Baseless Info"
+      ],
+      "pred": [
+        {
+          "start": 358,
+          "end": 470,
+          "text": "Once the grill is heated, leave the porterhouse steak out at room temperature for about an hour befo",
+          "label": "baseless"
+        },
+        {
+          "start": 473,
+          "end": 505,
+          "text": "Preheat the grill to high heat.",
+          "label": "baseless"
+        },
+        {
+          "start": 508,
+          "end": 570,
+          "text": "Season the porterhouse steak generously with salt and pepper.",
+          "label": "baseless"
+        },
+        {
+          "start": 573,
+          "end": 683,
+          "text": "Grill the steak over the hot side of the grill for about 4-5 minutes per side, depending on desired ",
+          "label": "baseless"
+        },
+        {
+          "start": 687,
+          "end": 780,
+          "text": "Remove the steak from the grill and let it rest for 10-15 minutes before slicing and serving.",
+          "label": "baseless"
+        }
+      ]
+    },
+    {
+      "id": "12045",
+      "task_type": "QA",
+      "status": "ok",
+      "from_cache": false,
+      "n_gold": 2,
+      "n_pred": 4,
+      "n_hit": 2,
+      "gold_labels": [
+        "Evident Baseless Info",
+        "Evident Baseless Info"
+      ],
+      "pred": [
+        {
+          "start": 338,
+          "end": 398,
+          "text": "Preheat the grill to high heat (unspecified in passages)\n6.",
+          "label": "baseless"
+        },
+        {
+          "start": 398,
+          "end": 470,
+          "text": "Place the Porterhouse steak on the grill, bone side down (Passage 3)\n7.",
+          "label": "baseless"
+        },
+        {
+          "start": 470,
+          "end": 594,
+          "text": "Cook for 4-5 minutes per side, or until the internal temperature reaches your desired doneness (unsp",
+          "label": "baseless"
+        },
+        {
+          "start": 594,
+          "end": 891,
+          "text": "Remove from the grill and let rest for 5-10 minutes before slicing and serving (unspecified in passa",
+          "label": "baseless"
+        }
+      ]
+    },
+    {
+      "id": "12046",
+      "task_type": "QA",
+      "status": "ok",
+      "from_cache": false,
+      "n_gold": 1,
+      "n_pred": 1,
+      "n_hit": 1,
+      "gold_labels": [
+        "Evident Baseless Info"
+      ],
+      "pred": [
+        {
+          "start": 492,
+          "end": 563,
+          "text": "Cook the Porterhouse until it reaches your desired level of doneness.",
+          "label": "baseless"
+        }
+      ]
+    },
+    {
+      "id": "11904",
+      "task_type": "QA",
+      "status": "ok",
+      "from_cache": false,
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred": []
+    },
+    {
+      "id": "11905",
+      "status": "judge_failed",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0
+    },
+    {
+      "id": "11906",
+      "status": "judge_failed",
+      "n_gold": 0,
+      "n_pred": 0,
+      "n_hit": 0
+    },
+    {
+      "id": "11907",
+      "task_type": "QA",
+      "status": "ok",
+      "from_cache": false,
+      "n_gold": 0,
+      "n_pred": 3,
+      "n_hit": 0,
+      "gold_labels": [],
+      "pred": [
+        {
+          "start": 385,
+          "end": 516,
+          "text": "However, the passage does not provide specific information on the average hourly rate or salary rang",
+          "label": "conflict"
+        },
+        {
+          "start": 896,
+          "end": 1020,
+          "text": "However, the passage does not provide specific data on the average hourly rate or salary range for a",
+          "label": "conflict"
+        },
+        {
+          "start": 1020,
+          "end": 1115,
+          "text": "Therefore, based on the provided passages, it is unable to answer the question with confidence.",
+          "label": "baseless"
+        }
+      ]
+    }
+  ]
+}
