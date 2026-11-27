@@ -462,7 +462,7 @@ def test_extract_llm_records_why_a_batch_failed():
     chunks = [{"chunk_id": "c1", "doc_id": "d", "idx": 0, "text": "随便一段"}]
     out = extract_llm.extract_llm(chunks, FakeLLM("这不是 JSON"), batch_size=4)
     assert out["stats"]["failed_batches"] == 1 and not out["relations"]
-    assert "不是完整 JSON" in out["stats"]["failures"][0]["reason"]
+    assert "JSON 解析失败" in out["stats"]["failures"][0]["reason"]
 
     class Truncated(FakeLLM):
         def complete(self, prompt, **kw):

@@ -38,6 +38,12 @@ def _parse_json(raw: str) -> dict | None:
     return data if isinstance(data, dict) else None
 
 
+def _note_failure(stats: dict, batch_no: int, reason: str) -> None:
+    """逐批记失败原因。只给计数等于没说——实测时「3 批失败 2 批」根本判断不出是超时还是截断。"""
+    if len(stats["failures"]) < 8:
+        stats["failures"].append({"batch": batch_no, "reason": reason})
+
+
 def _clean_name(value) -> str:
     name = _TRICKY.sub("", str(value or "")).strip()
     return name if 0 < len(name) <= _MAX_NAME else ""
@@ -58,7 +64,7 @@ def extract_llm(chunks: list[dict], llm, *, batch_size: int = 8, cap: int = 80) 
                  "stats": {"available": llm is not None, "batches": 0, "failed_batches": 0,
                            "chunks_total": len(chunks), "chunks_deduped": 0, "chunks_sent": 0,
                            "chunks_skipped": 0, "accepted_entities": 0,
-                           "accepted_relations": 0, "dropped": 0}}
+                           "accepted_relations": 0, "dropped": 0, "failures": []}}
     if llm is None or not chunks:
         return out
 
@@ -77,14 +83,15 @@ def extract_llm(chunks: list[dict], llm, *, batch_size: int = 8, cap: int = 80) 
     for start in range(0, len(selected), batch_size):
         batch = selected[start:start + batch_size]
         listing = "\n\n".join(
-            f"[{i}] chunk_id={c['chunk_id']}\n{(c.get('text') or '')[:700]}" for i, c in enumerate(batch))
+            f"[{i}] chunk_id={c['chunk_id']}\n{(c.get('text') or '')[:500]}" for i, c in enumerate(batch))
         prompt = (
             "你在为知识库抽取实体关系。逐段阅读下面的文本，对每一段输出它提到的实体，"
             "以及实体之间**这段文本明确说出**的关系。\n"
             "规则：\n"
-            "1. 实体名必须是原文里出现过的原词（可以是短语），不要自己改写或翻译；\n"
-            "2. 关系类型用简短动词或短语（如：长按进入、属于、会导致），文本没说就不要编；\n"
-            "3. 只输出 JSON，不要解释。格式：\n"
+            "1. **每段最多 3 个实体、2 条关系**；只挑最有信息量的，宁少勿多；\n"
+            "2. 实体名必须是原文里出现过的原词（可以是短语），不要自己改写或翻译；\n"
+            "3. 关系类型用简短动词或短语（如：长按进入、属于、会导致），文本没说就不要编；\n"
+            "4. 只输出 JSON，不要解释，不要 Markdown 代码块。格式：\n"
             '{"chunks":[{"index":0,"entities":[{"name":"复位键","kind":"部件"}],'
             '"relations":[{"src":"复位键","dst":"配网模式","type":"长按进入"}]}]}\n\n'
             f"文本：\n{listing}"
@@ -93,8 +100,10 @@ def extract_llm(chunks: list[dict], llm, *, batch_size: int = 8, cap: int = 80) 
         try:
             raw = llm.complete(prompt, system="你是实体关系抽取器，只输出 JSON。",
                                max_tokens=1500, temperature=0.0)
-        except Exception:  # noqa: BLE001 - 单批失败不该让整次同步失败
+        except Exception as exc:  # noqa: BLE001 - 单批失败不该让整次同步失败
             out["stats"]["failed_batches"] += 1
+            _note_failure(out["stats"], start // batch_size + 1,
+                          f"{type(exc).__name__}: {str(exc)[:120]}")
             continue
         if not (raw or "").strip():
             # 离线占位的 complete() 返回空串：说明根本没有可用模型，不必继续
@@ -103,6 +112,8 @@ def extract_llm(chunks: list[dict], llm, *, batch_size: int = 8, cap: int = 80) 
         data = _parse_json(raw)
         if not data:
             out["stats"]["failed_batches"] += 1
+            _note_failure(out["stats"], start // batch_size + 1,
+                          f"JSON 解析失败（输出长度 {len(raw)}，可能被 max_tokens 截断）")
             continue
         for item in data.get("chunks") or []:
             try:

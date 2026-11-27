@@ -137,10 +137,18 @@ def search(question: str, store, *, hops: int = 2, mode: str = "template",
         cid = r.get("chunk_id")
         if not cid:
             continue
-        hop = min(max(int(r.get("hop") or 1), 1), max(HOP_SCORE))
+        # 模型生成的 Cypher 不一定返回 hop 列。有 path 就按节点数兜底：
+        # path=[A,B] 是 A—B—chunk，两条边 = 2 跳；没有 path 才当 1 跳。
+        raw_hop = r.get("hop")
+        path = list(r.get("path") or [])
+        if raw_hop is None and path:
+            hop = len(path)
+        else:
+            hop = int(raw_hop or 1)
+        hop = min(max(hop, 1), max(HOP_SCORE))
         cur = best.get(cid)
         if cur is None or hop < cur["hop"]:
-            best[cid] = {"hop": hop, "path": list(r.get("path") or []),
+            best[cid] = {"hop": hop, "path": path,
                          "matched": list(r.get("matched") or matched[:4])}
 
     cands = []
