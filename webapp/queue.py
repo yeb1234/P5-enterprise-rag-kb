@@ -1,7 +1,7 @@
 """进程内“繁忙/排队”调度：Celery + Redis/RabbitMQ 的演示级替身。
 
 职责边界（与 next-version 方案一致）：
-- 这里只负责“分析任务能不能立刻跑 / 排队到几号”，不负责结果真值（真值在 SQLite）。
+- 这里只负责“分析任务能不能立刻跑 / 排队到几号”，不负责结果真值（真值在 PostgreSQL）。
 - MAX_CONCURRENT_INGEST 故意设小，方便演示“上传分析繁忙，请排队”的真实体感。
 - 生产里把本模块替换为 Celery worker + broker；前端看到的 /api/system/busy 契约保持不变。
 """

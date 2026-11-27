@@ -18,7 +18,7 @@
 | `只设计` | 有字段、注释、设计文档、架构预留位或配置项，但无可运行的该功能逻辑。 |
 | `未做` | 代码与设计里都没有落地，或明确标注不做。 |
 
-两套体系必须分开看：`backend/` 是生产骨架（FastAPI + PG/Milvus/Redis + 七节点编排），`webapp/` 是可运行演示切片（SQLite + 进程内队列替身）。**本轮 PII 防护全部落在 `webapp/` 与 `guardrails/`；`backend/app/agent/orchestrator.py` 仍是两条正则 + `verify_node()` 输出替换，未接本包**（`pipeline.py:144` 的 `status()["integration"]["backend_skeleton"]` 如实标注「未接本包」）。混写即失真。
+两套体系必须分开看：`backend/` 是生产骨架（FastAPI + PG/Milvus/Redis + 七节点编排），`webapp/` 是可运行演示切片（PostgreSQL + 进程内队列）。**本轮 PII 防护全部落在 `webapp/` 与 `guardrails/`；`backend/app/agent/orchestrator.py` 仍是两条正则 + `verify_node()` 输出替换，未接本包**（`pipeline.py:144` 的 `status()["integration"]["backend_skeleton"]` 如实标注「未接本包」）。混写即失真。
 
 ### 0.2 01 与 02 的边界声明
 

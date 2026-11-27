@@ -1,6 +1,6 @@
 """三路取证的 MCP 风格 HTTP 工具端点：JSON-RPC 2.0 over HTTP **子集**。
 
-边界先说清楚（面试口径也按这个讲）：
+边界先说清楚（设计口径也按这个讲）：
 - 这是给外部 Agent 调用的 demo 入口，**不是完整 MCP 协议实现**——没有 stdio / SSE 传输，
   没有能力协商、会话管理、resources / prompts、增量通知；
 - 只实现了 Streamable-HTTP 风格的一小部分：一个 `POST /api/mcp`，跑 JSON-RPC 2.0 的

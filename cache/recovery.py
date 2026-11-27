@@ -1,11 +1,11 @@
 """启动自检与恢复：把「重启后状态是否正常」变成一份可核对的报告。
 
-状态三分类（面试常问「重启会丢什么」）：
+状态三分类（评审常问「重启会丢什么」）：
 - **可安全丢弃**：限流滑动窗口、解析轨迹 deque、SSE 连接。丢了只是窗口重置，不产生错误数据。
-- **可从真值重建**：进程内队列的活跃/排队态、进度快照。SQLite/PG 里的
+- **可从真值重建**：进程内队列的活跃/排队态、进度快照。PostgreSQL 里的
   `documents.status` 是真值，启动时扫描并重新入队即可。
 - **必须持久化**：配置与策略、预算、用量台账、文档与向量缓存、会话。
-  全部落 SQLite 表，重启后由 `runtime_state` / 各业务表恢复。
+  全部落 PostgreSQL 表，重启后由 `runtime_state` / 各业务表恢复。
 
 `requeue` 回调由调用方注入，保证本包不依赖 webapp。
 """
@@ -135,10 +135,10 @@ def run_startup_checks(store: Any, *, now: str | None = None,
         category="must_persist"))
 
     report.notes = [
-        "L1 内存 LRU 重启必然清空，属可安全丢弃；L2 SQLite 条目重启后仍在，命中时仍复核三重版本字段。",
+        "L1 内存 LRU 重启必然清空，属可安全丢弃；L2 PostgreSQL 条目重启后仍在，命中时仍复核三重版本字段。",
         "孤儿任务靠 documents.status 真值重建，重新入队是幂等的（只处理 queued/analyzing），重启两次不会重复分析。",
         "TTL 不是权限控制：命中后仍比对 authz_snapshot；转岗/授权变更会让旧 key 不可命中。",
-        "本次为演示切片的 SQLite 实现；生产对应 PG 真值 + Redis 实时通道，进度可从真值重建，严禁 FLUSHALL。",
+        "演示切片与生产共用 PostgreSQL 真值；生产另加 Redis 实时通道，进度可从真值重建，严禁 FLUSHALL。",
         "限流窗口清零意味着重启后短时窗口内可能放行更多请求，属已知取舍，不是数据错误。",
     ]
     return report

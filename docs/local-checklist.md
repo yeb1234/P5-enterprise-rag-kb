@@ -36,19 +36,18 @@ curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:8767/
 | 2.5 | 点「同参双跑对拍」 | 显示「逐字节一致」；改参后显示「已变化」 |
 | 2.6 | 顶部「← 完整功能首页」 | 同标签跳回 8765 |
 
-## 3. 讲解页（双击即可，零外部依赖）
+## 3. 演示页与上线指导
 
-- `interview/index.html`：三态边界、核心亮点、数据流、验证快照、评审 Q&A
-- `interview/journey.html`：五段演进、8 个亮点、8 个真实缺陷、15 个常见问题
-- `interview/cases.html`：九节点数据流向图 + 14 个故障点 + 评审三层讲法 + 自测清单
+- 个人材料已统一移出仓库，放在本地 `career/` 目录（`career/interview-site/`、`career/interview-qa.md` 等），不随项目发布；项目文档不再引用其中文件。
 - `docs/showcase/aliyun-guide.html` / `tencent-cloud-guide.html`：两家云的上线指导
 
 ## 4. 回归（可选，确认没被后续改动弄坏）
 
 ```bash
-# 9 个包，共 292 项
-for d in webapp/tests parsing/tests knowledge/tests cache/tests guardrails/tests \
-         backend/tests eval/tests evalbench/tests showcase/tests; do
+# 逐包运行，测试总数以 README 的实测口径为准
+for d in webapp/tests backend/tests knowledge/tests cache/tests guardrails/tests \
+         parsing/tests showcase/tests evalbench/tests evalfmt/tests eval/tests \
+         kgraph/tests llmwiki/tests; do
   python -m pytest -q -p no:cacheprovider "$d" | tail -n 1
 done
 

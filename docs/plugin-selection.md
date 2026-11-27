@@ -1,6 +1,6 @@
 # 插件三维度选型 · 与项目适配 + 高频场景考察
 
-> **文档定位**：本项目是「开发框架骨架 + 可运行演示切片」，面向中小企业 AI Agent 工程师 / FDE 岗位评审，**不是上线交付版**。系统口径为**单组织、多用户、多部门**；多租户仅作为未来研发方向写入 `docs/kb-capability-checklist.md`，本轮不实现。
+> **文档定位**：本项目是「开发框架骨架 + 可运行演示切片」，面向中小企业 AI Agent / FDE 场景的技术选型，**不是上线交付版**。系统口径为**单组织、多用户、多部门**；多租户仅作为未来研发方向写入 `docs/kb-capability-checklist.md`，本轮不实现。
 > **本文只做选型与验收定义，不改源码**。所有「接入模块」是**已实查的事实引用**，不是本次改动；本轮新增文件只有 `docs/plugin-selection.md` 与 `docs/kb-capability-checklist.md`。
 > **冻结边界**：不动 `eval/`、`demo/`、`evalbench/`、`docs/CHANGELOG.md`；`eval/` 的 `__TBC__` / `NOT_COMPARABLE` / `real_api` 契约门禁保持阻断。**全部验收命令走离线或 monkeypatch 桩，不触发真实外部 LLM 调用**。
 

@@ -27,7 +27,7 @@
 | key | 缓存键：由「影响输出的全部输入」拼成的确定性摘要 |
 | ACL / RBAC | 访问控制列表 / 基于角色的访问控制 |
 | SSE | 服务端推送事件：单向长连接把进度推给浏览器 |
-| `CachePolicy` | 缓存策略对象：`enabled`（总开关）、`l1_capacity`（=256，进程内 LRU 上限）、`l2_capacity`（=5000，SQLite 条目上限）、`ttl_seconds`（=900，正常结果存活秒数）、`negative_ttl_seconds`（=60，空结果存活秒数）、`ttl_jitter`（=0.10，抖动比例）、`org_namespace`（="org"，静态组织命名空间） |
+| `CachePolicy` | 缓存策略对象：`enabled`（总开关）、`l1_capacity`（=256，进程内 LRU 上限）、`l2_capacity`（=5000，PostgreSQL 条目上限）、`ttl_seconds`（=900，正常结果存活秒数）、`negative_ttl_seconds`（=60，空结果存活秒数）、`ttl_jitter`（=0.10，抖动比例）、`org_namespace`（="org"，静态组织命名空间） |
 | `CacheStore` | 双层缓存存储：`put()` 写、`get()` 读、`state_get/set/incr` 读写运行时状态、`invalidate_all()` 主动清空、`purge_expired()` 清过期、`enforce_capacity()` 容量淘汰、`clear_memory()` 清 L1 |
 | `CacheStats` | 缓存统计：`l1_hits` / `l2_hits` / `misses` / `hit_rate`（命中率）/ `writes` / `invalidations`（按原因分组的失效计数）/ `evictions` / `ghost_purged` / `expired_purged` |
 | `VersionController` | 版本控制器：`bump_data_version()`、`bump_grant_version()`、`sync_policy_version()`、`eager_purge()` |
@@ -35,7 +35,7 @@
 | `authz_snapshot` | 授权快照：角色 + 部门 id + 排序后的可见部门集合 + 授权版本 + 组织命名空间的 sha256 摘要 |
 | `data_version` / `grant_version` / `policy_version` | 数据版本 / 授权版本 / 策略版本，均落 `runtime_state` 表、重启不丢 |
 | `decide()` | 授权判定函数：判断「当前主体能否看某文档」，本文约定缓存**不负责授权** |
-| `runtime_state` / `cache_entries` | `CacheStore` 建的两张 SQLite 表：运行时状态表 / 缓存条目表 |
+| `runtime_state` / `cache_entries` | `CacheStore` 建的两张 PostgreSQL 表：运行时状态表 / 缓存条目表 |
 | `documents.status` | 文档状态机字段：`queued` / `analyzing` 表示未完成的入库任务 |
 | `chunk_embeddings` / `chunks` | 向量缓存表 / 分块表；前者残留、后者已无对应记录的向量即幽灵向量 |
 | `owner_id` / `doc_id` / `chunk_id` / `score` | 文档归属者 / 文档标识 / 分块标识 / 相关性得分 |
@@ -82,8 +82,8 @@
 | 层 | 实现 | 重启后 | 放什么 | 三态 |
 |---|---|---|---|---|
 | L1 进程内 | `OrderedDict` LRU（`cache/store.py`） | **必然清空** | 可重建的派生数据，纯加速器 | 【已实现】 |
-| L2 持久化 | SQLite 表 `cache_entries` / `runtime_state`（同业务库文件） | 条目仍在 | 带 TTL 的派生结果 + 版本计数器 | 【已实现】 |
-| 真值层 | SQLite 业务表 `documents` / `chunks` / `chunk_embeddings` | 原样保留 | 文档、分块、任务、策略的**唯一权威** | 【已实现】 |
+| L2 持久化 | PostgreSQL 表 `cache_entries` / `runtime_state`（同业务库，schema 可配） | 条目仍在 | 带 TTL 的派生结果 + 版本计数器 | 【已实现】 |
+| 真值层 | PostgreSQL 业务表 `documents` / `chunks` / `chunk_embeddings` | 原样保留 | 文档、分块、任务、策略的**唯一权威** | 【已实现】 |
 
 生产对应「PG（PostgreSQL）为状态真值 + Redis 做实时通道」，本包是演示替身（见 §8）。**缓存永远不写真值，只写派生**。
 
@@ -94,7 +94,7 @@ flowchart TD
     A["请求 GET /api/runtime/cache-demo"] --> B["构造 key<br/>cache/keys.py::build_key 共 13 段"]
     B --> C{"cache/store.py::get<br/>查 L1 OrderedDict"}
     C -->|命中| R["命中复核<br/>cache/keys.py::key_matches"]
-    C -->|未命中| D{"查 L2 SQLite<br/>cache_entries 表"}
+    C -->|未命中| D{"查 L2 PostgreSQL<br/>cache_entries 表"}
     D -->|命中并回填 L1| R
     D -->|未命中| E["rag.retrieve 检索<br/>演示级·默认不接主链路"]
     E --> F["_filter_for_user<br/>先按权限过滤"]
@@ -197,8 +197,8 @@ flowchart TD
 | 类别 | 判定标准 | 本项目具体例子 | 处置 |
 |---|---|---|---|
 | **可安全丢弃** | 丢了不影响正确性，最多损失体验 / 统计精度 | 三维限流滑动窗口、`_TRACE_HISTORY` / `_HISTORY` 解析轨迹 `deque`、SSE 连接 | 重启清零，不重建；可记「窗口重置」事件 |
-| **可从真值重建** | 真值在 SQLite / PG，内存只是投影 | 进程内队列 `_sem` / `_active` / `_queued`、进度快照、`documents.status IN ('queued','analyzing')` 孤儿任务 | 启动时扫真值、幂等重投，不信任旧内存 |
-| **必须持久化** | 丢了会产生错误或「改了又回退」 | 配置与策略（`knowledge_policy` / `parsing_strategy` / `cache_policy`）、版本计数器、`runtime_state`、文档与向量缓存 `chunk_embeddings`、L2 缓存条目 | 落 SQLite，重启后原样恢复 |
+| **可从真值重建** | 真值在 PostgreSQL，内存只是投影 | 进程内队列 `_sem` / `_active` / `_queued`、进度快照、`documents.status IN ('queued','analyzing')` 孤儿任务 | 启动时扫真值、幂等重投，不信任旧内存 |
+| **必须持久化** | 丢了会产生错误或「改了又回退」 | 配置与策略（`knowledge_policy` / `parsing_strategy` / `cache_policy`）、版本计数器、`runtime_state`、文档与向量缓存 `chunk_embeddings`、L2 缓存条目 | 落 PostgreSQL，重启后原样恢复 |
 
 分类结果与 `CheckResult.category` 的三个取值 `discardable` / `rebuildable` / `must_persist` 一一对应，由 `test_startup_report_categories_are_complete` 断言覆盖。
 
@@ -348,7 +348,7 @@ flowchart TD
 - 错误答法：「都丢 / 都不丢」一刀切，或说「重启把缓存全清了所以没问题」。
 - 正确答法：先分三类——可安全丢弃（限流窗口、轨迹 `deque`、SSE 连接）、可从真值重建（队列活跃态、孤儿任务）、必须持久化（策略、版本计数器、文档与向量、L2 条目）；再讲各类处置。
 - 本项目落点：`cache/recovery.py` 三分类注释 + 7 项检查的 `category`；`webapp/recovery.py::startup/shutdown`。
-- 诚实边界：L1 必然清空；L2 在演示切片是同一个 SQLite 文件，生产应换 PG 真值 + Redis 实时通道。
+- 诚实边界：L1 必然清空；L2 在演示切片落 PostgreSQL（schema 可配）；生产同为 PG 真值 + Redis 实时通道。
 
 **Q2 缓存 key 为什么要带模型名？**
 - 错误答法：「方便统计」或「加上更规范」，答不到向量空间。
@@ -372,7 +372,7 @@ flowchart TD
 - 错误答法：「删文档就完了」或「重建整个向量库」。
 - 正确答法：源头治理 + 启动对账双管——删文档前先删对应向量缓存；启动时按 `chunk_id` 差集清 `chunk_embeddings` 中已无 `chunks` 记录的残留。
 - 本项目落点：`webapp/routers_docs.py::delete_doc` 源头删向量；`cache/recovery.py` 的 `ghost_vectors_reconciled`；`test_startup_purges_ghost_vectors_and_expired_cache` 断言清理 1 条。
-- 诚实边界：这是 SQLite 差集清理，生产 Milvus / PG 的异步软删对账是【只设计】。
+- 诚实边界：这是 PostgreSQL 差集清理，生产 Milvus / PG 的异步软删对账是【只设计】。
 
 **Q6 答案缓存为什么不做？**
 - 错误答法：「没时间」或「加个 key 就行」。
@@ -402,7 +402,7 @@ flowchart TD
 
 ## 8. 诚实边界
 
-1. **存储与队列**：演示切片是 SQLite + 进程内队列，不是生产 Redis / Celery；「PG 真值 + Redis 实时通道 + 进度可重建」是既有口径与替换方向（【只设计】），本文不新增真值源、不改编排。
+1. **存储与队列**：演示切片是 PostgreSQL + 进程内队列，不是生产 Redis / Celery；「PG 真值 + Redis 实时通道 + 进度可重建」是生产方向（【只设计】），本文不新增真值源、不改编排。
 2. **开关默认关闭**：`PARSING_OFFLINE=1`（一键离线）与 `WEBAPP_FRESHNESS_ENABLED` 默认关闭；相关能力默认不生效。
 3. **检索结果缓存定位**：只做 `/api/runtime/cache-demo` 的 API 演示，**默认不接 `rag.retrieve()` 主链路**；value 只含 `doc_id` / `chunk_id` / `score`，不含正文。
 4. **答案 / 语义缓存**：明确【未做】；`integration.answer_cache` 已标注「误命中风险高」。

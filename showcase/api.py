@@ -3,7 +3,7 @@
 唯一事实源：docs/showcase/03-phase2-spec.md §2 / §4 + 02-architecture.md §4。
 三态：已实现（本轮站点接线）；LLM 在线真值与收费适配器 = 只设计。
 
-设计取舍（写进注释，便于面试讲解）：
+设计取舍（写进注释，便于设计讲解）：
 1. 同伴模块（llm_router / snapshot / ingest_preview / guard）一律**函数内延迟 import**。
    理由：并行开发期间同伴文件可能尚未落盘；延迟 import 让 A1/A2/A3/A4/A10
    这 5 个不依赖同伴的路由可以独立启动与自测，同时**没有创建任何占位模块**，

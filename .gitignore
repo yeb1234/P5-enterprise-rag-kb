@@ -26,7 +26,7 @@ evalfmt/.cache/
 # showcase 运行产物（manifest / ingest JSON）不入库，保留目录占位
 showcase/out/*
 !showcase/out/.gitkeep
-# 个人求职材料（不随项目发布）
+# 个人材料（不随项目发布）
 career/
 # 本地工作记录（过程记忆，不入库）
 .workbuddy/

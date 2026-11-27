@@ -1,8 +1,8 @@
 """独立解析服务（Docker 用）：最小 FastAPI 外壳，只依赖 parsing/ 包。
 
-为什么不复用 webapp/main.py：webapp 是带 SQLite、进程内队列、鉴权的演示切片，
+为什么不复用 webapp/main.py：webapp 是带 PostgreSQL、进程内队列、鉴权的演示切片，
 塞进 compose 会把「演示替身」和「生产骨架」混编。解析服务只需要一个纯函数包，
-单独一个进程/镜像，边界清楚，面试时也好解释「哪一层可以独立扩容」。
+单独一个进程/镜像，边界清楚，评审时也好解释「哪一层可以独立扩容」。
 
 启动：
     uvicorn parsing.server:app --host 0.0.0.0 --port 8766

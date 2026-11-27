@@ -9,7 +9,7 @@
 
 三级：P0 自研 local → P1 收费 OCR API → P2 多模态 LLM 传图。
 每一页都产出 ParseTrace，前端「解析实验室」把这张表直接画出来，
-面试时可以把「为什么这一页升级了」逐条讲清楚。
+评审时可以把「为什么这一页升级了」逐条讲清楚。
 """
 from __future__ import annotations
 

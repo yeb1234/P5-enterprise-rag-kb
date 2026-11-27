@@ -95,17 +95,3 @@ curl -s http://127.0.0.1:8765/api/mcp \
 | **已实现** | `POST /api/mcp` 的 HTTP JSON-RPC 子集（`initialize` / `ping` / `tools/list` / `tools/call`）；4 个取证工具；Bearer 鉴权与 401；JSON-RPC 错误契约（`-32600/-32601/-32602`）；路由名白名单过滤；7 项新增单测 |
 | **只设计** | SSE 传输（长任务进度推送）；stdio 传输（本地 Agent 子进程）；完整 MCP 协议兼容（tools/resources/prompts、能力协商、会话与 `Mcp-Session-Id`、可恢复流、notifications） |
 | **未做** | Agent 侧自动路由「该问哪一路」（现在由调用方显式指定工具）；把 Wiki 每条结论的证据链渲染给最终用户的 UI（后台 claim 已落库，前端展示未接） |
-
----
-
-## 5. 面试口径
-
-**不要说**：「我们接了完整 MCP」。
-
-**要说**：「我们在三路取证上做了一个 **MCP 风格的 HTTP 工具端点**：单端点跑 JSON-RPC 子集，
-把向量 / 图谱 / Wiki / 融合四路检索暴露成工具，带鉴权和错误契约；
-三种传输（stdio / SSE / Streamable HTTP）各自适合什么、我们为什么选 HTTP 方向、哪些还没做，
-都能讲清楚。**完整 MCP 协议是设计方向**，不是这次的实现范围。」
-
-一句话区分「能用」和「说清边界」：演示端点已经能被外部 Agent 用 curl 调起来；
-完整协议兼容、会话与恢复、Agent 自动选路都还在设计或附条件里——这个区分本身就是面试要考察的工程判断。

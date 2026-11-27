@@ -1,7 +1,7 @@
 # `cache/` · 双层缓存、版本感知失效与重启恢复
 
 > 一句话：**L1 加速、L2 兜底、真值层说话**。重启后 L1 必然清空，但策略、
-> 缓存条目、任务状态都能从 SQLite 恢复，并且每一次缓存命中都复核三重版本字段。
+> 缓存条目、任务状态都能从 PostgreSQL 恢复，并且每一次缓存命中都复核三重版本字段。
 
 ## 为什么单独一个包
 
@@ -15,7 +15,7 @@
 |---|---|
 | `contracts.py` | `CachePolicy` / `CacheEntry` / `CacheStats` / `CheckResult` / `RecoveryReport` |
 | `keys.py` | key 构造与逐段拆解、授权快照、文档指纹、策略版本、命中复核 |
-| `store.py` | L1 `OrderedDict` LRU + L2 SQLite `cache_entries` / `runtime_state`，TTL/LRU/容量/失效 |
+| `store.py` | L1 `OrderedDict` LRU + L2 PostgreSQL `cache_entries` / `runtime_state`，TTL/LRU/容量/失效 |
 | `invalidation.py` | `VersionController`：数据与授权版本递增、策略版本同步、演练用主动清空 |
 | `recovery.py` | `run_startup_checks()` 启动自检、`note_shutdown()` / `was_graceful()` |
 | `tests/` | 19 项离线单测，含**真·重启模拟**（清 L1 + 新建 store 实例） |
@@ -55,7 +55,7 @@ kb:<sha256 of sorted parts>    parts =
 ```
 
 - **L1**：进程内 LRU，重启必然清空，属「可安全丢弃」。
-- **L2**：SQLite `cache_entries`，与业务库同文件，重启后仍在；命中后复核三重版本字段。
+- **L2**：PostgreSQL `cache_entries`，与业务库同库、同 schema，重启后仍在；命中后复核三重版本字段。
 - **真值层**：`documents` / `chunks` / `runtime_state`；进度与队列活跃态可从真值重建。
 - **懒失效**：版本递增后旧 key 自然不命中，不做批量删除；TTL 到期由 `purge_expired()` 回收。
   日常只递增版本，`invalidate_all()` 仅用于演练或立即腾空间。
@@ -67,7 +67,7 @@ kb:<sha256 of sorted parts>    parts =
 |---|---|---|
 | 可安全丢弃 | 限流滑动窗口 `_WINDOWS`、解析轨迹 deque、SSE 连接 | 重启清零，不产生错误数据 |
 | 可从真值重建 | `queue.py` 的 `_active` / `_queued`、进度快照 | 启动扫描 `documents.status IN ('queued','analyzing')` 幂等重投 |
-| 必须持久化 | 新鲜度/解析/缓存策略、预算、用量台账、文档、`chunk_embeddings`、`cache_entries`、`runtime_state` | 落 SQLite，启动从 `runtime_state` 恢复 |
+| 必须持久化 | 新鲜度/解析/缓存策略、预算、用量台账、文档、`chunk_embeddings`、`cache_entries`、`runtime_state` | 落 PostgreSQL，启动从 `runtime_state` 恢复 |
 
 ## 启动自检 7 项（`run_startup_checks`）
 
@@ -99,7 +99,7 @@ python -m uvicorn webapp.main:app --port 8765
 
 ## 诚实边界
 
-- 演示切片用 SQLite + 进程内队列，不是生产 PG / Redis / Celery；L2 落在同一个 SQLite 文件里是演示替身。
+- 演示切片用 PostgreSQL（可配独立 schema）+ 进程内队列，不是生产 Redis / Celery；L2 落 PostgreSQL 的 `cache_entries` / `runtime_state`，与业务表同库，不再是独立 SQLite 文件。
 - **检索结果缓存只在 `/api/runtime/cache-demo` 演示，`rag.retrieve()` 主链路默认不接缓存；
   答案缓存与语义缓存未做**（依赖 prompt / 生成模型 / 语义相似度，误命中风险更高）。
 - 缓存不负责授权：调用方必须**先按权限过滤再写**；命中后仍复核快照，TTL 不是权限控制。

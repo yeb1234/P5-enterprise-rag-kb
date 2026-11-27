@@ -43,7 +43,7 @@ PRS = (
      "限流是单机内存窗口，多副本需换 Redis 或云网关；`backend/` 骨架仍只有预留，未接并发闸"),
     (6, "feature/case-study", "66d5c24", "8ac4224",
      "14 个真实缺陷案例集 + 图文教学页 + PR 记录",
-     "`interview/cases.html` HTMLParser 配对无异常、零外部资源、5 锚点、14 张案例卡；"
+     "`cases.html`（个人材料，已移出仓库） HTMLParser 配对无异常、零外部资源、5 锚点、14 张案例卡；"
      "MD 与页面内容一致；走 `--no-ff` 合并生成真实 merge commit",
      "案例均为规则级/演示级修复，不含真实压测与 WAF 规则标定"),
 )

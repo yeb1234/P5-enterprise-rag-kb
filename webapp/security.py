@@ -1,6 +1,6 @@
 """认证：口令哈希（pbkdf2，标准库）与最小可用 JWT（HMAC-SHA256，标准库）。
 
-说明：这是演示级实现，目的是“拿来即可跑”且便于面试讲解 token 结构；
+说明：这是演示级实现，目的是“拿来即可跑”且便于设计讲解 token 结构；
 生产环境应使用框架成熟的 JWT 库 + 强随机盐 + 密钥托管（如 Vault / KMS），
 本项目生产架构见 docs/next-version-messaging-and-plugins.md 的鉴权红线。
 """

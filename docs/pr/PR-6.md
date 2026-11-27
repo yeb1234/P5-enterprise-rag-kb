@@ -43,7 +43,7 @@ M	interview/journey.html
 
 ## 验证
 
-`interview/cases.html` HTMLParser 配对无异常、零外部资源、5 锚点、14 张案例卡；MD 与页面内容一致；走 `--no-ff` 合并生成真实 merge commit
+`cases.html`（个人材料，已移出仓库） HTMLParser 配对无异常、零外部资源、5 锚点、14 张案例卡；MD 与页面内容一致；走 `--no-ff` 合并生成真实 merge commit
 
 ## 风险与边界
 

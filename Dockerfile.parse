@@ -1,5 +1,5 @@
 # 独立解析服务镜像（context 为项目根）
-# 只 COPY parsing/，不把 webapp/ 的 SQLite 演示替身或 backend/ 的重依赖带进来。
+# 只 COPY parsing/，不把 webapp/ 的 PostgreSQL 演示切片或 backend/ 的重依赖带进来。
 # 用法（项目根执行）：
 #   docker compose --profile parsing up -d --build parser
 #   curl http://127.0.0.1:8766/health/live

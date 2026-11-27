@@ -109,7 +109,7 @@
   <h2>七、调参集全量对比（参数在这里选）</h2>
   <div class="panel"><table><thead><tr><th>配置</th><th>nDCG@10</th><th>Recall@1</th><th>Recall@10</th><th>Recall@20</th><th>MRR@10</th><th>Δ nDCG@10</th><th>评测 query</th></tr></thead><tbody><tr><td>bm25（词法基线）</td><td class='num'>15.55%</td><td class='num'>8.95%</td><td class='num'>19.04%</td><td class='num'>23.91%</td><td class='num'>0.1801</td><td class='num'><span class="flat">0.00</span></td><td class='num'>2429</td></tr><tr><td>向量 bge-m3</td><td class='num'>33.75%</td><td class='num'>18.49%</td><td class='num'>42.15%</td><td class='num'>49.84%</td><td class='num'>0.3680</td><td class='num'><span class="up">+18.20</span></td><td class='num'>2429</td></tr><tr><td>向量 + 查询前缀</td><td class='num'>31.27%</td><td class='num'>16.86%</td><td class='num'>39.54%</td><td class='num'>46.71%</td><td class='num'>0.3398</td><td class='num'><span class="up">+15.72</span></td><td class='num'>2429</td></tr><tr><td>向量+BM25 加权融合 w=0.85</td><td class='num'>31.63%</td><td class='num'>16.53%</td><td class='num'>41.65%</td><td class='num'>49.74%</td><td class='num'>0.3395</td><td class='num'><span class="up">+16.08</span></td><td class='num'>2429</td></tr></tbody></table><p class='cap'>调参集 = 2429 条 query。最终数字报在测试集，不报这里。</p></div>
 
-  <h2>八、口径与局限（面试如实说）</h2>
+  <h2>八、口径与局限（如实说明）</h2>
   <div class="panel">
     <ul>
       <li><b>不与 C-MTEB 榜首直接可比</b>：数据与 qrels 来自公开数据集，但嵌入走硅基流动 API
@@ -131,7 +131,7 @@
 
   <h2>九、两张成绩单不能互相替代</h2>
   <div class="panel">
-    <p>本项目有两套评估，面试时<b>不要混着说</b>：</p>
+    <p>本项目有两套评估，对外说明时<b>不要混着说</b>：</p>
     <ul>
       <li><b>本页（公开集 10 万篇）</b>回答「检索算法选得对不对」——
           有官方 qrels、有 BM25 同数据基线、有调参/测试切分，所以数字可对外比。</li>

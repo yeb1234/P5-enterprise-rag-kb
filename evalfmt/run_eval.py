@@ -3,7 +3,7 @@
     python -m evalfmt.run_eval --mode lexical --answer off      # 只测检索（快，零 LLM 费用）
     python -m evalfmt.run_eval --mode vector  --answer on       # 全链路（真嵌入 + 真 LLM）
 
-设计要点（面试会被追问的都在这里）：
+设计要点（评审会被追问的都在这里）：
 
 1. **每次跑用独立 schema**（`evalfmt_<mode>`，跑前 DROP 重建）。
    演示库里已有 80 多份历史文档，混在一起算召回率是「不可复现」的——
@@ -493,7 +493,7 @@ def render_markdown(r: dict) -> str:
                      f"**{pct(len(p['facts_hit']) / p['facts_total'])}** | "
                      f"{p['latency_ms']}ms |")
 
-    lines += ["", "## 6. 口径与局限（面试如实说）", "",
+    lines += ["", "## 6. 口径与局限（如实说明）", "",
               "- **召回率是文档级**：只判「期望文档在不在 top-k」，不看分块序号。分块级会更低。",
               "- **幻觉率是规则级**：抽型号/编号/错误码/带单位数字，看是否在召回证据里出现。"
               "它抓不到「有证据但归属错」，所以陷阱题单独一个指标。",

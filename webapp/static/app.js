@@ -904,7 +904,7 @@ async function loadOverview() {
       <div class="kv-line"><span>统计范围</span><b>${esc(o.scope)}</b></div>
       <div class="kv-line"><span>排队 / 分析中</span><b>${o.docs.queued} / ${o.docs.analyzing}</b></div>
       <div class="kv-line"><span>失败 / 降级留痕</span><b>${o.docs.error}</b></div>
-      <div class="note-box">每次刷新都从 SQLite 业务表实时聚合，不做预聚合日报；
+      <div class="note-box">每次刷新都从 PostgreSQL 业务表实时聚合，不做预聚合日报；
         普通用户的统计强制带 owner_id / user_id / created_by 条件，不是把全局数字藏起来而是根本不查。</div>`;
   } catch (e) { safeToast(e); }
 }
@@ -1138,7 +1138,7 @@ async function loadSystem() {
     $('sys-live').innerHTML = `
       <div class="kv-line"><span>连接</span><b style="color:var(--success)">正常</b></div>
       <div class="kv-line"><span>分析队列</span><b>${b.busy ? '处理 ' + b.active_count + ' / 排队 ' + b.queue_count : '空闲'}</b></div>
-      <div class="kv-line"><span>真值存储</span><b>SQLite（本地文件）</b></div>
+      <div class="kv-line"><span>真值存储</span><b>PostgreSQL 16</b></div>
       <div class="kv-line"><span>外部依赖</span><b>可离线；可选外部 DeepSeek / 本地 LM Studio</b></div>
       <div class="kv-line"><span>断线恢复</span><b>2.5s 探测 + 自动刷新</b></div>`;
   } catch (_) { $('sys-live').innerHTML = '<div class="note-box">后端不可达，顶部横幅正在自动重连。</div>'; }
@@ -1575,7 +1575,7 @@ async function loadEtGov() {
       `<div class="plugin-card"><h5>${esc(x.name)}<span class="badge ${stBadge[x.status] || 'badge-gray'}">${esc(t(x.status))}</span></h5>
        <p><b>${esc(t('接入模块'))}：</b><span class="mono">${esc(x.module)}</span></p>
        <p style="margin-top:6px"><b>${esc(t('边界'))}：</b>${esc(x.boundary)}</p>
-       <p style="margin-top:6px"><b>${esc(t('面试考点'))}：</b>${esc(x.why)}</p></div>`).join('');
+       <p style="margin-top:6px"><b>${esc(t('设计关注点'))}：</b>${esc(x.why)}</p></div>`).join('');
   } catch (e) { safeToast(e); }
 }
 

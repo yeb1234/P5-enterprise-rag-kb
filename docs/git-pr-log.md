@@ -27,7 +27,7 @@
 | #3 | `feature/queue-observability` | `GET /api/system/queue`（按用户/部门聚合）；`/api/system/busy` 加鉴权与裁剪；`users.department` 幂等迁移 | 8 项队列权限测试、109 单测、33/33 e2e | `402bade` |
 | #4 | `feature/queue-ui` | 任务中心改聚合视图（按用户积压 / 按部门 / admin 明细）；用户名短码可区分；演示种子脚本 | 109 单测、33/33 e2e、容器内双账号实测 | `2206a3b` |
 | #5 | `feature/gateway-hardening` | 应用层网关五项（IP 维度 / 可信代理 / 并发闸 / 请求体上限 / 用户级预算）+ `RATE_LIMIT_IP_EXCEEDED`；腾讯云加固指导页 | 127 单测（含 18 项加固）、33/33 e2e、容器内 413/429/503 实测 | `66d5c24` |
-| #6 | `feature/case-study` | `docs/case-studies.md`（14 个真实缺陷）、`interview/cases.html`（数据流向 + 故障点图）、本 PR 日志 | 见下方「验证」 | 本次 `--no-ff` 合并 |
+| #6 | `feature/case-study` | `docs/case-studies.md`（14 个真实缺陷）、`cases.html`（已移出仓库；数据流向 + 故障点图）、本 PR 日志 | 见下方「验证」 | 本次 `--no-ff` 合并 |
 
 ## 每个 PR 的验证口径
 

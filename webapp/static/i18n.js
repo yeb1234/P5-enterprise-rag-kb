@@ -67,7 +67,7 @@
     '系统运行中': 'System running',
     '连接中断': 'Disconnected',
     '上传分析繁忙': 'Ingest busy',
-    '离线演示切片 · SQLite 真值': 'Offline demo slice · SQLite source of truth',
+    '离线演示切片 · PostgreSQL 真值': 'Offline demo slice · PostgreSQL source of truth',
     '占位 LLM / 进程内队列': 'Stub LLM / in-process queue',
     '空闲': 'Idle',
     'DEV': 'DEV', 'ADMIN': 'ADMIN',
@@ -309,7 +309,7 @@
     '这一页在讲什么': 'What this page shows',
     '全局（admin）': 'Global (admin)',
     '仅本人数据': 'Own data only',
-    '每次刷新都从 SQLite 业务表实时聚合，不做预聚合日报；': 'Every refresh aggregates live from SQLite business tables; no pre-aggregated reports;',
+    '每次刷新都从 PostgreSQL 业务表实时聚合，不做预聚合日报；': 'Every refresh aggregates live from PostgreSQL business tables; no pre-aggregated reports;',
     '权限分离': 'Permission isolation',
     '普通用户的统计强制带 owner_id / user_id / created_by 条件，不是把全局数字藏起来而是根本不查。':
       'Standard-user stats always carry owner_id / user_id / created_by predicates — global numbers are not hidden, they are never queried.',
@@ -324,7 +324,7 @@
     '命中分块（按重叠词数排序）': 'Hit chunks (sorted by term overlap)',
     '没有命中任何分块 —— 这正是 chat 页触发降级的条件。':
       'No chunks hit — this is exactly the condition that triggers degradation in Chat Q&A.',
-    '面试讲法': 'How to present it',
+    '设计说明': 'Design notes',
     '分词（演示口径）': 'Tokens (demo)',
     '已索引 / 可召回分块': 'Indexed / eligible chunks',
     '命中 / top_k': 'Hits / top_k',
@@ -487,7 +487,7 @@
     '处理 ': 'Processing ',
     ' / 排队 ': ' / queued ',
     '真值存储': 'Source of truth',
-    'SQLite（本地文件）': 'SQLite (local file)',
+    'PostgreSQL 16': 'PostgreSQL 16',
     '外部依赖': 'External dependencies',
     '可离线；可选外部 DeepSeek / 本地 LM Studio': 'Offline-capable; optional external DeepSeek / local LM Studio',
     '断线恢复': 'Reconnect',
@@ -517,7 +517,7 @@
     'React + Vite': 'React + Vite',
     '交付档次与明确不做': 'Delivery tiers & deliberate omissions',
     'A 档（当前）': 'Tier A (current)',
-    'B 档（面试期）': 'Tier B (interview phase)',
+    'B 档（增强演示）': 'Tier B (enhanced demo)',
     'C 档（团队质量工作）': 'Tier C (team quality work)',
     '明确不做': 'Deliberately omitted',
     '离线可跑、闭环可演示、降级可见。': 'Runs offline, demoable loop, visible degradation.',
@@ -643,7 +643,7 @@
     '用户': 'User', '接口': 'Endpoint', '模型调用': 'Model call',
     '超限反馈：HTTP 429 + Retry-After + 统一错误体 + 审计留痕':
       'Over-limit feedback: HTTP 429 + Retry-After + uniform error body + audit log',
-    '插件能力': 'Plugin', '接入模块': 'Integration point', '状态': 'Status', '边界': 'Boundary', '面试考点': 'Why interviewers ask',
+    '插件能力': 'Plugin', '接入模块': 'Integration point', '状态': 'Status', '边界': 'Boundary', '设计关注点': 'Design considerations',
     '暂无配置': 'No configuration',
     '切换到英文': 'Switch to English',
     '切换到中文': '切换为中文',
@@ -657,8 +657,8 @@
     '只读事实源：evalbench/ 资产 + eval_configs 表': 'Read-only source of truth: evalbench/ assets + eval_configs table',
     '对应生产骨架 README §4 的「看板 /stats/overview」。演示切片不预聚合日报，':
       'Mirrors the /stats/overview board in the production skeleton README §4. This demo slice has no pre-aggregated reports;',
-    '每次刷新都从 SQLite 业务表实时算，所以上传、问答、标记 badcase 之后数字会立刻变。':
-      'every refresh aggregates live from SQLite, so numbers change immediately after uploads, chats and badcase tags.',
+    '每次刷新都从 PostgreSQL 业务表实时算，所以上传、问答、标记 badcase 之后数字会立刻变。':
+      'every refresh aggregates live from PostgreSQL, so numbers change immediately after uploads, chats and badcase tags.',
     '生产链路是': 'The production pipeline is',
     '先按权限过滤，再重排，再进模型': 'filter by permission first, then rerank, then generate',
     '双重过滤，RRF 融合，P0 才加带降级开关的 Rerank。':
@@ -745,7 +745,7 @@
     '运行 ID': 'Run ID', '样本': 'Samples', '主指标': 'Primary metric', '耗时': 'Duration',
     '任务类别': 'Task category', '均值': 'Mean', '记录数': 'Records',
     '事件': 'Event', '详情': 'Detail',
-    '接入模块': 'Integration point', '边界': 'Boundary', '面试考点': 'Why interviewers ask',
+    '接入模块': 'Integration point', '边界': 'Boundary', '设计关注点': 'Design considerations',
     '插件能力': 'Plugin',
 
     /* ---- 插值型 / 状态（app.js 显式 t()） ---- */
@@ -942,8 +942,8 @@
     /* ---- 缓存与恢复 ---- */
     '缓存与恢复': 'Cache & Recovery',
     '系统 / 缓存与恢复（重启稳定性）': 'System / Cache & Recovery (restart stability)',
-    '双层缓存（L1 内存 LRU + L2 SQLite）、版本感知失效、缓存 key 逐段拆解，以及服务器重启后的启动自检与状态恢复报告。全部离线可跑。':
-      'Two-tier cache (L1 in-memory LRU + L2 SQLite), version-aware invalidation, cache-key breakdown, and startup self-check / recovery report after a server restart. Fully offline.',
+    '双层缓存（L1 内存 LRU + L2 PostgreSQL）、版本感知失效、缓存 key 逐段拆解，以及服务器重启后的启动自检与状态恢复报告。全部离线可跑。':
+      'Two-tier cache (L1 in-memory LRU + L2 PostgreSQL), version-aware invalidation, cache-key breakdown, and startup self-check / recovery report after a server restart. Fully offline.',
     '缓存策略与统计': 'Cache policy & stats',
     '缓存 key 逐段拆解': 'Cache key breakdown',
     '重启恢复报告': 'Restart recovery report',

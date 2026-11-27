@@ -3,7 +3,7 @@
 运行：python webapp/eval_report.py
 前置：.env 已配置 DISCOVERY_API_KEY / RERANK_API_KEY（硅基流动，嵌入与重排共用）。
 
-设计取舍（面试可讲）：
+设计取舍（评审可讲）：
 - **隔离独立 schema**：进程启动前设置 WEBAPP_DB_SCHEMA 到一个临时 schema，避免污染演示库；
   app_settings 为空，因此生效配置直接来自 .env 的 DEFAULTS——测的就是「开箱即用的目标配置」，
   而非手工改过的库表。SQLite 已移除，隔离方式从「临时文件」换成「schema」。
@@ -131,7 +131,7 @@ def collect() -> dict:
     eff = settings.effective_embedding(cfg)
     report: dict = {
         "generated_at": _now(),
-        "purpose": "真实外部模型配置下的 RAG 链路评估（面试讲解事实源）",
+        "purpose": "真实外部模型配置下的 RAG 链路评估（设计讲解事实源）",
         "config": {
             "llm": {"provider": cfg["llm_provider"], "model": cfg["discovery_model"],
                     "base_url": os.environ.get("DISCOVERY_BASE_URL", ""),

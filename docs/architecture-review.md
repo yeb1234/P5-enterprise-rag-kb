@@ -10,7 +10,7 @@
 
 ## 0. 本轮结论摘要
 
-1. **三套运行时不是同一套**：`backend/` 是生产骨架（PostgreSQL / Milvus / Redis + Celery / 对象存储，由 `docker-compose.yml` 编排），`webapp/` 是**拿来即跑的演示切片**（SQLite 替 PostgreSQL、进程内滑动窗口替 Redis 限流、进程内队列替 Celery），`frontend/` 是依赖 backend API 的 React 骨架。
+1. **三套运行时不是同一套**：`backend/` 是生产骨架（PostgreSQL / Milvus / Redis + Celery / 对象存储，由 `docker-compose.yml` 编排），`webapp/` 是**拿来即跑的演示切片**（PostgreSQL 同 DDL、进程内滑动窗口替 Redis 限流、进程内队列替 Celery），`frontend/` 是依赖 backend API 的 React 骨架。
 2. **多用户多部门在 backend 已有、在 webapp 缺失**：`backend/app/models/identity.py` 已实现 `Department` 部门树（物化路径 `path`）、`User.department_id`、`ACLGrant`、五角色与 `decide()`；`webapp/` 仍是单库 + `admin`/`user` 两级 + owner 过滤，**没有部门表、没有部门级可见性**。
 3. **本轮补的是演示切片内的统计维度与模型档位，不是权限模型**：A 项 `tenant → department` 改的是**成本 / 限流统计与展示维度**，属于维度对齐；B 项 LLM「低思考 / 快速」档只动 `webapp/` 配置、提供者与设置页。两者都**不给 webapp 增加部门级权限**。
 4. **backend 的 `tenant_id` / `TenantRepository` 历史命名保留为技术债**，不改数据模型、不改 `backend/migrations/versions/0001_initial.py`；多租户作为未来研发方向，按 `docs/org-model-change-plan.md` 的 13 步清理。
@@ -37,7 +37,7 @@ flowchart TB
     MV["Milvus · 语义向量"]
     RD["Redis + Celery"]
     OS["对象存储 MinIO"]
-    SQ["SQLite · 替 PostgreSQL"]
+    SQ["PostgreSQL · 与生产同 DDL"]
     PQ["进程内队列 / 滑动窗口<br/>替 Celery / Redis 令牌桶"]
     OL["离线占位 LLM / 词法或本地 embedding<br/>替真实模型 / Milvus"]
   end
@@ -64,7 +64,7 @@ flowchart TB
 | 单元 | 目录 | 是否真跑 | 启动方式 | 替身关系 | 三态 |
 |---|---|---|---|---|---|
 | 生产骨架 | `backend/` | **真跑**（需外部组件） | `docker compose up -d --build` + `alembic upgrade head` | 无替身；PostgreSQL / Milvus / Redis / Celery / MinIO 为真实组件 | 已实现（骨架，未压测） |
-| 演示切片 | `webapp/` | **真跑**（零外部依赖即可演示） | `python -m uvicorn webapp.main:app --port 8765`，`admin / admin123` | **SQLite 替 PostgreSQL**；**进程内 `deque` 滑动窗口替 Redis 令牌桶**；**进程内队列替 Celery**；**离线占位 / 外部 Provider 替真实模型链路**；**词法或本地 embedding 替 Milvus** | 已实现（演示级） |
+| 演示切片 | `webapp/` | **真跑**（需 PostgreSQL；可先起 compose infra） | `python -m uvicorn webapp.main:app --port 8765`，`admin / admin123` | **PostgreSQL（与生产同 DDL，库/模式可配）**；**进程内 `deque` 滑动窗口替 Redis 令牌桶**；**进程内队列替 Celery**；**离线占位 / 外部 Provider 替真实模型链路**；**词法或本地 embedding 替 Milvus** | 已实现（演示级） |
 | React 骨架 | `frontend/` | **真跑**（需 npm 或 compose，依赖 backend API） | `npm install && npm run dev` 或 compose | 无替身；是独立前端工程，**不是** `webapp/` 的静态页 | 已实现（骨架） |
 | 冻结占位评测 | `eval/` | **真跑**（`unittest` 14 OK） | `python -m unittest discover -s eval/tests -t .` | 结果为 `comparable=false` / `NOT_COMPARABLE`，`real_api` 被契约门禁阻断，**不产出质量基线** | 已实现（冻结，禁止改动） |
 | 真实 API 评估工作台 | `evalbench/` | **真跑**（`unittest` 16 OK） | `python -m unittest discover -s evalbench/tests -t .` | 独立体系：多提示词 / 多参数 / 多模型对比、逐轮 Git 分支收敛；**不 import backend**、不改动 `eval/` | 已实现 |
@@ -72,7 +72,7 @@ flowchart TB
 | 文档 | `docs/` | 非运行 | — | — | 已实现 |
 | 编排 | `nginx/`、`docker-compose.yml` | 非运行单元本身 | compose | 反代 + SSE 关缓冲 + 安全响应头 | 已实现（骨架） |
 
-> **替身不是缺陷，是定位**：`webapp/` 用 SQLite + 进程内队列换取「零配置、拿来即演示」；`backend/` 用真实组件换取「约束渗透到表结构与代码分层」。两者职责不同，讲解时必须分开说，不得把演示切片说成生产实现。
+> **替身不是缺陷，是定位**：`webapp/` 用 PostgreSQL + 进程内队列换取「最小外部依赖、拿来即演示」；`backend/` 用真实组件换取「约束渗透到表结构与代码分层」。两者职责不同，讲解时必须分开说，不得把演示切片说成生产实现。
 
 ---
 
@@ -183,7 +183,7 @@ flowchart TB
 | A：成本 / 限流统计维度 `tenant → department` | `webapp/observability.py`、`webapp/main.py`、`webapp/db.py`、`webapp/routers_evaltest.py`、`webapp/tests/`、前端展示文案 | **已实现**（最终回填；含幂等迁移与三态回归；限流按三维收敛） |
 | B：LLM「低思考 / 快速」档 | `webapp/settings.py`、`webapp/providers.py`、设置页、`.env.example`；默认 `deepseek-v4.1-flash-1017`（Discovery 网关） | **已实现**（最终回填；11 项单测锁定；2026-11-14 网关参数对照实测确认 `thinking=disabled` 生效，`reasoning` 布尔参数无效） |
 | 两份交付文档 | `docs/architecture-review.md`、`docs/change-manifest.md` | 已实现（本轮新增） |
-| 并行产出文档 | 见 `docs/change-manifest.md` §7 | **已实现**：11 份 Markdown 全部落盘 + `interview/index.html` 独立演示页（主理人接管了其中两份的落盘） |
+| 并行产出文档 | 见 `docs/change-manifest.md` §7 | **已实现**：11 份 Markdown 全部落盘 + 独立演示页（个人材料，已移出仓库；主理人接管了其中两份的落盘） |
 | 明确不动 | `eval/`、`demo/`、`evalbench/`、`docs/CHANGELOG.md`、`docs/evaluation-plan.md` 的 `__TBC__` 行、backend 的 `tenant_id` 数据模型与 `0001_initial.py` | 已实现（现状保留）/ 明确不动，本轮零 diff |
 
 > 本节表格原为编制时快照，状态列由主理人于 2026-11-14 代码冻结后按实查更新；详细最终状态见 `docs/change-manifest.md` §0.0。

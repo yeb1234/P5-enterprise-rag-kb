@@ -130,7 +130,7 @@
     </nav>
     <div class="side-foot">
       <div class="sys-line"><span class="sys-dot" id="sys-dot"></span><span id="sys-text">系统运行中</span></div>
-      <div class="env-note">离线演示切片 · SQLite 真值<br />占位 LLM / 进程内队列</div>
+      <div class="env-note">离线演示切片 · PostgreSQL 真值<br />占位 LLM / 进程内队列</div>
     </div>
   </aside>
 
@@ -307,7 +307,7 @@
         <div class="card padded">
           <div class="section-title">这一页在讲什么</div>
           <p class="muted small" style="margin:0">对应生产骨架 README §4 的「看板 /stats/overview」。演示切片不预聚合日报，
-            每次刷新都从 SQLite 业务表实时算，所以上传、问答、标记 badcase 之后数字会立刻变。
+            每次刷新都从 PostgreSQL 业务表实时算，所以上传、问答、标记 badcase 之后数字会立刻变。
             <b>权限分离</b>：普通用户的统计强制带 owner_id / user_id / created_by 条件，不是把全局数字藏起来而是根本不查。</p>
         </div>
       </section>
@@ -337,7 +337,7 @@
           <div id="search-wiki" class="hidden" style="margin-top:12px"></div>
         </div>
         <div class="card padded">
-          <div class="section-title">面试讲法</div>
+          <div class="section-title">设计说明</div>
           <p class="muted small" style="margin:0">生产链路是 <b>先按权限过滤，再重排，再进模型</b>：
             Milvus expr + <code>filter_candidates</code> 双重过滤，RRF 融合，P0 才加带降级开关的 Rerank。
             本切片只有「ready 文档的分块」这一层前置条件，关键词重叠打分替身向量检索；
@@ -454,7 +454,7 @@
           <div class="section-title padded" style="padding-bottom:0">组件替身映射：演示切片 vs 生产架构</div>
           <div class="table-wrap">
             <table class="table"><thead><tr><th>能力</th><th>本切片（真实可跑）</th><th>生产架构（设计）</th></tr></thead><tbody>
-              <tr><td>状态真值</td><td>SQLite</td><td>PostgreSQL：ingest_jobs / 审计台账</td></tr>
+              <tr><td>状态真值</td><td>PostgreSQL 16 + pgvector</td><td>PostgreSQL：ingest_jobs / 审计台账</td></tr>
               <tr><td>任务投递</td><td>进程内信号量队列</td><td>Celery + Redis broker → v0.2 RabbitMQ</td></tr>
               <tr><td>检索</td><td>词法门禁 + 本地 Bge M3 向量排序（可切离线词法）</td><td>PG 全文 + Milvus 向量 + RRF + 权限双过滤</td></tr>
               <tr><td>生成</td><td>外部 DeepSeek / 本地 LM Studio / 离线占位（可切）</td><td>外部 DeepSeek SSE</td></tr>
@@ -464,7 +464,7 @@
           </div>
         </div>
         <div class="card padded"><div class="section-title">交付档次与明确不做</div>
-          <p class="muted small" style="margin:0"><b>A 档（当前）</b>：离线可跑、闭环可演示、降级可见。<b>B 档（面试期）</b>：真实 embedding / 中文分词 /
+          <p class="muted small" style="margin:0"><b>A 档（当前）</b>：离线可跑、闭环可演示、降级可见。<b>B 档（增强演示）</b>：真实 embedding / 中文分词 /
             Rerank / 压测 / 越权用例 / trace 全链路。<b>C 档（团队质量工作）</b>：容灾演练、容量基线、审计留存合规、监控告警、灰度回滚。
             <b>明确不做</b>：真实 API、UI 框架、多租户行级权限、压测、质量基线、物理隔离。</p>
         </div>
@@ -703,7 +703,7 @@
       <!-- ---------- 缓存与恢复（运行时状态） ---------- -->
       <section id="view-runtime" class="hidden">
         <div class="page-head">
-          <div><h2>缓存与恢复</h2><p>双层缓存（L1 内存 LRU + L2 SQLite）、版本感知失效、缓存 key 逐段拆解，以及服务器重启后的启动自检与状态恢复报告。全部离线可跑。</p></div>
+          <div><h2>缓存与恢复</h2><p>双层缓存（L1 内存 LRU + L2 PostgreSQL）、版本感知失效、缓存 key 逐段拆解，以及服务器重启后的启动自检与状态恢复报告。全部离线可跑。</p></div>
           <div class="head-actions"><button class="btn btn-sm" onclick="loadRuntime()">刷新</button></div>
         </div>
 
@@ -740,7 +740,7 @@
             <button class="btn btn-primary btn-sm" onclick="saveRuntimePolicy()">保存</button>
           </div>
           <div id="rt-msg" class="muted small" style="margin-top:8px"></div>
-          <p class="muted small" style="margin:12px 0 0">L1 重启必然清空；L2 与 runtime_state 落 SQLite。命中后仍复核 <code>data_version</code> / <code>authz_snapshot</code> / <code>policy_version</code>；TTL 不是权限控制。答案缓存与语义缓存<b>未做</b>；检索结果缓存目前只在下方演示接口使用，默认不接主问答链路。
+          <p class="muted small" style="margin:12px 0 0">L1 重启必然清空；L2 与 runtime_state 落 PostgreSQL。命中后仍复核 <code>data_version</code> / <code>authz_snapshot</code> / <code>policy_version</code>；TTL 不是权限控制。答案缓存与语义缓存<b>未做</b>；检索结果缓存目前只在下方演示接口使用，默认不接主问答链路。
 
           </p>
         </div>

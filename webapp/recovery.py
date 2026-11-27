@@ -4,7 +4,7 @@
 - 进程启动时：建缓存表 → 从 `runtime_state` 恢复策略 → 扫描孤儿任务重入队 →
   幽灵向量对账 → 缓存过期/容量清理 → 产出结构化恢复报告。
 - 进程关闭时：写 `last_shutdown_at`，供下次启动判断上次是否异常退出。
-- 提供「模拟重启」演练：只清 L1 并重跑检查，不真的杀进程，方便面试现场演示。
+- 提供「模拟重启」演练：只清 L1 并重跑检查，不真的杀进程，方便演示现场演练。
 """
 from __future__ import annotations
 
@@ -111,7 +111,7 @@ def startup() -> dict:
     d = checked.as_dict()
     d["restored_policies"] = restored
     d["graceful_last_shutdown"] = was_graceful(s)
-    d["note"] = ("L1 内存缓存重启必然清空；L2 SQLite 与 runtime_state 持久化，"
+    d["note"] = ("L1 内存缓存重启必然清空；L2 PostgreSQL 与 runtime_state 持久化，"
                  "命中时仍复核 data_version / authz_snapshot / policy_version")
     _report = d
     return d

@@ -3,7 +3,7 @@
 设计取舍：
 - 缓存 key 的每一段都对应一类事故：缺授权快照 → 串权限，缺模型名 → 串向量，
   缺数据版本 → 旧答案，缺策略版本 → 策略改了还用旧结果。所以 key 不是「随便拼个 hash」。
-- `key_parts` 与 `key` 一起返回，前端可以把 key 拆开逐段展示（面试演示的核心证据）。
+- `key_parts` 与 `key` 一起返回，前端可以把 key 拆开逐段展示（演示的核心证据）。
 - 所有判定字段可序列化、可复算；缓存条目带 `created_at` / `expires_at` / `hits`，
   便于做 TTL 淘汰、LRU 与命中率统计。
 """
@@ -33,7 +33,7 @@ class CachePolicy:
 
     enabled: bool = True
     l1_capacity: int = 256            # 进程内 LRU 条目上限，重启即清空
-    l2_capacity: int = 5000          # SQLite 持久化条目上限
+    l2_capacity: int = 5000          # PostgreSQL 持久化条目上限
     ttl_seconds: int = 900           # 正常结果 TTL
     negative_ttl_seconds: int = 60   # 空结果（负缓存）短 TTL，防穿透
     ttl_jitter: float = 0.10         # TTL 抖动比例，防雪崩

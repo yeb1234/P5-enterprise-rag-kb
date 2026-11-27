@@ -2,7 +2,7 @@
 
 为什么要一个 `Guardrails` 而不是在每个路由里各写一次正则：
 - 规则版本、置信度阈值、动作策略必须单点配置，否则「输出脱敏了、日志没脱敏」；
-- 前端要能一次拿到四个出口的命中汇总（`SafetyReport`），面试时可逐项指给人看；
+- 前端要能一次拿到四个出口的命中汇总（`SafetyReport`），评审时可逐项指给人看；
 - 缓存与 `chat_sources` 也走 `protect()`，保证「缓存里不能存未脱敏内容」。
 """
 from __future__ import annotations

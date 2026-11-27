@@ -21,7 +21,7 @@
 | C4 限流窗口 | 保持演示替身，未改维度；报告结论仍成立 |
 | **C5 缓存层** | **口径调整，见下方 §0.0.1** |
 | C6 `redis_client.py` 命名空间 | 仍为**只设计**，未改源码；建议保留 |
-| C7 分层缓存与真值口径 | 直接沿用，新增 L2 SQLite 只作演示替身，未新增真值源 |
+| C7 分层缓存与真值口径 | 直接沿用，新增 L2 PostgreSQL 只作演示层，未新增真值源 |
 
 **§0.0.1 C5 调整说明**：编制时判定「检索结果缓存 / 答案缓存 / 语义缓存本期不建议做」的前提是
 「`grant_version` 与『先过滤后写 + 命中复核』尚未就位」。同日主理人已落地 `cache/` 通用缓存包：
@@ -31,7 +31,7 @@
 
 | 能力 | 最终状态 |
 |---|---|
-| 通用双层缓存（L1 内存 LRU + L2 SQLite）、key 逐段构造、版本感知懒失效、TTL/负缓存/抖动/容量 | **已实现**（`cache/`，19 项离线单测） |
+| 通用双层缓存（L1 内存 LRU + L2 PostgreSQL）、key 逐段构造、版本感知懒失效、TTL/负缓存/抖动/容量 | **已实现**（`cache/`，19 项离线单测） |
 | 检索结果缓存 | **已实现（演示级）**：只在 `/api/runtime/cache-demo` 使用，`rag.retrieve()` 主链路**默认不接**，避免打断 33 项端到端自测；接主链路是下一步 |
 | 答案缓存 / 语义缓存 | **仍未做**，理由不变：依赖 prompt + 生成模型 + 语义相似度，误命中风险高，演示切片不引入 |
 
@@ -40,7 +40,7 @@
 强停导致 `last_shutdown_at` 未写入，实证「SIGKILL 不保证优雅关闭，真值层必须先行」。
 
 **仍然成立的诚实边界**：合成演练是功能连通性证明，不是压测或 SLA 结论；阈值是演示经验起始值；
-SQLite + 进程内队列不是生产 Redis/Celery；`eval/` 冻结口径不受缓存影响。
+PostgreSQL + 进程内队列不是生产 Redis/Celery；`eval/` 冻结口径不受缓存影响。
 
 ---
 
@@ -89,13 +89,13 @@ SQLite + 进程内队列不是生产 Redis/Celery；`eval/` 冻结口径不受�
 | `webapp/routers_parse.py:28` | `_TRACE_HISTORY`（解析轨迹 `deque`） | 进程内 | **丢失** | 【已实现】 |
 | `parsing/server.py:22` | `_HISTORY`（探测轨迹 `deque`） | 进程内 | **丢失** | 【已实现】 |
 | `parsing/config.py:129-134` | `set_strategy()` 直接写 `os.environ` | 进程内策略 | **丢失**，回默认 | 【已实现】 |
-| `webapp/db.py:144-148` | `app_settings`（运行时配置落 SQLite） | 持久化 | 保留 | 【已实现】切换即时生效 |
+| `webapp/db.py:144-148` | `app_settings`（运行时配置落 PostgreSQL） | 持久化 | 保留 | 【已实现】切换即时生效 |
 | `backend/app/core/config.py:45-47` | `REDIS_CACHE_DB=0 / BROKER_DB=1 / RESULT_DB=2` | 设计中的 Redis 三分库 | — | 【只设计】 |
 | `docker-compose.yml:43` | `--maxmemory-policy noeviction` + AOF | Redis 不淘汰、只追加日志 | — | 【已实现】（编排层） |
 | `docs/async-upload.md:117,127` | `build_snapshot()` 从 PG 重算；PG 真值 / Redis 实时通道 | 权威口径 | — | 【只设计】 |
 | `docs/org-model-change-plan.md:347` | `grant_version`/`authz_version` 全仓零命中 | 新增能力 | — | 【未做】 |
 
-> 持久化层：演示切片是 SQLite（`webapp/db.py`），生产对应 PostgreSQL（下称 PG）。`docs/async-upload.md` 的既有口径是「**PG 是状态真值、Redis 只是实时通道，进度可从 PG 重建**」——本报告 B 节的全部建议都必须服从这一口径，不另立真值。
+> 持久化层：演示切片与生产都用 PostgreSQL（`webapp/db.py`），演示可用独立 schema 隔离，默认同库。`docs/async-upload.md` 的既有口径是「**PG 是状态真值、Redis 只是实时通道，进度可从 PG 重建**」——本报告 B 节的全部建议都必须服从这一口径，不另立真值。
 
 ### 0.4 本报告不做什么
 
@@ -213,10 +213,10 @@ authz_snapshot = hash(role, department_id, department_path,
 | 类别 | 判定标准 | 本项目实例 | 处置 |
 |---|---|---|---|
 | **可安全丢弃** | 丢了不影响正确性，最多损失体验/统计精度 | `webapp/observability.py:180` 的 `_WINDOWS`（限流滑动窗口）、`webapp/routers_parse.py:28` 的 `_TRACE_HISTORY`、`parsing/server.py:22` 的 `_HISTORY` | 重启清零，不重建；可记一条「窗口重置」事件 |
-| **可从真值重建** | 真值在 PG/SQLite，内存只是投影 | `webapp/queue.py:16-19` 的 `_sem`/`_active`/`_queued`（队列活跃态）、进度快照、SSE（服务端推送事件）连接 | 启动时从 `documents.status` 与 `ingest_jobs` 重算，不信任旧内存 |
+| **可从真值重建** | 真值在 PostgreSQL，内存只是投影 | `webapp/queue.py:16-19` 的 `_sem`/`_active`/`_queued`（队列活跃态）、进度快照、SSE（服务端推送事件）连接 | 启动时从 `documents.status` 与 `ingest_jobs` 重算，不信任旧内存 |
 | **必须持久化** | 丢了会产生错误或用户可感知的「改了又回退」 | 配置与策略（`_POLICY`、`PARSING_STRATEGY`）、预算（`budgets`）、用量台账（`usage_events`）、文档与向量缓存（`chunk_embeddings`）、会话（`chat_logs`） | 落库/落配置中心，重启后原样恢复 |
 
-**注意一个真实反差**：`_POLICY`（`routers_knowledge.py:28`）与 `PARSING_STRATEGY`（`parsing/config.py:133`）目前都在「必须持久化」类里却是进程内实现 → 用户在前端改的策略**重启回默认**，这是可复现的体验 bug。反过来 `app_settings`（`db.py:144`）、`budgets`（`db.py:190`）、`usage_events`（`db.py:166`）已经落 SQLite，是正确示范，可作为策略持久化的落点参照。
+**注意一个真实反差**：`_POLICY`（`routers_knowledge.py:28`）与 `PARSING_STRATEGY`（`parsing/config.py:133`）目前都在「必须持久化」类里却是进程内实现 → 用户在前端改的策略**重启回默认**，这是可复现的体验 bug。反过来 `app_settings`（`db.py:144`）、`budgets`（`db.py:190`）、`usage_events`（`db.py:166`）已经落 PostgreSQL，是正确示范，可作为策略持久化的落点参照。
 
 ### B2. 启动自检 / Recovery（恢复）清单
 

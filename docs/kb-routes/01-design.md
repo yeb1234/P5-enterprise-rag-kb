@@ -214,18 +214,3 @@ wiki_claims(id,page_id,statement,evidence_json,source_hash,ordinal)
 4. **MCP 接入**：HTTP JSON-RPC 子集暴露 `vector_search` / `graph_search` / `wiki_search` /
    `fusion_search` 四个工具，带鉴权与 JSON-RPC 错误契约；完整协议与 SSE / stdio 是设计方向。
    详见 `05-mcp-integration.md`。
-
----
-
-## 8. 面试口径
-
-> 「我按视频的理念做了三路取证：向量从原文找证据，图谱沿关系找线索，LLM Wiki 读整理好的业务知识。
-> 三个仓库分工，多路检索后先融合再重排，多路同时命中的排最前。
-> 图谱我只放关系不放正文，结果按 chunk_id 回 PG 复核；Text2Cypher 是我自己写的，
-> 过关键词白名单、EXPLAIN 预检、只读会话三道，失败回退模板并留痕。
-> Wiki 我加了三道门禁——场景、信源、新鲜度，还做了场景筛信源和逐条证据链，源文件一改指纹就变，
-> 那条结论就不再用。实测 Neo4j 里 2281 个术语、6795 条共现边，Wiki 用真 API 构建过 8 页 31 条结论，
-> 开关都是可切的，默认只开向量，原有功能全量回归没破。」
-
-**不要说成**：「我们上了企业级 GraphRAG 平台」——图是演示规模的术语共现图，
-Wiki 是演示切片里的页面，任务状态在进程内存。说了被追问就穿帮。
