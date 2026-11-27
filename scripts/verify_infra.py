@@ -38,7 +38,13 @@ CHILD_ENV_EXTRA = {"PYTHONPATH": str(ROOT) + os.pathsep + os.environ.get("PYTHON
 
 # 与 webapp/db.py::RATE_RULE_DEFAULTS 对齐的期望值（不是随手写的）
 EXPECTED_RULES = {"user": (1200, 60), "endpoint": (900, 60), "model": (600, 60), "ip": (600, 60)}
-EXPECTED_TABLES = 20
+# 只列**必需表**，不数总数：加表（如 wiki_pages / wiki_claims）不该让自检误报。
+REQUIRED_TABLES = {
+    "users", "documents", "chunks", "chunk_embeddings", "audit_logs", "budgets",
+    "rate_rules", "rate_hits", "cache_entries", "runtime_state", "usage_events",
+    "eval_configs", "eval_logs", "eval_runs", "eval_tasks", "chat_logs", "chat_sources",
+    "badcases", "app_settings", "safety_events", "wiki_pages", "wiki_claims",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -107,13 +113,14 @@ def check_pg(dsn: str) -> dict:
         with psycopg.connect(dsn, connect_timeout=5) as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT count(*) FROM information_schema.tables"
+                    "SELECT table_name FROM information_schema.tables"
                     " WHERE table_schema='public' AND table_type='BASE TABLE'"
                 )
-                n_tables = cur.fetchone()[0]
-                detail["tables"] = n_tables
-                if n_tables != EXPECTED_TABLES:
-                    problems.append(f"表数量 {n_tables} != 期望 {EXPECTED_TABLES}")
+                tables = {r[0] for r in cur.fetchall()}
+                detail["tables"] = len(tables)
+                missing = REQUIRED_TABLES - tables
+                if missing:
+                    problems.append(f"缺少必需表：{sorted(missing)}")
 
                 cur.execute("SELECT dimension, limit_count, window_s FROM rate_rules")
                 rules = {r[0]: (r[1], r[2]) for r in cur.fetchall()}

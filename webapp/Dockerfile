@@ -26,10 +26,16 @@ RUN pip install --no-cache-dir -i ${PIP_INDEX_URL} \
       "pypdf>=4.0" \
       "Pillow>=10.0" \
       "psycopg[binary]>=3.1" \
-      "SQLAlchemy>=2.0,<2.1"
+      "SQLAlchemy>=2.0,<2.1" \
+      "neo4j>=6.3,<7" \
+      "redis>=5.0"
 
 # 中立基础设施模块：webapp/ 与 cache/ 共用同一套 PG 连接与占位符翻译
 COPY pgkit.py ./pgkit.py
+# 共享基础设施与三路取证的纯函数包（main.py 启动时会 import，漏 COPY 会直接起不来）
+COPY shared_infra.py ./shared_infra.py
+COPY kgraph/ ./kgraph/
+COPY llmwiki/ ./llmwiki/
 
 # 建表 DDL 的唯一事实源（容器启动时 db.init_db() 会执行它）
 COPY scripts/pg_init.sql ./scripts/pg_init.sql

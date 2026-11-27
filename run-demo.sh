@@ -32,6 +32,11 @@ NETWORK="${KB_NETWORK:-p5-kb-infra_default}"
 # 只对 compose 起的服务生效，这两个容器是 `docker run` 起的，实测
 # `docker inspect` 的 LogConfig 是空的（json-file 默认**无上限**，会一直长到磁盘满）。
 LOG_OPTS="--log-opt max-size=10m --log-opt max-file=3"
+# 图谱检索默认关闭（开关在 app_settings 里）。想开时先把 Neo4j 起起来：
+#   docker compose -f docker-compose.infra.yml --profile graphrag up -d neo4j
+# 连接信息用环境变量注入，不进 app_settings、不进仓库。
+NEO4J_URI="${WEBAPP_NEO4J_URI:-bolt://kb-neo4j:7687}"
+NEO4J_AUTH="${WEBAPP_NEO4J_AUTH:-neo4j/kb_demo_only}"
 docker run -d --name kb-webapp \
   -p 127.0.0.1:8765:8765 \
   --network "$NETWORK" \
@@ -40,6 +45,8 @@ docker run -d --name kb-webapp \
   -e WEBAPP_LLM_PROVIDER=offline \
   -e WEBAPP_EMBEDDING_PROVIDER=offline \
   -e WEBAPP_RERANK_PROVIDER=off \
+  -e WEBAPP_NEO4J_URI="$NEO4J_URI" \
+  -e WEBAPP_NEO4J_AUTH="$NEO4J_AUTH" \
   -e PARSING_OFFLINE=1 \
   -v kb-webapp-data:/app/.data \
   --restart unless-stopped \

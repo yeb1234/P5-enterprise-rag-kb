@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import math
 import os
 import re
@@ -19,6 +20,7 @@ from webapp import db, providers, settings
 
 UPLOAD_DIR = db.DATA_DIR / "uploads"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+log = logging.getLogger("webapp.rag")
 
 # 演示用模拟耗时：让「分析并发上限=2 / 排队」在界面上真实可见。
 # 生产里这里是真实解析 + embedding 调用，去掉该 sleep 即可。
@@ -328,17 +330,19 @@ def _apply_freshness(hits: list[dict]) -> tuple[list[dict], dict]:
         return hits, {"freshness": f"unavailable:{type(e).__name__}"}
 
 
-def retrieve(question: str, top_k: int = TOP_K, with_meta: bool = False):
-    """检索：**词法门禁（保证不相关不硬凑）→ 向量排序 → 可选 rerank**。
+def _vector_route(question: str, cfg: dict, pool: list[dict] | None = None):
+    """向量路由：**词法门禁（保证不相关不硬凑）→ 向量排序**。返回 (候选, 模式说明, 降级原因)。
 
     - 无词法重叠 → 空列表（chat 触发 retrieval_empty 降级）；
     - 命中且 embedding != offline → 用当前向量模型（本地 LM Studio 或硅基流动 BAAI/bge-m3）
-      的余弦相似度重排；调用失败则回退词法排序（留痕，不静默）；
-    - rerank 可选 off / llm / external；不可用时优雅跳过并标注。
+      的余弦相似度重排；调用失败则回退词法排序（留痕，不静默）。
+
+    这段是从原来的 retrieve() 里**逐字搬出来**的。只开向量一路时走的仍是这段逻辑，
+    引入三路之前的全部回归用例覆盖的就是它，所以不做任何「顺手优化」。
     """
-    cfg = settings.get_all()
     terms = _lexical_terms(question)
-    pool = _load_ready_chunks() if terms else []
+    if pool is None:
+        pool = _load_ready_chunks() if terms else []
     gated: list[dict] = []
     if terms:
         for c in pool:
@@ -371,7 +375,159 @@ def retrieve(question: str, top_k: int = TOP_K, with_meta: bool = False):
         for c in candidates:
             c["score"] = c.get("_lex_score", 0)
 
-    hits = candidates[:top_k]
+    return candidates, mode, fallback_reason
+
+
+# 每一路最多取前 50 名进融合：融合用的是名次，第 200 名的倒数贡献没有意义。
+FUSION_POOL = 50
+# 多路 + 重排时先留 3 倍候选给重排挑；没有重排就不留，否则多出来的会直接漏到结果里。
+MULTI_ROUTE_RERANK_POOL = 3
+
+
+def _fuse(route_hits: dict[str, list[tuple[str, float]]]) -> list[dict]:
+    """多路融合。排序规则两条，先后有序：
+
+    1. **被多路同时命中的排前面**（「双路命中」）——两条独立路径都指向它，
+       是比任何单路分数都强的相关性信号；
+    2. 同组内按 RRF：Σ 1/(60+名次)。用名次而不是分数相加，是因为向量给的是余弦、
+       图谱给的是跳数衰减分、Wiki 给的是页面匹配分，三者不同量纲，直接相加没有意义。
+
+    返回的每一项带 routes / rrf / scores，供调试页解释「这条为什么排在这」。
+    """
+    by: dict[str, dict] = {}
+    for route in ("vector", "graph", "wiki"):
+        ranked = sorted(route_hits.get(route) or [], key=lambda x: (-x[1], x[0]))
+        for rank, (chunk_id, score) in enumerate(ranked[:FUSION_POOL], 1):
+            e = by.setdefault(chunk_id, {"chunk_id": chunk_id, "routes": [], "rrf": 0.0, "scores": {}})
+            e["routes"].append(route)
+            e["rrf"] += 1.0 / (60 + rank)
+            e["scores"][route] = score
+    return sorted(by.values(), key=lambda e: (-len(e["routes"]), -e["rrf"], e["chunk_id"]))
+
+
+def _verified(route_cands: list[dict], by_id: dict[str, dict], report: dict) -> list[tuple[str, float]]:
+    """图谱 / Wiki 给的候选回到 PG 复核：分块还在、文档仍 ready 才算数；同文只留一条。
+
+    图和 Wiki 里的 chunk_id 是构建时写进去的，之后文档可能被删、被重新分析。
+    这一步是「PG 是真值」在检索侧的落点。演示库里重复文档很多，
+    同文不去重的话同一路会被同一份内容刷满名额。
+    """
+    out, seen_text = [], set()
+    for c in route_cands:
+        chunk = by_id.get(c["chunk_id"])
+        if chunk is None:
+            report["dropped_missing_in_pg"] = report.get("dropped_missing_in_pg", 0) + 1
+            continue
+        if chunk["text"] in seen_text:
+            report["deduped_same_text"] = report.get("deduped_same_text", 0) + 1
+            continue
+        seen_text.add(chunk["text"])
+        out.append((c["chunk_id"], float(c.get("score") or 0.0)))
+    return out
+
+
+def _align_same_text(route_hits: dict[str, list[tuple[str, float]]], by_id: dict[str, dict]) -> None:
+    """图谱 / Wiki 命中的分块按**正文**归并到同一个代表分块上（不动向量那一路）。
+
+    为什么要对齐：演示库里同一份手册传过很多遍。图谱命中的是副本 X、Wiki 的证据指向副本 Y，
+    按 chunk_id 比对是两条不同的记录，「双路命中」就认不出来——明明两条独立路径指向同一段话。
+    代表优先取向量那一路名次最高的同文分块，这样多路命中落在向量实际返回的那条上；
+    向量没返回任何同文分块时，取 id 最小的那条。
+    """
+    needed = {by_id[cid]["text"] for route in ("graph", "wiki")
+              for cid, _ in route_hits.get(route) or []}
+    if not needed:
+        return
+    groups: dict[str, list[str]] = {}
+    for cid, chunk in by_id.items():
+        if chunk["text"] in needed:
+            groups.setdefault(chunk["text"], []).append(cid)
+    vector_rank = {cid: rank for rank, (cid, _) in enumerate(route_hits.get("vector") or [])}
+    big = 10 ** 9
+    representative = {text: min(ids, key=lambda c: (vector_rank.get(c, big), c))
+                      for text, ids in groups.items()}
+    for route in ("graph", "wiki"):
+        merged, seen = [], set()
+        for cid, score in route_hits.get(route) or []:      # 保持本路原有名次顺序
+            target = representative[by_id[cid]["text"]]
+            if target in seen:
+                continue
+            seen.add(target)
+            merged.append((target, score))
+        route_hits[route] = merged
+
+
+def _multi_route(question: str, cfg: dict, routes: list[str]):
+    """两路及以上：各路出候选 → PG 复核 → 融合。任何一路出问题只让那一路缺席。"""
+    from webapp import kb_routes  # 延迟导入：只开向量时不加载 kgraph / llmwiki
+
+    pool = _load_ready_chunks()
+    by_id = {c["chunk_id"]: c for c in pool}
+    route_hits: dict[str, list[tuple[str, float]]] = {}
+    reports: dict[str, dict] = {}
+
+    mode = fallback_reason = None
+    if "vector" in routes:
+        cands, mode, fallback_reason = _vector_route(question, cfg, pool=pool)
+        route_hits["vector"] = [(c["chunk_id"], float(c.get("score") or 0.0)) for c in cands]
+        reports["vector"] = {"route": "vector", "status": "ok" if cands else "empty",
+                             "candidates": len(cands), "mode": mode}
+    for route, fetch in (("graph", kb_routes.graph_candidates), ("wiki", kb_routes.wiki_candidates)):
+        if route not in routes:
+            continue
+        try:
+            cands, rep = fetch(question, cfg)
+        except Exception as exc:  # noqa: BLE001 - 适配层内部已兜过，这里再兜一次
+            # 「一路出问题只让那一路缺席」是这一层的承诺，不能靠下层永不抛错来保证
+            log.warning("kb route %s raised: %s: %s", route, type(exc).__name__, exc)
+            cands, rep = [], {"route": route, "status": "error",
+                              "reason": f"{type(exc).__name__}: {str(exc)[:160]}"}
+        route_hits[route] = _verified(cands, by_id, rep)
+        reports[route] = rep
+
+    _align_same_text(route_hits, by_id)
+    fused = _fuse(route_hits)
+    for entry in fused:
+        c = by_id[entry["chunk_id"]]
+        c["_routes"] = entry["routes"]
+        c["_fusion"] = round(entry["rrf"], 6)
+        if "vector" not in routes:
+            # 没有向量分数可展示时，用其它几路里最高的那个分。只用于展示，排序仍看融合名次
+            c["score"] = round(max(entry["scores"].values()), 4)
+    candidates = [by_id[e["chunk_id"]] for e in fused]
+    multi = [e["chunk_id"] for e in fused if len(e["routes"]) > 1]
+    fusion_meta = {
+        "method": "multi_hit_first + rrf",
+        "multi_hit_count": len(multi), "multi_hit": multi[:20], "pool": len(fused),
+    }
+    mode = "fusion(" + "+".join(routes) + ")"
+    return candidates, mode, fallback_reason, reports, fusion_meta
+
+
+def retrieve(question: str, top_k: int = TOP_K, with_meta: bool = False):
+    """检索：**各路召回 → （多路时）融合 → 可选 rerank → 可选新鲜度重排**。
+
+    - 只开向量（默认）：词法门禁 → 向量排序，与引入三路之前逐字一致；
+    - 多路：每路各自出候选，PG 复核后按「多路命中优先 + RRF」融合；
+    - rerank 可选 off / llm / external；不可用时优雅跳过并标注；
+    - 三路全关：返回空（`retrieval_mode=off`），不静默退回某一路。
+    """
+    cfg = settings.get_all()
+    emb = settings.effective_embedding(cfg)
+    routes = settings.routes_on(cfg)
+    reports: dict[str, dict] = {}
+    fusion_meta = None
+    if not routes:
+        candidates, mode, fallback_reason = [], "off", None
+    elif routes == ["vector"]:
+        candidates, mode, fallback_reason = _vector_route(question, cfg)
+        reports["vector"] = {"route": "vector", "status": "ok" if candidates else "empty",
+                             "candidates": len(candidates), "mode": mode}
+    else:
+        candidates, mode, fallback_reason, reports, fusion_meta = _multi_route(question, cfg, routes)
+
+    widen = MULTI_ROUTE_RERANK_POOL if (fusion_meta and cfg.get("rerank_provider", "off") != "off") else 1
+    hits = candidates[:top_k * widen]
 
     rerank_note = "off"
     rp = cfg.get("rerank_provider", "off")
@@ -398,6 +554,11 @@ def retrieve(question: str, top_k: int = TOP_K, with_meta: bool = False):
                 h["score"] = round(h.get("_rerank", 0), 4)
             rerank_note = "applied:" + rp
 
+    # 多路 + 重排时候选池放宽过；不管重排成功与否，最终都只留 top_k——
+    # 否则重排不可用时放宽的候选会原样漏到结果里，返回条数比 top_k 还多。
+    if fusion_meta is not None and len(hits) > top_k:
+        hits = hits[:top_k]
+
     hits, freshness_meta = _apply_freshness(hits)
     out = []
     for c in hits:
@@ -409,6 +570,9 @@ def retrieve(question: str, top_k: int = TOP_K, with_meta: bool = False):
             "retrieval_mode": mode, "rerank": rerank_note,
             "freshness": c.get("freshness"),
             "effective_score": c.get("effective_score"),
+            # 新增字段（纯增量）：这条命中来自哪几路、融合分。只开向量时恒为 ["vector"]。
+            "routes": c.get("_routes") or ["vector"],
+            "fusion_score": c.get("_fusion"),
         })
     meta = {
         "retrieval_mode": mode,
@@ -416,6 +580,9 @@ def retrieve(question: str, top_k: int = TOP_K, with_meta: bool = False):
         "rerank": rerank_note,
         "embedding_model": emb["name"],
         "freshness": freshness_meta,
+        # 新增（纯增量）：每一路的报告（状态 / 候选数 / 耗时 / 失败原因）与融合摘要
+        "routes": reports,
+        "fusion": fusion_meta,
     }
     return (out, meta) if with_meta else out
 
@@ -451,6 +618,9 @@ def search_debug(question: str, top_k: int = TOP_K) -> dict:
         "fallback_reason": meta["fallback_reason"],
         "embedding": meta["embedding_model"],
         "generator": providers.get_model_label() + f"（检索：词法门禁 + {emb_name} 排序）",
+        # 三路取证：每一路的状态与证据（图谱子图、Wiki 命中页面与门禁结论）
+        "routes": meta.get("routes"),
+        "fusion": meta.get("fusion"),
     }
 
 

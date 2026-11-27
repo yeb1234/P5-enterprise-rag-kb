@@ -29,6 +29,7 @@ from webapp.routers_evaltest import router as evaltest_router
 from webapp.routers_evaltest import router_alias as evaltest_alias_router
 from webapp.routers_knowledge import router as knowledge_router
 from webapp.routers_runtime import router as runtime_router
+from webapp.routers_routes import router as routes_router
 from webapp.routers_safety import router as safety_router
 from webapp.routers_ops import router as ops_router
 from webapp.routers_parse import router as parse_router
@@ -436,6 +437,8 @@ def create_app() -> FastAPI:
     app.include_router(parse_router)
     app.include_router(knowledge_router)
     app.include_router(runtime_router)
+    # 三路取证：状态 / 图谱同步 / Wiki 构建
+    app.include_router(routes_router)
     app.include_router(safety_router)
 
     @app.get("/metrics", include_in_schema=False)

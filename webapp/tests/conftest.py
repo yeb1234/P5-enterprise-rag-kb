@@ -35,6 +35,11 @@ os.environ["WEBAPP_RERANK_PROVIDER"] = "off"
 # 没 Redis 就走内存路径）。这里显式钉死为内存后端，需要 Redis 的用例自己 monkeypatch。
 os.environ.pop("WEBAPP_REDIS_URL", None)
 os.environ["WEBAPP_RATE_BACKEND"] = "memory"
+# 图谱路由的单测不许碰真 Neo4j。设成**空串**而不是 pop：`.env` 只补「尚未存在」的键，
+# pop 掉之后本机 .env 里若配了连接串，会被 settings 导入时的 load_env 再补回来。
+# 空串 = 未配置 = 这一路如实报告「不可用」，正好也是要测的降级路径。
+os.environ["WEBAPP_NEO4J_URI"] = ""
+os.environ["WEBAPP_NEO4J_AUTH"] = ""
 # P2 多模态已接通真实网关，单测必须显式关掉，避免图片用例消耗真实流量
 os.environ["PARSING_OFFLINE"] = "1"
 # 访问日志默认 INFO，一个用例动辄十几次 HTTP 调用，会把输出刷成 JSON 墙。

@@ -282,6 +282,32 @@ CREATE TABLE IF NOT EXISTS runtime_state (
     updated_at timestamptz NOT NULL
 );
 
+-- ---------- LLM Wiki（三路取证之一） ----------
+-- wiki_pages：模型把分块整理出来的业务知识（Markdown），按「概念 / 流程 / 规则 / 台账」分目录。
+-- wiki_claims：页面里每条结论的证据链。evidence_json 指向 chunks.id 与原话；
+--   source_hash 是这些证据正文合并后的指纹，检索时重算比对——原文改过或有分块被删，结论即失效。
+-- 不建外键（与本文件其余表一致）：删除顺序由代码保证，先删 claims 再删 pages。
+CREATE TABLE IF NOT EXISTS wiki_pages (
+    id          text PRIMARY KEY,
+    title       text NOT NULL,
+    section     text NOT NULL,
+    body_md     text NOT NULL,
+    summary     text NOT NULL DEFAULT '',
+    scenario    text NOT NULL,
+    built_at    timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS ix_wiki_pages_section ON wiki_pages(section);
+
+CREATE TABLE IF NOT EXISTS wiki_claims (
+    id           text PRIMARY KEY,
+    page_id      text NOT NULL,
+    statement    text NOT NULL,
+    evidence_json jsonb NOT NULL DEFAULT '[]'::jsonb,
+    source_hash  text NOT NULL,
+    ordinal      integer NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS ix_wiki_claims_page ON wiki_claims(page_id);
+
 -- ---------- 必要种子（与 webapp/db.py::_seed 逐字对齐；存量迁移时用 ON CONFLICT 跳过） ----------
 -- 数值来自 db.py 的 defaults 字典，不是随手写的演示值：
 -- user 1200 / endpoint 900 / model 600 / ip 600，窗口均为 60s。
