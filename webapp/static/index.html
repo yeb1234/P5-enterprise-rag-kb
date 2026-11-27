@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>企业级知识库 · 可运行演示切片</title>
   <!-- 同步执行：在 CSS 应用前写好 data-theme / data-mode，首屏无主题闪烁 -->
-  <script src="/theme.js?v=19"></script>
-  <script src="/i18n.js?v=19"></script>
-  <link rel="stylesheet" href="/style.css?v=19" />
+  <script src="/theme.js?v=20"></script>
+  <script src="/i18n.js?v=20"></script>
+  <link rel="stylesheet" href="/style.css?v=20" />
 </head>
 <body>
 
@@ -328,6 +328,13 @@
         <div class="card" style="margin-bottom:16px">
           <div class="section-title padded" style="padding-bottom:0">命中分块（按重叠词数排序）</div>
           <div id="search-hits"></div>
+        </div>
+        <!-- 三路取证：每一路的状态与证据（图谱子图、Wiki 命中的页面）。未开启另两路时只显示说明。 -->
+        <div class="card padded" style="margin-bottom:16px">
+          <div class="section-title">三路取证</div>
+          <div id="search-routes" class="muted small">当前只开了向量检索（从原文里找证据）。在「模型设置 → 检索路由」里打开图谱检索或 LLM Wiki 后，这里会显示每一路的状态、图谱线索和 Wiki 证据。</div>
+          <div id="search-graph" class="hidden" style="margin-top:12px"></div>
+          <div id="search-wiki" class="hidden" style="margin-top:12px"></div>
         </div>
         <div class="card padded">
           <div class="section-title">面试讲法</div>
@@ -889,6 +896,71 @@
           <p class="muted small" style="margin:8px 0 0">说明：LM Studio 不暴露 <code>/v1/rerank</code>；可选「LLM 打分重排」或外部 rerank（硅基流动免费、Cohere 风格格式兼容）。</p>
         </div>
 
+        <!-- ---------- 检索路由（三路取证）：每一路一个开关 ---------- -->
+        <div class="card padded" style="margin-bottom:16px">
+          <div class="section-title">检索路由（三路取证）</div>
+          <p class="muted small" style="margin:0 0 8px">同一个问题，三路各取所需：向量检索从原文里找证据，图谱检索沿关系找线索，LLM Wiki 读整理好的业务知识。开几路由你组合；多路同时命中的结果排在最前面。</p>
+          <div class="field"><label>向量检索（原文证据）</label>
+            <select id="st-route-vector" class="select">
+              <option value="on">开启（默认）</option>
+              <option value="off">关闭</option>
+            </select>
+          </div>
+          <div class="field"><label>图谱检索（关系线索，依赖 Neo4j）</label>
+            <select id="st-route-graph" class="select" onchange="onRouteChange()">
+              <option value="off">关闭（默认）</option>
+              <option value="on">开启</option>
+            </select>
+          </div>
+          <div id="st-graph-box" class="hidden">
+            <div class="field"><label>多跳上限</label>
+              <select id="st-graph-hops" class="select">
+                <option value="1">1 跳（只查直接提到命中术语的分块）</option>
+                <option value="2">2 跳（隔一个关联术语，默认）</option>
+                <option value="3">3 跳</option>
+              </select>
+            </div>
+            <div class="field"><label>查询生成</label>
+              <select id="st-graph-cypher" class="select">
+                <option value="template">手写 Cypher 模板（确定、零模型调用）</option>
+                <option value="llm">Text2Cypher（模型生成，带只读校验，失败回退模板）</option>
+              </select>
+            </div>
+            <div class="field"><label>建图抽取</label>
+              <select id="st-graph-extractor" class="select">
+                <option value="offline">词法共现（术语 + 共现边，零模型调用）</option>
+                <option value="llm">LLM 抽取带类型的语义关系（每批一次模型调用）</option>
+              </select>
+            </div>
+            <div id="st-graph-status" class="muted small">正在读取图库状态…</div>
+            <div class="btns" style="margin-top:8px">
+              <button class="btn btn-sm" onclick="syncGraph()">同步图谱</button>
+              <span id="st-graph-job" class="muted small"></span>
+            </div>
+            <p class="muted small" style="margin:8px 0 0">文档入库后<b>不会自动</b>进图，需要手动同步；建图抽取选 LLM 时每个批次一次模型调用，耗时更长。</p>
+          </div>
+          <div class="field"><label>LLM Wiki（业务知识，另有过门禁）</label>
+            <select id="st-route-wiki" class="select" onchange="onRouteChange()">
+              <option value="off">关闭（默认）</option>
+              <option value="on">开启（门禁通过才参与检索）</option>
+            </select>
+          </div>
+          <div id="st-wiki-box" class="hidden">
+            <div class="field"><label>业务场景（必填：没有场景就没有整理口径）</label>
+              <input id="st-wiki-scenario" class="input" maxlength="60" placeholder="例如：智能设备使用与故障排查" />
+            </div>
+            <div class="field"><label>陈旧文档占比上限（0–1）</label>
+              <input id="st-wiki-stale" class="input" placeholder="0.1" />
+            </div>
+            <div id="st-wiki-gate" class="muted small"></div>
+            <div class="btns" style="margin-top:8px">
+              <button class="btn btn-sm" onclick="buildWiki()">构建 Wiki</button>
+              <span id="st-wiki-job" class="muted small"></span>
+            </div>
+            <p class="muted small" style="margin:8px 0 0">构建需要可用的 LLM，要跑几分钟，在后台执行。先填好业务场景并<b>保存设置</b>，再点构建。</p>
+          </div>
+        </div>
+
         <div class="card padded">
           <div class="section-title">当前生效</div>
           <div id="st-effective" class="muted small"></div>
@@ -906,6 +978,6 @@
 <div id="modal-root"></div>
 <div id="toasts"></div>
 
-<script src="/app.js?v=19"></script>
+<script src="/app.js?v=20"></script>
 </body>
 </html>

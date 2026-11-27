@@ -282,6 +282,52 @@ CREATE TABLE IF NOT EXISTS runtime_state (
     updated_at timestamptz NOT NULL
 );
 
+-- ---------- 后台任务状态（kb_routes 的 start_job） ----------
+-- 原来任务只在进程内存里：进程重启就没了，多副本之间也互相看不见。
+-- 落库后状态可被任意副本读回；worker_id 区分「哪个进程建的这道题」，
+-- 读接口据此把别的进程遗留的 running 标成 interrupted（见 kb_routes._mark_interrupted）。
+-- 同名任务同时只能有一个 running：部分唯一索引跨进程生效，不靠进程内的 Lock。
+CREATE TABLE IF NOT EXISTS kb_jobs (
+    id          text PRIMARY KEY,
+    name        text NOT NULL,
+    worker_id   text NOT NULL,
+    status      text NOT NULL,
+    started_at  timestamptz NOT NULL,
+    finished_at timestamptz,
+    error       text,
+    result_json jsonb,
+    progress    text,
+    updated_at  timestamptz NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_kb_jobs_name_started ON kb_jobs(name, started_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_kb_jobs_running ON kb_jobs(name) WHERE status = 'running';
+
+-- ---------- LLM Wiki（三路取证之一） ----------
+-- wiki_pages：模型把分块整理出来的业务知识（Markdown），按「概念 / 流程 / 规则 / 台账」分目录。
+-- wiki_claims：页面里每条结论的证据链。evidence_json 指向 chunks.id 与原话；
+--   source_hash 是这些证据正文合并后的指纹，检索时重算比对——原文改过或有分块被删，结论即失效。
+-- 不建外键（与本文件其余表一致）：删除顺序由代码保证，先删 claims 再删 pages。
+CREATE TABLE IF NOT EXISTS wiki_pages (
+    id          text PRIMARY KEY,
+    title       text NOT NULL,
+    section     text NOT NULL,
+    body_md     text NOT NULL,
+    summary     text NOT NULL DEFAULT '',
+    scenario    text NOT NULL,
+    built_at    timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS ix_wiki_pages_section ON wiki_pages(section);
+
+CREATE TABLE IF NOT EXISTS wiki_claims (
+    id           text PRIMARY KEY,
+    page_id      text NOT NULL,
+    statement    text NOT NULL,
+    evidence_json jsonb NOT NULL DEFAULT '[]'::jsonb,
+    source_hash  text NOT NULL,
+    ordinal      integer NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS ix_wiki_claims_page ON wiki_claims(page_id);
+
 -- ---------- 必要种子（与 webapp/db.py::_seed 逐字对齐；存量迁移时用 ON CONFLICT 跳过） ----------
 -- 数值来自 db.py 的 defaults 字典，不是随手写的演示值：
 -- user 1200 / endpoint 900 / model 600 / ip 600，窗口均为 60s。

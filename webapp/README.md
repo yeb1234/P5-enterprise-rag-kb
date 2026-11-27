@@ -12,7 +12,7 @@
 |---|---|
 | **PostgreSQL（唯一真值）** | PostgreSQL（`ingest_jobs` / 审计台账） |
 | 进程内信号量队列 | Celery + Redis broker → v0.2 RabbitMQ |
-| 词法门禁 + 外部 BGE 向量 + cross-encoder 重排（三档可切） | PG 全文 + Milvus 向量 + RRF 融合 |
+| 词法门禁 + 外部 BGE 向量 + cross-encoder 重排（三档可切）；可选图谱 / Wiki 两路融合 | PG 全文 + Milvus 向量 + RRF 融合 |
 | 真实 DeepSeek SSE 流式（限流/故障回退离线占位） | DeepSeek V4.1 Flash SSE 流式 |
 | 无构建静态前端 | React + Vite |
 
@@ -112,7 +112,7 @@ localStorage、head 同步防闪烁）× `static/style.css`（CSS 变量分层�
 | 知识库/空间管理、分类标签树、文档版本 diff、回收站 | 生产骨架有 API 设计，但切片是单库单组织；做了只会是假数据或空壳 |
 | 权限编辑、部门树、角色授权 | 只做只读成员列表；写授权会引出完整审批与审计闭环，超出演示范围 |
 | 监控告警大盘、trace 瀑布图 | P0/P1 设计，无真实指标源；画假曲线不如明确标「未做」 |
-| 渠道入口（飞书/企微）、MCP 工具网关 | P2 扩展，边界讲清楚即可，不做假入口 |
+| 渠道入口（飞书/企微） | P2 扩展，边界讲清楚即可，不做假入口 |
 | 消息中心、个人设置、帮助中心 | 通用后台装饰，与知识库核心证据链无关 |
 
 ---
@@ -164,6 +164,9 @@ PostgreSQL 的 `app_settings`，即时生效、无需重启**，不动检索 / �
   **词法门禁 + 向量排序**（hybrid）——先用二元组门禁保证不相关不硬凑（保住「检索为空拒答」
   的边界），再按余弦排序。向量按 `(chunk_id, cache_key)` 缓存于 `chunk_embeddings`，
   `cache_key` 含 provider + 模型名，切模型天然隔离（见上文命名空间说明）。
+- **三路取证（可选）**：`WEBAPP_RAG_ROUTE_GRAPH` / `WEBAPP_RAG_ROUTE_WIKI` 打开后，
+  图谱（Neo4j `graphrag` profile）与 LLM Wiki 各自出候选，回 PG 复核后按「多路命中优先 + RRF」
+  融合，再走重排；任一路失败只让那一路缺席。接口与门禁见 `docs/kb-routes/01–05`、`docs/mcp.md`。
 - **Rerank 三档**：`off` / `llm`（用当前 LLM 给候选打分重排，LLM-as-reranker，无需额外服务）/
   `external`（Cohere 风格 `/rerank`，自动兼容 TEI 的 `texts` 形态）。
   LM Studio 本体不暴露 `/v1/rerank`（它把 reranker 归类为 embeddings），所以没有 local 档；
@@ -241,7 +244,7 @@ PostgreSQL 的 `app_settings`，即时生效、无需重启**，不动检索 / �
 | Embedding | **已落地三档**：`offline` / `local`（LM Studio Bge M3）/ `external`（硅基流动 `BAAI/bge-m3`，当前默认）；1024 维，hybrid 检索排序；向量缓存 `chunk_embeddings` 按 provider + 模型隔离 |
 | Rerank | **已落地三档**：`off` / `llm`（用当前 LLM 打分重排）/ `external`（硅基流动 `BAAI/bge-reranker-v2-m3`，实测 0.9316 vs 0.0160，区分度优于 LLM 打分）；LM Studio 本体不支持 `/rerank`，故无 local 档 |
 | 中文分词 / ParserProvider | 未做：中文仍用二元组近似；解析器只支持纯文本 |
-| RabbitMQ / Celery / Prometheus / MCP / 渠道入口 | 未做，见 `docs/next-version-messaging-and-plugins.md` |
+| RabbitMQ / Celery / Prometheus / 渠道入口 | 未做，见 `docs/next-version-messaging-and-plugins.md`；MCP 只读网关已落地，见 `docs/mcp.md` |
 
 **明确不做**：Milvus 真实向量库（外部 BGE 向量仍是替身）、压测、UI 框架、多租户行级权限、质量基线。
 真实 LLM / 嵌入 / 重排均已接入；`eval/` 的占位对象与 `NOT_COMPARABLE` 口径**未改动**

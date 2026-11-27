@@ -922,14 +922,89 @@ async function runSearch() {
       <div class="kv-line"><span>降级判定</span><b>${r.degraded ? '<span style="color:var(--warn)">retrieval_empty · 拒答不编造</span>' : '正常生成'}</b></div>
       <div class="kv-line"><span>前置权限过滤</span><b class="small">${esc(r.permission_filter)}</b></div>
       <div class="kv-line"><span>重排 / 生成</span><b class="small">${esc(r.rerank)} · ${esc(r.generator)}</b></div>`;
+    renderRoutes(r);
     if (!r.hits.length) {
       $('search-hits').innerHTML = '<div class="empty-state"><div class="big">◫</div>没有命中任何分块 —— 这正是 chat 页触发降级的条件。</div>';
       return;
     }
-    $('search-hits').innerHTML = '<div class="table-wrap"><table class="table"><thead><tr><th>#</th><th>文档</th><th>分块 / 重叠词数</th><th>片段</th></tr></thead><tbody>' +
-      r.hits.map((h, i) => `<tr><td>${i + 1}</td><td>${esc(h.doc_title)}</td><td><span class="badge badge-blue">#${h.idx}</span> · <b>${h.score}</b></td><td class="small">${esc(h.snippet)}…</td></tr>`).join('') +
+    $('search-hits').innerHTML = '<div class="table-wrap"><table class="table"><thead><tr><th>#</th><th>文档</th><th>来源</th><th>分块 / 分数</th><th>片段</th></tr></thead><tbody>' +
+      r.hits.map((h, i) => `<tr><td>${i + 1}</td><td>${esc(h.doc_title)}</td><td>${routeBadges(h.routes)}</td><td><span class="badge badge-blue">#${h.idx}</span> · <b>${h.score}</b></td><td class="small">${esc(h.snippet)}…</td></tr>`).join('') +
       '</tbody></table></div>';
   } catch (e) { safeToast(e); }
+}
+
+/* ---------- 三路取证：每一路的状态与证据 ---------- */
+const ROUTE_LABEL = { vector: '向量', graph: '图谱', wiki: 'Wiki' };
+const GATE_LABEL = { scenario: '业务场景', sources: '信源', freshness: '新鲜度' };
+const ROUTE_STATUS = {
+  ok: '正常', empty: '无命中', no_entity: '问题里没有图内的术语', unavailable: '不可用',
+  gate_blocked: '门禁未通过', error: '出错', off: '已关闭',
+};
+function routeBadges(routes) {
+  const cls = { vector: 'badge-blue', graph: 'badge-purple', wiki: 'badge-green' };
+  const list = (routes && routes.length) ? routes : ['vector'];
+  return list.map(k => `<span class="badge ${cls[k] || 'badge-gray'}">${esc(t(ROUTE_LABEL[k] || k))}</span>`).join(' ')
+    + (list.length > 1 ? ' <span class="badge badge-amber">' + esc(t('多路命中')) + '</span>' : '');
+}
+function routeStatusText(k, x) {
+  if (!x) return t('未开启');
+  let s = t(ROUTE_STATUS[x.status] || x.status);
+  if (x.status === 'ok') {
+    s += k === 'graph'
+      ? esc(t('：{n} 个术语命中，返回 {m} 个候选', { n: (x.matched_entities || []).length, m: (x.candidates || {}).returned }))
+      : esc(t('：{n} 个候选', { n: x.candidates }));
+  }
+  if (x.reason) s += ' — ' + esc(x.reason);
+  return s + '（' + Math.round(x.elapsed_ms || 0) + ' ms）';
+}
+function graphSvg(sg) {
+  // 不引第三方图库：实体排内圈、分块排外圈，连线即关系。演示规模（几十个节点）一眼能看清。
+  const W = 680, H = 260, cx = W / 2, cy = H / 2;
+  const ents = sg.nodes.filter(n => n.kind === 'entity'), chunks = sg.nodes.filter(n => n.kind === 'chunk');
+  const pos = {};
+  const ring = (list, rx, ry) => list.forEach((n, i) => {
+    const a = -Math.PI / 2 + (2 * Math.PI * i / Math.max(list.length, 1));
+    pos[n.id] = [cx + rx * Math.cos(a), cy + ry * Math.sin(a)];
+  });
+  ring(ents, 150, 82); ring(chunks, 310, 108);
+  const lines = sg.edges.map(e => (pos[e.from] && pos[e.to])
+    ? `<line x1="${pos[e.from][0].toFixed(1)}" y1="${pos[e.from][1].toFixed(1)}" x2="${pos[e.to][0].toFixed(1)}" y2="${pos[e.to][1].toFixed(1)}" stroke="var(--border-strong)" stroke-width="1" />` : '').join('');
+  const dots = sg.nodes.map(n => {
+    const p = pos[n.id]; if (!p) return '';
+    const isEnt = n.kind === 'entity';
+    return `<g><circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="${isEnt ? 5 : 4}" fill="${isEnt ? 'var(--info)' : 'var(--muted)'}" />` +
+      `<text x="${p[0].toFixed(1)}" y="${(p[1] - 8).toFixed(1)}" text-anchor="middle" font-size="11" fill="var(--text)">${esc(n.label)}</text></g>`;
+  }).join('');
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:${W}px" role="img" aria-label="图谱线索子图">${lines}${dots}</svg>`;
+}
+function renderRoutes(r) {
+  const routes = r.routes || {}, fusion = r.fusion;
+  const graphBox = $('search-graph'), wikiBox = $('search-wiki');
+  graphBox.classList.add('hidden'); wikiBox.classList.add('hidden');
+  if (!fusion) {
+    const v = routes.vector || {};
+    $('search-routes').innerHTML = v.status === 'ok'
+      ? esc(t('只开了向量检索（从原文里找证据）。打开图谱检索或 LLM Wiki 后，这里显示每一路的状态与融合结果。'))
+      : esc(t('检索结果为空：') + (ROUTE_STATUS[v.status] || v.status || ''));
+    return;
+  }
+  // 路名整词进字典：不能写成 t('向量') + '检索'，英文模式下会拼出「Vector检索」这种中英混排
+  const rows = Object.keys(routes).map(k =>
+    `<div class="kv-line"><span>${esc(t(ROUTE_LABEL[k] + '检索'))}</span><b class="small">${routeStatusText(k, routes[k])}</b></div>`).join('');
+  $('search-routes').innerHTML = rows +
+    `<div class="kv-line"><span>${esc(t('融合'))}</span><b class="small">${esc(t('{n} 条被多路同时命中（排在最前）· 候选池 {m}', { n: fusion.multi_hit_count, m: fusion.pool }))}</b></div>`;
+  const sg = routes.graph && routes.graph.subgraph;
+  if (sg && sg.nodes.length) {
+    graphBox.classList.remove('hidden');
+    graphBox.innerHTML = '<div class="section-title">' + esc(t('图谱线索（术语 → 分块）')) + '</div>' + graphSvg(sg);
+  }
+  const pages = (routes.wiki && routes.wiki.pages) || [];
+  if (pages.length) {
+    wikiBox.classList.remove('hidden');
+    wikiBox.innerHTML = '<div class="section-title">' + esc(t('Wiki 证据（命中的页面 → 结论 → 原文分块）')) + '</div>' +
+      pages.map(p => `<div class="kv-line"><span>${esc(p.section)}</span><b>${esc(p.title)}</b></div>
+        <div class="small muted" style="margin:-4px 0 6px">${esc(p.excerpt || '')}</div>`).join('');
+  }
 }
 
 /* ---------- 任务中心（全局队列聚合 /api/system/queue + 自己的文档状态 /api/docs） ----------
@@ -1100,7 +1175,18 @@ async function loadSettings() {
     fillModelSelect('st-local-llm-model', r.local.models, c.local_llm_model);
     fillModelSelect('st-local-emb-model', r.local.models, c.local_embedding_model);
     fillModelSelect('st-discovery-model', (r.discovery || {}).models, c.discovery_model);
-    onLlmProviderChange(); onEmbProviderChange(); onRerankProviderChange();
+    // 三路取证开关
+    $('st-route-vector').value = c.rag_route_vector || 'on';
+    $('st-route-graph').value = c.rag_route_graph || 'off';
+    $('st-route-wiki').value = c.rag_route_wiki || 'off';
+    $('st-graph-hops').value = c.rag_graph_hops || '2';
+    $('st-graph-cypher').value = c.rag_graph_cypher || 'template';
+    $('st-graph-extractor').value = c.rag_graph_extractor || 'offline';
+    $('st-wiki-scenario').value = c.wiki_scenario || '';
+    $('st-wiki-stale').value = c.wiki_stale_ratio_max || '0.1';
+    onLlmProviderChange(); onEmbProviderChange(); onRerankProviderChange(); onRouteChange();
+    loadRouteStatus();
+    const routesOn = ROUTE_KEYS.filter(k => c[ROUTE_KEYS[k]] === 'on').map(k => t(ROUTE_LABEL[k])).join(' + ');
     const okColor = r.local.reachable ? 'var(--success)' : 'var(--danger)';
     const extEmb = r.external_embedding || {};
     const extColor = extEmb.configured ? 'var(--success)' : 'var(--danger)';
@@ -1108,6 +1194,7 @@ async function loadSettings() {
       `LLM：<b>${esc(r.effective.llm)}</b>（${esc(r.effective.llm_provider)}） · ` +
       `推理：<b>${esc(r.effective.thinking || '—')}</b> · ` +
       `向量：<b>${esc(r.effective.embedding)}</b> · 重排：<b>${esc(r.effective.rerank)}</b><br/>` +
+      `检索路由：<b>${esc(routesOn)}</b> · ` +
       `硅基流动密钥：<b style="color:${extColor}">${extEmb.configured ? '已配置（嵌入 + 重排共用）' : '未配置'}</b>` +
       ` · ${esc(t('本地 LM Studio'))}：<b style="color:${okColor}">${esc(t(r.local.reachable ? '可达' : '不可达'))}</b>` +
       esc(t('（{n} 个模型）', { n: r.local.models.length }));
@@ -1161,12 +1248,83 @@ async function saveSettings() {
     rerank_provider: $('st-rerank-provider').value,
     external_rerank_base_url: $('st-external-rerank-base').value.trim(),
     external_rerank_model: $('st-external-rerank-model').value.trim(),
+    rag_route_vector: $('st-route-vector').value,
+    rag_route_graph: $('st-route-graph').value,
+    rag_route_wiki: $('st-route-wiki').value,
+    rag_graph_hops: $('st-graph-hops').value,
+    rag_graph_cypher: $('st-graph-cypher').value,
+    rag_graph_extractor: $('st-graph-extractor').value,
+    wiki_scenario: $('st-wiki-scenario').value.trim(),
+    wiki_stale_ratio_max: $('st-wiki-stale').value.trim(),
   };
   try {
     await api('/api/settings', { method: 'PUT', body: JSON.stringify({ patch }) });
     toast(t('设置已保存，已即时生效'), 'ok');
     await loadSettings();
   } catch (e) { safeToast(e); }
+}
+
+/* ---------- 三路取证的开关与构建动作（仅 admin） ---------- */
+const ROUTE_KEYS = { vector: 'rag_route_vector', graph: 'rag_route_graph', wiki: 'rag_route_wiki' };
+let routePollTimer = null;
+
+function onRouteChange() {
+  $('st-graph-box').classList.toggle('hidden', $('st-route-graph').value !== 'on');
+  $('st-wiki-box').classList.toggle('hidden', $('st-route-wiki').value !== 'on');
+}
+
+function jobText(job, label) {
+  if (!job || job.status === 'idle') return '';
+  if (job.status === 'running') return job.progress ? t('{label}进行中（{p} 批）…', { label, p: job.progress }) : t('{label}进行中…', { label });
+  if (job.status === 'failed') return t('{label}失败：{why}', { label, why: job.error || '' });
+  const r = job.result || {};
+  return job.name === 'wiki_build'
+    ? t('{label}完成：{pages} 页 / {claims} 条结论', { label, pages: r.pages, claims: r.claims })
+    : t('{label}完成：{n} 个术语', { label, n: r.entities });
+}
+
+// 任务在后台线程里跑，状态只存进程内存；页面每 3 秒轮询一次，直到没有进行中的任务
+async function loadRouteStatus() {
+  if (!S.user || S.user.role !== 'admin') return;
+  clearTimeout(routePollTimer);
+  try {
+    const r = await api('/api/kb/routes');
+    S.routeStatus = r;
+    const g = r.graph || {}, probe = g.probe || {}, cnt = (g.counts || {}).nodes || {}, rels = (g.counts || {}).rels || {};
+    $('st-graph-status').innerHTML =
+      `Neo4j：<b style="color:var(${probe.ok ? '--success' : '--danger'})">${probe.ok ? esc(t('可达')) : esc(t('不可用'))}</b>` +
+      (probe.error ? ' · ' + esc(probe.error) : '') +
+      (probe.ok ? ' · ' + esc(t('{terms} 个术语 · {chunks} 个分块 · {co} 条共现边', { terms: cnt.Entity || 0, chunks: cnt.Chunk || 0, co: rels.CO_MENTION || 0 })) : '');
+    const w = r.wiki || {}, gate = w.gate || {}, checks = gate.checks || {};
+    $('st-wiki-gate').innerHTML =
+      `<div class="kv-line"><span>门禁</span><b style="color:var(${gate.allowed ? '--success' : '--warn'})">${gate.allowed ? esc(t('通过')) : esc(t('未通过'))}</b></div>` +
+      ['scenario', 'sources', 'freshness'].map(k => `<div class="kv-line"><span>${esc(t(GATE_LABEL[k]))}</span><b class="small">${esc(t((checks[k] || {}).reason || '—'))}</b></div>`).join('') +
+      (w.meta ? `<div class="kv-line"><span>上次构建</span><b class="small">${esc(w.meta.built_at)} · ${esc(t('{pages} 页 / {claims} 条结论', { pages: w.meta.pages, claims: w.meta.claims }))}</b></div>` : '');
+    const jobs = r.jobs || {};
+    $('st-graph-job').textContent = jobText(jobs.graph_sync, t('图谱同步'));
+    $('st-wiki-job').textContent = jobText(jobs.wiki_build, t('Wiki 构建'));
+    if (Object.values(jobs).some(j => j.status === 'running')) {
+      routePollTimer = setTimeout(loadRouteStatus, 3000);
+    }
+  } catch (e) { /* 状态读不到不打断设置页；点构建按钮时会再报一次 */ }
+}
+
+async function syncGraph() {
+  $('st-graph-job').textContent = t('提交中…');
+  try {
+    await api('/api/kb/graph/sync', { method: 'POST', body: JSON.stringify({}) });
+    toast(t('图谱同步已开始在后台执行'), 'ok');
+    loadRouteStatus();
+  } catch (e) { $('st-graph-job').textContent = ''; safeToast(e); }
+}
+
+async function buildWiki() {
+  $('st-wiki-job').textContent = t('提交中…');
+  try {
+    await api('/api/kb/wiki/build', { method: 'POST' });
+    toast(t('Wiki 构建已开始在后台执行，通常需要几分钟'), 'ok');
+    loadRouteStatus();
+  } catch (e) { $('st-wiki-job').textContent = ''; safeToast(e); }
 }
 
 /* ================= 评估测试子页（可观测） ================= */

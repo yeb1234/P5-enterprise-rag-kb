@@ -28,7 +28,9 @@ from webapp.routers_docs import router as docs_router
 from webapp.routers_evaltest import router as evaltest_router
 from webapp.routers_evaltest import router_alias as evaltest_alias_router
 from webapp.routers_knowledge import router as knowledge_router
+from webapp.routers_mcp import router as mcp_router
 from webapp.routers_runtime import router as runtime_router
+from webapp.routers_routes import router as routes_router
 from webapp.routers_safety import router as safety_router
 from webapp.routers_ops import router as ops_router
 from webapp.routers_parse import router as parse_router
@@ -404,7 +406,7 @@ def create_app() -> FastAPI:
     logctx.configure_logging()
     app = FastAPI(
         title="企业级知识库 · 可运行演示切片",
-        version="1.3.2",
+        version="1.4.0",
         description="注册登录 / 文档上传管理 / 流式问答 / badcase 采集闭环 / admin 完成度，离线可跑。",
         lifespan=lifespan,
         docs_url="/api-docs",   # 与前端「文档管理」概念区分，避免 /docs 混淆
@@ -438,6 +440,9 @@ def create_app() -> FastAPI:
     app.include_router(parse_router)
     app.include_router(knowledge_router)
     app.include_router(runtime_router)
+    # 三路取证：状态 / 图谱同步 / Wiki 构建
+    app.include_router(routes_router)
+    app.include_router(mcp_router)
     app.include_router(safety_router)
 
     @app.get("/metrics", include_in_schema=False)

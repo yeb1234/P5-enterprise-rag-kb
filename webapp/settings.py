@@ -40,6 +40,23 @@ DEFAULTS: dict[str, str] = {
                                                "https://api.siliconflow.cn/v1"),
     "external_rerank_model": os.environ.get("EXTERNAL_RERANK_MODEL",
                                             "BAAI/bge-reranker-v2-m3"),
+    # ---- 检索路由开关：同一个问题三路取证，每一路一个开关，按需组合 ----
+    #   vector 向量检索：从原文里找证据（合同、手册的原始段落）
+    #   graph  图谱检索：沿关系找线索，尤其是跨分块的多跳关系；依赖 Neo4j
+    #   wiki   LLM Wiki：读整理好的业务知识（概念 / 流程 / 规则）；另有过门禁
+    # 默认只开向量，与引入三路之前的行为逐字一致；另两路的依赖不会自己就绪，所以默认关。
+    "rag_route_vector": os.environ.get("WEBAPP_RAG_ROUTE_VECTOR", "on"),
+    "rag_route_graph": os.environ.get("WEBAPP_RAG_ROUTE_GRAPH", "off"),
+    "rag_route_wiki": os.environ.get("WEBAPP_RAG_ROUTE_WIKI", "off"),
+    # 图谱：多跳上限（跳数 = 从命中实体走到分块经过的边数）。
+    "rag_graph_hops": os.environ.get("WEBAPP_RAG_GRAPH_HOPS", "2"),
+    # 图谱查询怎么来：template 手写 Cypher 模板（确定、零模型调用）| llm 自己写的 Text2Cypher
+    "rag_graph_cypher": os.environ.get("WEBAPP_RAG_GRAPH_CYPHER", "template"),
+    # 建图时怎么抽实体：offline 词法共现（术语 + 共现边）| llm 带类型的语义关系（每批一次模型调用）
+    "rag_graph_extractor": os.environ.get("WEBAPP_RAG_GRAPH_EXTRACTOR", "offline"),
+    # LLM Wiki 的门禁参数。业务场景为空 = 场景未确定 = Wiki 不启动。
+    "wiki_scenario": os.environ.get("WEBAPP_WIKI_SCENARIO", ""),
+    "wiki_stale_ratio_max": os.environ.get("WEBAPP_WIKI_STALE_RATIO_MAX", "0.1"),
 }
 
 ALLOWED = set(DEFAULTS)
@@ -48,7 +65,32 @@ ENUMS: dict[str, set[str]] = {
     "embedding_provider": {"offline", "local", "external"},
     "rerank_provider": {"off", "llm", "external"},
     "llm_thinking": {"disabled", "enabled"},
+    "rag_route_vector": {"off", "on"},
+    "rag_route_graph": {"off", "on"},
+    "rag_route_wiki": {"off", "on"},
+    "rag_graph_hops": {"1", "2", "3"},
+    "rag_graph_cypher": {"template", "llm"},
+    "rag_graph_extractor": {"offline", "llm"},
 }
+# 数值型配置的合法区间：(下界, 上界)，闭区间。
+RANGES: dict[str, tuple[float, float]] = {
+    "wiki_stale_ratio_max": (0.0, 1.0),
+}
+# 自由文本配置的最大长度：这些值会进提示词、进页面，不能无限长。
+TEXT_MAX: dict[str, int] = {
+    "wiki_scenario": 60,
+}
+
+# 三路顺序固定：向量 → 图谱 → Wiki。开关键只在这里映射一次。
+ROUTE_KEYS: dict[str, str] = {
+    "vector": "rag_route_vector", "graph": "rag_route_graph", "wiki": "rag_route_wiki",
+}
+
+
+def routes_on(cfg: dict | None = None) -> list[str]:
+    """当前开了哪几路（按固定顺序）。检索主链路与状态接口都从这里取，不各读各的。"""
+    cfg = cfg or get_all()
+    return [route for route, key in ROUTE_KEYS.items() if cfg.get(key, "off") == "on"]
 
 
 def thinking_disabled(cfg: dict | None = None) -> bool:
@@ -130,6 +172,18 @@ def set_many(patch: dict) -> dict[str, str]:
             sv = str(v)
             if k in ENUMS and sv not in ENUMS[k]:
                 raise ValueError(f"{k} 取值非法: {sv}")
+            if k in RANGES:
+                try:
+                    num = float(sv)
+                except ValueError:
+                    raise ValueError(f"{k} 必须是数字: {sv!r}") from None
+                lo, hi = RANGES[k]
+                if not lo <= num <= hi:
+                    raise ValueError(f"{k} 超出范围 [{lo}, {hi}]: {sv}")
+            if k in TEXT_MAX:
+                if len(sv) > TEXT_MAX[k]:
+                    raise ValueError(f"{k} 超过最大长度 {TEXT_MAX[k]}")
+                sv = sv.strip()
             conn.execute(
                 "INSERT INTO app_settings(key, value, updated_at) VALUES (?,?,?) "
                 "ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at",

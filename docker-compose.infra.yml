@@ -76,6 +76,43 @@ services:
       timeout: 3s
       retries: 10
 
+  # ---- GraphRAG 的图仓库：只放关系 ----
+  # 实体 + 共现/语义边，外加「文档 → 分块 → 实体」的挂接；原文仍以 PG 为真值，
+  # 图里不存正文。默认**不启动**：图谱检索是三路取证里的一路，由 rag_route_graph 开关控制。
+  #   docker compose -f docker-compose.infra.yml --profile graphrag up -d neo4j
+  # 换镜像同 PG：KB_NEO4J_IMAGE（本机 Docker Hub 不可达时指向加速站）。
+  neo4j:
+    profiles: ["graphrag"]
+    image: ${KB_NEO4J_IMAGE:-neo4j:5-community}
+    networks:
+      default:
+        aliases:
+          - kb-neo4j
+    restart: unless-stopped
+    # 演示规模用不着默认大堆；压小是为了和别的项目共用一台机器
+    mem_limit: 2g
+    environment:
+      NEO4J_AUTH: neo4j/${KB_NEO4J_PASSWORD:-kb_demo_only}
+      NEO4J_server_memory_heap_initial__size: 256m
+      NEO4J_server_memory_heap_max__size: 512m
+      NEO4J_server_memory_pagecache_size: 128m
+    ports:
+      - "127.0.0.1:${KB_NEO4J_BOLT_PORT:-7687}:7687"
+      - "127.0.0.1:${KB_NEO4J_HTTP_PORT:-7474}:7474"
+    volumes:
+      - graphdata:/data
+    # 日志上限：infra compose 里的服务走 compose 自己的 logging 配置（与 run-demo.sh 无关）
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD-SHELL", "cypher-shell -u neo4j -p \"$${NEO4J_AUTH#neo4j/}\" 'RETURN 1' || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 30s
+
   # ---- Milvus standalone 最小依赖：etcd（元数据）+ minio（对象存储） ----
   etcd:
     # Milvus 的元数据存储。默认**不启动**：向量检索主链路走 pgvector，
@@ -177,6 +214,9 @@ volumes:
 
   redisdata:
     name: kb-infra_redisdata
+  # 图仓库同理钉名：换项目名后不能连到一个空图（看起来像"图谱全没了"）
+  graphdata:
+    name: kb-infra_graphdata
   etcddata:
   miniodata:
   milvusdata:

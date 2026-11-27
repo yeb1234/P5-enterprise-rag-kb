@@ -4,9 +4,9 @@
 
 系统按「可运行」标准组织：`webapp/` 是单进程即可演示的完整切片，`backend/` 是多副本服务端与 Celery 流水线，`frontend/` 是 React 管理端，三者共用同一套契约与数据库。
 
-- 版本：**v1.3.4**（2026-11-19）
+- 版本：**v1.4.0**（2026-11-27，合并版）
 - 技术栈：FastAPI + PostgreSQL 16/pgvector + Redis 7 + Celery + MinIO + React 18
-- 测试：**349 passed / 0 failed**（10 个测试套件，2026-11-27 实测）
+- 测试：**481 passed / 1 skipped / 0 failed**（12 个测试套件，2026-11-27 实测）
 
 ---
 
@@ -16,7 +16,7 @@
 |---|---|---|
 | 文档接入 | 分片上传、断点续传、批次聚合、秒传去重 | 单请求恒定 8MiB，大文件不进 API 内存；PG 记任务真值 |
 | 解析与分块 | `parsing/` 三级策略（自研 / 收费 OCR / 多模态兜底） | 质量门禁逐页升级，预算闸门限制最贵链路占比 |
-| 检索 | PG 全文 + pgvector 向量 + RRF 融合 + cross-encoder 重排 | 先按权限过滤，再重排，再进模型 |
+| 检索 | 向量检索 + 可选图谱 / LLM Wiki 三路取证，RRF 融合后重排 | 默认只开向量；图谱/Wiki 各一个开关，单路失败只缺席、不拖垮主链路 |
 | 问答 | SSE 流式输出、引用回溯到页码/段落、检索为空明确拒答 | 不编造；降级可见、留痕 |
 | 知识治理 | 入库新鲜度（时间衰减 + 生效/过期窗口）、事实冲突检测与裁决 | 策略可切换，排序翻转与裁决可观测 |
 | 内容安全 | 规则级 PII/敏感信息检测，覆盖入库、进模型、输出、日志导出四个出口 | 命中台账只存类别与数量，不存原文 |
@@ -45,7 +45,8 @@
                          │               │
               PostgreSQL 16 + pgvector   Redis 7（缓存 / 队列 / 进度）
                          │               │
-                    MinIO（对象存储）   Milvus（可选对照，compose profile）
+                    MinIO（对象存储）   Neo4j（可选，graphrag profile）
+                                        Milvus（可选对照，compose profile）
 
   独立可运行面：
     webapp   :8765  单进程完整切片（登录 / 文档 / 流式问答 / 评测 / badcase / 安全）
@@ -113,6 +114,11 @@ docker compose exec api alembic upgrade head
 ```bash
 docker compose -f docker-compose.infra.yml --profile milvus up -d   # 对照用 Milvus
 docker compose --profile parsing up -d --build parser               # 独立解析服务
+
+# 可选：图谱检索（Neo4j 只在 graphrag profile 启动，默认不进主链路）
+docker compose -f docker-compose.infra.yml --profile graphrag up -d neo4j
+# 再在 .env 里按需打开：WEBAPP_RAG_ROUTE_GRAPH=on、WEBAPP_RAG_ROUTE_WIKI=on
+# Wiki 另需指定业务场景 WEBAPP_WIKI_SCENARIO=<场景名>，未指定则不启动
 ```
 
 ---
@@ -127,7 +133,8 @@ export WEBAPP_DATABASE_URL=postgresql://kb:kb_demo_only@127.0.0.1:5432/kb
 
 # 逐目录跑（eval/ 与 evalbench/ 都有 tests/ 包，同一进程会重名冲突）
 for d in webapp/tests backend/tests knowledge/tests cache/tests guardrails/tests \
-         parsing/tests showcase/tests evalbench/tests evalfmt/tests eval/tests; do
+         parsing/tests showcase/tests evalbench/tests evalfmt/tests eval/tests \
+         kgraph/tests llmwiki/tests; do
   python -m pytest "$d" -q
 done
 ```
@@ -136,7 +143,7 @@ done
 
 | 套件 | 通过 | 覆盖 |
 |---|---:|---|
-| `webapp/tests` | 149 | API、检索、流式、限流、安全、缓存、自适应重排、日志、设置 |
+| `webapp/tests` | 197 | API、检索、流式、限流、安全、缓存、自适应重排、三路路由、MCP、日志、设置 |
 | `backend/tests` | 38 | 权限、分块、进度、检索契约、答案质量 |
 | `knowledge/tests` | 23 | 新鲜度衰减、冲突检测与裁决 |
 | `cache/tests` | 19 | L1/L2、13 段 key、启动自检、重启恢复 |
@@ -145,8 +152,10 @@ done
 | `showcase/tests` | 12 | 解析工作台契约 |
 | `evalbench/tests` | 16 | 评估工作台指标与运行器 |
 | `evalfmt/tests` | 22 | 格式化与冻结口径 |
-| `eval/tests` | 14 | 14 个评测对象与哈希稳定性 |
-| **合计** | **349** | 0 failed |
+| `eval/tests` | 13 + 1 skipped | 14 个评测对象与哈希稳定性；跳过项需先跑两次离线评测生成对比 run |
+| `kgraph/tests` | 60 | 术语建图、Cypher 三道防护、多跳查询 |
+| `llmwiki/tests` | 25 | 三道门禁、证据链、增量构建 |
+| **合计** | **481** | 0 failed，1 skipped |
 
 说明：`webapp/tests` 与 `cache/tests` 必须在 PG 可用时跑；Redis 相关用例使用内存后端，不依赖本机 Redis。
 
@@ -176,6 +185,8 @@ done
 
 参数收敛结论：公开集采纳 `temperature=0.2`（A 组）；重排深度 20 仍最优。细节见 `docs/retrieval-param-convergence.md`、`docs/cmrc-chain-evaluation.md`、`docs/cmedqa-retrieval-evaluation.md`。
 
+v1.4.0 把三路取证并入主链路：默认仍只开向量，图谱 / Wiki 需显式开；多路时按「多路命中优先 + RRF」融合，再走重排。设计、任务与接口见 `docs/kb-routes/01–05`。
+
 ---
 
 ## 7. 目录结构
@@ -186,6 +197,8 @@ frontend/           React 管理端（Vite + AntD）
 webapp/             单进程完整切片：路由、检索、提供商、缓存、评测、静态页面
 parsing/            文档解析：页级元数据、质量门禁、预算闸门、多模态兜底
 knowledge/          知识治理：新鲜度、事实冲突检测与裁决
+kgraph/             图谱检索：术语共现建图、多跳查询、Text2Cypher 防护
+llmwiki/            LLM Wiki：三道门禁、页面与 claims 证据链
 guardrails/         内容安全：PII 规则、校验位、四出口脱敏
 cache/              缓存与恢复：L1/L2、13 段 key、启动自检
 eval/               离线评测契约（冻结区：对象、口径、结果不可比标记）
@@ -209,6 +222,7 @@ demo/               冻结演示场景
 | 上传与解析 | `docs/async-upload.md`、`docs/parsing/01–07` |
 | 权限与安全 | `docs/permission-model.md`、`docs/rate-limit-and-security-review.md`、`docs/content-safety/01–02`、`docs/llm-safety-positions.md` |
 | 知识治理 | `docs/knowledge/01–02`、`docs/knowledge/04-design.md` |
+| 三路取证 | `docs/kb-routes/01–05` |
 | 缓存与恢复 | `docs/cache-recovery/01–02` |
 | 生产化 | `docs/production/00–08`、`docs/deployment-guide.md`、`docs/operations.md` |
 | 评测 | `docs/evaluation-plan.md`、`docs/evaluation-report.md`、`docs/retrieval-param-convergence.md` |
@@ -232,6 +246,7 @@ demo/               冻结演示场景
 | 模型 | `DEEPSEEK_*`、`EMBEDDING_*`、`LLM_FALLBACK_TO_EXTRACTIVE` | 无 Key 时降级 |
 | 上传 | `MAX_UPLOAD_SIZE_MB`、`UPLOAD_CHUNK_SIZE_MB`、`MAX_BATCH_FILES`、`MAX_CHUNK_CONCURRENCY` | 分片与并发 |
 | 检索 | `WEBAPP_VECTOR_BACKEND`、`WEBAPP_RERANK_PROVIDER`、`WEBAPP_FRESHNESS_ENABLED`、`ADAPTIVE_RERANK_MARGIN` | 向量后端、重排、新鲜度开关 |
+| 检索路由 | `WEBAPP_RAG_ROUTE_VECTOR/GRAPH/WIKI`、`WEBAPP_RAG_GRAPH_HOPS`、`WEBAPP_WIKI_SCENARIO` | 默认只开向量；图谱需 Neo4j `graphrag` profile |
 | MCP | `MCP_ENABLED`、`MCP_SERVICE_KEY`、`MCP_TENANT_ID`、`MCP_USER_ID` | 默认关闭 |
 
 ---
@@ -243,6 +258,7 @@ demo/               冻结演示场景
 - **未做压测与容灾演练**：无 P95 首 token 基线、无主备切换 RTO/RPO、无告警通道；单机 Compose，非高可用部署。
 - **解析边界**：pypdf 为主，扫描件/双栏/复杂表格未做 OCR 与多模态全量兜底；收费 OCR 未接通，字段保持 `__TBC__`。
 - **Milvus 仅作对照**：默认主链路走 pgvector，Milvus 不进默认编排。
+- **图谱 / Wiki 是演示规模**：图谱是术语共现图（非语义图谱）；Wiki 任务状态在进程内存，多副本 / 重启会丢；增量重建与跨项目 Neo4j 权限未做。详见 `docs/kb-routes/01-design.md`。
 - **隔离强度**：多用户隔离靠代码约束与 schema 约定，不是数据库约束；漏写过滤条件就是越权风险，生产需配越权用例集。
 - **演示口令**：`admin/admin123`、`admin@demo.local/Admin@12345` 仅用于本地；默认密钥与演示数据不得用于生产。
 
@@ -250,4 +266,4 @@ demo/               冻结演示场景
 
 ## 11. 版本
 
-当前 **v1.3.4**（2026-11-19）。版本坐标与逐项改动见 `docs/CHANGELOG.md`；性能与参数收敛的实测记录见 `docs/retrieval-param-convergence.md`。
+当前 **v1.4.0**（2026-11-27，合并版）：P5F 的检索性能 / MCP / 公开基准，与三路取证（向量 / 图谱 / LLM Wiki）汇合后的最终版本。版本坐标与逐项改动见 `docs/CHANGELOG.md`；性能与参数收敛的实测记录见 `docs/retrieval-param-convergence.md`。
