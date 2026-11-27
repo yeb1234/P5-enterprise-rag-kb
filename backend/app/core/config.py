@@ -104,6 +104,12 @@ class Settings(BaseSettings):
     SEARCH_CONTEXT_CITATIONS_PER_DOC: int = 2
     SEARCH_CONTEXT_MAX_CITATIONS: int = 6
 
+    # P5 Knowledge MCP（只读网关；P10 通过 HTTP JSON-RPC 消费）
+    MCP_ENABLED: bool = True
+    MCP_SERVICE_KEY: str = ""
+    MCP_TENANT_ID: str = ""
+    MCP_USER_ID: str = ""
+
     # 返回给前端的证据窗口。中文段落通常较短，400 字足够；
     # 英文 RAGTruth 的操作步骤/命令名常出现在 400 字之后，单独放宽到 600。
     SEARCH_SNIPPET_CHARS: int = 400
