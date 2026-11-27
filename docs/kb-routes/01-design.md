@@ -193,9 +193,27 @@ wiki_claims(id,page_id,statement,evidence_json,source_hash,ordinal)
 
 | 状态 | 项 |
 |---|---|
-| **已实现** | 三路开关与融合；`kgraph` 术语图 / 多跳 / Text2Cypher 三道防护；`llmwiki` 门禁 / 场景筛信源 / 证据链 / 后台构建；Web 设置页与检索调试页；405 项单测 |
-| **只设计** | 多副本下的任务状态落库；跨项目 Neo4j 权限隔离；图 embedding 向量检索；社区摘要 / 全局问答 |
-| **未做** | 生产级图数据库权限与备份；Wiki 增量重建（当前全量替换）；真正的 MCP 接入；把外部 P1/P2/P4 数据接进同一实例 |
+| **已实现** | 三路开关与融合；`kgraph` 术语图 / 多跳 / Text2Cypher 三道防护；LLM 语义关系抽取（`rag_graph_extractor=llm`，真 API 18 批 0 失败、20 条带类型关系）；`llmwiki` 门禁 / 场景筛信源 / 证据链 / 后台构建；Wiki 任务状态落库 + 按变化文档增量重建；查询入口强制命名空间隔离；MCP 风格 HTTP JSON-RPC 工具端点；Web 设置页与检索调试页；434 项单测 |
+| **只设计** | 图 embedding 向量检索；社区摘要 / 全局问答；Neo4j Enterprise 多库 + RBAC；MCP 的 SSE / stdio 传输与完整协议兼容；真正的分布式任务队列（租约 / 心跳 / 抢占） |
+| **未做** | 生产级图数据库权限与备份；跨实例联邦查询 / 按用户的图级 ACL；增量重建失败自动回滚到上一次 Wiki 快照；把外部 P1/P2/P4 数据接进同一实例 |
+
+### 2026-11-27 追加：四块跟进的实测
+
+1. **LLM 语义建图**（`rag_graph_extractor=llm`）：71 段去重文本分 18 批送真模型，**0 失败**；
+   抽出 121 个实体、20 条带类型关系入图，例如「复位键 —[长按进入]→ 配网模式」、
+   「Milvus —[替代]→ PGVector」「departments —[属于]→ tenants」。
+   过程中修了两个真 bug：失败只记计数不记原因（现在逐批记 `failures`，输入从 700 字压到 500 字、
+   每段限 3 实体 2 关系，失败率从 2/3 降到 0/18）；模型 Cypher 不返回 `hop` 列导致多跳被标成 1 跳
+   （现在按 `path` 节点数兜底）。详见 `kgraph/extract_llm.py` 与 `kgraph/retriever.py`。
+2. **任务落库 + 增量重建**：`kb_jobs` 表持久化任务状态，`worker_id` 区分进程，
+   重启/换副本的 `running` 读时标 `interrupted`，同名任务靠部分唯一索引跨进程互斥；
+   Wiki 按文档内容哈希做增量，**信源无变化时零模型调用**。详见 `03-jobs-and-incremental.md`。
+3. **命名空间隔离**：查询入口 `assert_namespaced()` 强制每个业务节点模式带 `kb`，
+   「上半句守规矩、下半句偷读别的项目」会被拒；DDL 与内省查询走白名单（不读业务数据）。
+   社区版没有 RBAC，不假称做了权限隔离。详见 `04-namespace-isolation.md`。
+4. **MCP 接入**：HTTP JSON-RPC 子集暴露 `vector_search` / `graph_search` / `wiki_search` /
+   `fusion_search` 四个工具，带鉴权与 JSON-RPC 错误契约；完整协议与 SSE / stdio 是设计方向。
+   详见 `05-mcp-integration.md`。
 
 ---
 
